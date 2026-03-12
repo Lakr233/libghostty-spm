@@ -1,0 +1,65 @@
+# Build
+.build/
+build/
+*.a
+*.xcframework
+*.xcframework.zip
+binpack*
+BinaryTarget/
+
+# Xcode
+*.xcodeproj
+xcuserdata/
+*.xcuserstate
+.swiftpm/
+
+# Obj-C/Swift
+*.hmap
+
+# App packaging
+*.ipa
+*.dSYM.zip
+*.dSYM
+
+# Playgrounds
+timeline.xctimeline
+playground.xcworkspace
+
+# CocoaPods
+# Pods/
+
+# Carthage
+Carthage/Build/
+
+# fastlane
+fastlane/report.xml
+fastlane/Preview.html
+fastlane/screenshots/**/*.png
+fastlane/test_output
+
+# macOS
+.DS_Store
+__MACOSX/
+.AppleDouble
+.LSOverride
+Icon[
+]
+._*
+.DocumentRevisions-V100
+.fseventsd
+.Spotlight-V100
+.TemporaryItems
+.Trashes
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+.AppleDB
+.AppleDesktop
+Network Trash Folder
+Temporary Items
+.apdisk
+
+# Project
+/temp
+/Packages
+/References
+references/
