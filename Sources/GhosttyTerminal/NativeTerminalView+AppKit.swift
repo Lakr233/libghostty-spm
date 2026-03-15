@@ -302,6 +302,7 @@
         }
 
         private func updateMetalLayerMetrics() {
+            guard bounds.width > 0, bounds.height > 0 else { return }
             let scale = core.scaleFactor()
             metalLayer?.contentsScale = scale
             metalLayer?.drawableSize = CGSize(

@@ -2,7 +2,7 @@ import Cocoa
 import GhosttyTerminal
 
 class ViewController: NSViewController, TerminalViewDelegate {
-    private lazy var terminalView: NativeTerminalView = .init(frame: .zero)
+    private lazy var terminalView: NativeTerminalView = .init(frame: NSRect(x: 0, y: 0, width: 720, height: 480))
 
     private lazy var mockSession: MockTerminalSession = .init()
 
@@ -12,6 +12,7 @@ class ViewController: NSViewController, TerminalViewDelegate {
     }()
 
     override func loadView() {
+        terminalView.autoresizingMask = [.width, .height]
         terminalView.delegate = self
         terminalView.configuration = TerminalSurfaceConfiguration(
             backend: .hostManaged(mockSession.terminalSession)

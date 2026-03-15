@@ -80,6 +80,7 @@ final class TerminalCore {
         guard let surface else { return }
         let scale = scaleFactor()
         let size = viewSize()
+        guard size.width > 0, size.height > 0 else { return }
 
         surface.setContentScale(x: scale, y: scale)
         surface.setSize(

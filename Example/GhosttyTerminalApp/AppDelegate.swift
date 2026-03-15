@@ -14,7 +14,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         window.contentViewController = ViewController()
         window.center()
         window.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
         self.window = window
+    }
+
+    func applicationSupportsSecureRestorableState(_: NSApplication) -> Bool {
+        true
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_: NSApplication) -> Bool {
