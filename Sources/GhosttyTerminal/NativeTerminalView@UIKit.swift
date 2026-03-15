@@ -160,6 +160,7 @@
             super.didMoveToWindow()
             if window != nil {
                 core.rebuildIfReady()
+                updateSublayerFrames()
                 core.synchronizeMetrics()
                 core.startDisplayLink()
             } else {
@@ -170,7 +171,15 @@
 
         override public func layoutSubviews() {
             super.layoutSubviews()
+            updateSublayerFrames()
             core.synchronizeMetrics()
+        }
+
+        private func updateSublayerFrames() {
+            guard let sublayers = layer.sublayers else { return }
+            for sublayer in sublayers {
+                sublayer.frame = bounds
+            }
         }
 
         public func fitToSize() {
