@@ -35,4 +35,9 @@ public struct TerminalSurfaceConfiguration: Sendable {
         self.waitAfterCommand = waitAfterCommand
         self.context = context
     }
+
+    var hostManagedSession: TerminalHostManagedSession? {
+        guard case let .hostManaged(session) = backend else { return nil }
+        return session
+    }
 }

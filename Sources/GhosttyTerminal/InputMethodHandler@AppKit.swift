@@ -41,6 +41,7 @@
             }
 
             markedText = nil
+            view?.surface?.preedit("")
 
             if accumulatedTexts != nil {
                 accumulatedTexts?.append(text)

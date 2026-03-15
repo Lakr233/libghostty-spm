@@ -5,6 +5,7 @@
     @MainActor
     public final class UIKitTerminalView: UIView, UIKeyInput {
         let core = TerminalCore()
+        private var colorSchemeRegistration: Any?
 
         // MARK: - Public API
 
@@ -69,6 +70,12 @@
                         uiview: Unmanaged.passUnretained(self).toOpaque()
                     )
                 )
+            }
+
+            colorSchemeRegistration = registerForTraitChanges(
+                [UITraitUserInterfaceStyle.self]
+            ) { (view: Self, _: UITraitCollection) in
+                view.updateColorScheme()
             }
         }
 
@@ -172,14 +179,7 @@
 
         // MARK: - Color Scheme
 
-        override public func traitCollectionDidChange(
-            _ previousTraitCollection: UITraitCollection?
-        ) {
-            super.traitCollectionDidChange(previousTraitCollection)
-            guard traitCollection.hasDifferentColorAppearance(
-                comparedTo: previousTraitCollection
-            ) else { return }
-
+        private func updateColorScheme() {
             let scheme: ghostty_color_scheme_e =
                 traitCollection.userInterfaceStyle == .dark
                     ? GHOSTTY_COLOR_SCHEME_DARK

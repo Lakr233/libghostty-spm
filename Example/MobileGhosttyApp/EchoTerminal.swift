@@ -8,9 +8,9 @@ enum EchoTerminal {
         case exit
     }
 
-    static let prompt = "sandbox@ghostty % "
+    nonisolated static let prompt = "sandbox@ghostty % "
 
-    static let welcomeMessage = """
+    nonisolated static let welcomeMessage = """
     \r\n  GhosttyKit Sandbox Demo\r
     \r\n  This terminal runs inside App Sandbox.\r
       No subprocesses are spawned.\r

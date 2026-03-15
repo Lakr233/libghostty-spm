@@ -6,7 +6,8 @@ final class MockTerminalSession {
     private let engine: Engine
 
     init() {
-        let engine = Engine()
+        let sessionBridge = SessionBridge()
+        let engine = Engine(sessionBridge: sessionBridge)
         let terminalSession = TerminalHostManagedSession(
             write: { data in
                 Task {
@@ -19,17 +20,19 @@ final class MockTerminalSession {
                 }
             }
         )
-        engine.setSession(terminalSession)
+        sessionBridge.session = terminalSession
 
         self.terminalSession = terminalSession
         self.engine = engine
     }
 
     func start() {
-        Task {
-            await engine.start()
-        }
+        Task { await engine.start() }
     }
+}
+
+private final class SessionBridge: @unchecked Sendable {
+    nonisolated(unsafe) var session: TerminalHostManagedSession?
 }
 
 private actor Engine {
@@ -39,9 +42,10 @@ private actor Engine {
         case controlSequence
     }
 
-    private var session: TerminalHostManagedSession?
+    private let sessionBridge: SessionBridge
     private var startedAt = Date()
     private var currentInput = ""
+    private var pendingText = Data()
     private var escapeState = EscapeState.none
     private var ignoreNextLineFeed = false
     private var hasStarted = false
@@ -52,8 +56,8 @@ private actor Engine {
         heightPixels: 0
     )
 
-    func setSession(_ session: TerminalHostManagedSession) {
-        self.session = session
+    init(sessionBridge: SessionBridge) {
+        self.sessionBridge = sessionBridge
     }
 
     func start() {
@@ -76,11 +80,13 @@ private actor Engine {
         for byte in data {
             handle(byte)
         }
+        flushPendingText()
     }
 
     private func handle(_ byte: UInt8) {
         switch escapeState {
         case .escape:
+            flushPendingText()
             escapeState = byte == 0x5B || byte == 0x4F ? .controlSequence : .none
             return
 
@@ -96,19 +102,23 @@ private actor Engine {
 
         switch byte {
         case 0x1B:
+            flushPendingText()
             escapeState = .escape
 
         case 0x03:
+            flushPendingText()
             currentInput.removeAll(keepingCapacity: true)
             send("^C\r\n")
             sendPrompt()
 
         case 0x0C:
+            flushPendingText()
             currentInput.removeAll(keepingCapacity: true)
             send("\u{1B}[2J\u{1B}[H")
             sendPrompt()
 
         case 0x08, 0x7F:
+            flushPendingText()
             guard !currentInput.isEmpty else {
                 return
             }
@@ -117,10 +127,12 @@ private actor Engine {
             redrawInputLine()
 
         case 0x0D:
+            flushPendingText()
             ignoreNextLineFeed = true
             submitCurrentInput()
 
         case 0x0A:
+            flushPendingText()
             if ignoreNextLineFeed {
                 ignoreNextLineFeed = false
                 return
@@ -129,6 +141,7 @@ private actor Engine {
             submitCurrentInput()
 
         case 0x09:
+            flushPendingText()
             currentInput.append("\t")
             send("\t")
 
@@ -137,9 +150,22 @@ private actor Engine {
                 return
             }
 
-            currentInput.append(Character(UnicodeScalar(byte)))
-            send(Data([byte]))
+            pendingText.append(byte)
         }
+    }
+
+    private func flushPendingText() {
+        guard !pendingText.isEmpty else {
+            return
+        }
+
+        guard let text = String(data: pendingText, encoding: .utf8) else {
+            return
+        }
+
+        currentInput.append(text)
+        send(text)
+        pendingText.removeAll(keepingCapacity: true)
     }
 
     private func submitCurrentInput() {
@@ -165,7 +191,7 @@ private actor Engine {
 
         case .exit:
             send("logout\r\n")
-            session?.finish(
+            sessionBridge.session?.finish(
                 exitCode: 0,
                 runtimeMilliseconds: elapsedMilliseconds
             )
@@ -183,11 +209,11 @@ private actor Engine {
     }
 
     private func send(_ string: String) {
-        session?.receive(string)
+        sessionBridge.session?.receive(string)
     }
 
     private func send(_ data: Data) {
-        session?.receive(data)
+        sessionBridge.session?.receive(data)
     }
 
     private var elapsedMilliseconds: UInt64 {

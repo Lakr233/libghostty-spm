@@ -31,6 +31,7 @@ final class TerminalCore {
     var viewSize: () -> (width: Double, height: Double) = { (0, 0) }
     var platformSetup: ((inout ghostty_surface_config_s) -> Void)?
     var onMetricsUpdate: (() -> Void)?
+    private var lastMetrics: TerminalMetrics?
 
     // MARK: - Display Link
 
@@ -82,19 +83,22 @@ final class TerminalCore {
         let size = viewSize()
         guard size.width > 0, size.height > 0 else { return }
 
-        surface.setContentScale(x: scale, y: scale)
-        surface.setSize(
-            width: UInt32(size.width * scale),
-            height: UInt32(size.height * scale)
-        )
+        let pixelWidth = UInt32((size.width * scale).rounded(.down))
+        let pixelHeight = UInt32((size.height * scale).rounded(.down))
+        guard pixelWidth > 0, pixelHeight > 0 else { return }
 
-        if let termSize = surface.size(),
-           termSize.columns > 0, termSize.rows > 0
+        surface.setContentScale(x: scale, y: scale)
+        surface.setSize(width: pixelWidth, height: pixelHeight)
+
+        if let surfaceSize = surface.size(),
+           surfaceSize.columns > 0, surfaceSize.rows > 0
         {
-            delegate?.terminalDidResize(
-                columns: Int(termSize.columns),
-                rows: Int(termSize.rows)
-            )
+            let metrics = TerminalMetrics(surfaceSize: surfaceSize, scale: scale)
+            if metrics != lastMetrics {
+                lastMetrics = metrics
+                configuration.hostManagedSession?.updateViewport(surfaceSize)
+                delegate?.terminalDidResize(surfaceSize)
+            }
         }
 
         onMetricsUpdate?()
@@ -124,6 +128,7 @@ final class TerminalCore {
         surface?.setFocus(false)
         surface?.free()
         surface = nil
+        lastMetrics = nil
     }
 
     deinit {

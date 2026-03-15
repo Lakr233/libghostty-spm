@@ -1,28 +1,35 @@
 import Foundation
 import GhosttyKit
 
-public struct TerminalHostManagedResize: Sendable {
+public struct TerminalHostManagedResize: Sendable, Equatable {
     public var columns: UInt16
     public var rows: UInt16
     public var widthPixels: UInt32
     public var heightPixels: UInt32
+    public var cellWidthPixels: UInt32
+    public var cellHeightPixels: UInt32
 
     public init(
         columns: UInt16,
         rows: UInt16,
         widthPixels: UInt32 = 0,
-        heightPixels: UInt32 = 0
+        heightPixels: UInt32 = 0,
+        cellWidthPixels: UInt32 = 0,
+        cellHeightPixels: UInt32 = 0
     ) {
         self.columns = columns
         self.rows = rows
         self.widthPixels = widthPixels
         self.heightPixels = heightPixels
+        self.cellWidthPixels = cellWidthPixels
+        self.cellHeightPixels = cellHeightPixels
     }
 }
 
 public final class TerminalHostManagedSession: @unchecked Sendable {
     private let lock = NSLock()
     private var surface: ghostty_surface_t?
+    private var lastResize: TerminalHostManagedResize?
     private let writeHandler: @Sendable (Data) -> Void
     private let resizeHandler: @Sendable (TerminalHostManagedResize) -> Void
 
@@ -40,6 +47,17 @@ public final class TerminalHostManagedSession: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         self.surface = surface
+    }
+
+    func updateViewport(_ size: TerminalSurfaceSize) {
+        dispatchResize(TerminalHostManagedResize(
+            columns: size.columns,
+            rows: size.rows,
+            widthPixels: size.widthPixels,
+            heightPixels: size.heightPixels,
+            cellWidthPixels: size.cellWidthPixels,
+            cellHeightPixels: size.cellHeightPixels
+        ))
     }
 
     // MARK: - Receiving Data
@@ -97,11 +115,37 @@ public final class TerminalHostManagedSession: @unchecked Sendable {
         let session = Unmanaged<TerminalHostManagedSession>
             .fromOpaque(userdata)
             .takeUnretainedValue()
-        session.resizeHandler(TerminalHostManagedResize(
+        session.dispatchResize(TerminalHostManagedResize(
             columns: cols,
             rows: rows,
             widthPixels: widthPx,
             heightPixels: heightPx
         ))
+    }
+
+    private func dispatchResize(_ resize: TerminalHostManagedResize) {
+        lock.lock()
+        let mergedResize = mergedResize(resize)
+        guard mergedResize != lastResize else {
+            lock.unlock()
+            return
+        }
+        lastResize = mergedResize
+        lock.unlock()
+
+        resizeHandler(mergedResize)
+    }
+
+    private func mergedResize(_ resize: TerminalHostManagedResize) -> TerminalHostManagedResize {
+        guard let lastResize else { return resize }
+
+        return TerminalHostManagedResize(
+            columns: resize.columns,
+            rows: resize.rows,
+            widthPixels: resize.widthPixels == 0 ? lastResize.widthPixels : resize.widthPixels,
+            heightPixels: resize.heightPixels == 0 ? lastResize.heightPixels : resize.heightPixels,
+            cellWidthPixels: resize.cellWidthPixels == 0 ? lastResize.cellWidthPixels : resize.cellWidthPixels,
+            cellHeightPixels: resize.cellHeightPixels == 0 ? lastResize.cellHeightPixels : resize.cellHeightPixels
+        )
     }
 }

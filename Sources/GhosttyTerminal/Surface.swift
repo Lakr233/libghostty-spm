@@ -102,9 +102,9 @@ public final class Surface {
 
     // MARK: - Size Query
 
-    func size() -> ghostty_surface_size_s? {
+    func size() -> TerminalSurfaceSize? {
         guard let s = surface else { return nil }
-        return ghostty_surface_size(s)
+        return TerminalSurfaceSize(ghostty_surface_size(s))
     }
 
     // MARK: - IME
