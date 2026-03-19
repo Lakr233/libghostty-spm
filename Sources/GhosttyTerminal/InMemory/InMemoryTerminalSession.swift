@@ -29,9 +29,14 @@ public final class InMemoryTerminalSession: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         self.surface = surface
+        TerminalDebugLog.log(
+            .lifecycle,
+            "in-memory session surface=\(surface == nil ? "nil" : "set")"
+        )
     }
 
     func updateViewport(_ size: TerminalGridMetrics) {
+        TerminalDebugLog.log(.metrics, "in-memory viewport update \(size.debugSummary)")
         dispatchResize(InMemoryTerminalViewport(
             columns: size.columns,
             rows: size.rows,
@@ -48,7 +53,18 @@ public final class InMemoryTerminalSession: @unchecked Sendable {
     public func receive(_ data: Data) {
         lock.lock()
         defer { lock.unlock() }
-        guard let surface else { return }
+        guard let surface else {
+            TerminalDebugLog.log(
+                .output,
+                "terminal <- host dropped \(TerminalDebugLog.describe(data))"
+            )
+            return
+        }
+
+        TerminalDebugLog.log(
+            .output,
+            "terminal <- host \(TerminalDebugLog.describe(data))"
+        )
 
         data.withUnsafeBytes { buffer in
             guard let ptr = buffer.baseAddress?.assumingMemoryBound(to: UInt8.self) else {
@@ -69,6 +85,10 @@ public final class InMemoryTerminalSession: @unchecked Sendable {
     /// This bypasses `ghostty_surface_key` translation and is intended for
     /// control sequences that the in-memory backend must interpret itself.
     public func sendInput(_ data: Data) {
+        TerminalDebugLog.log(
+            .input,
+            "host <- direct input \(TerminalDebugLog.describe(data))"
+        )
         writeHandler(data)
     }
 
@@ -78,8 +98,18 @@ public final class InMemoryTerminalSession: @unchecked Sendable {
     public func finish(exitCode: UInt32, runtimeMilliseconds: UInt64) {
         lock.lock()
         defer { lock.unlock() }
-        guard let surface else { return }
+        guard let surface else {
+            TerminalDebugLog.log(
+                .lifecycle,
+                "process exit ignored: missing surface exitCode=\(exitCode) runtimeMs=\(runtimeMilliseconds)"
+            )
+            return
+        }
 
+        TerminalDebugLog.log(
+            .lifecycle,
+            "process exit exitCode=\(exitCode) runtimeMs=\(runtimeMilliseconds)"
+        )
         ghostty_surface_process_exit(surface, exitCode, runtimeMilliseconds)
     }
 
@@ -91,6 +121,10 @@ public final class InMemoryTerminalSession: @unchecked Sendable {
             .fromOpaque(userdata)
             .takeUnretainedValue()
         let data = Data(bytes: ptr, count: len)
+        TerminalDebugLog.log(
+            .input,
+            "host <- terminal \(TerminalDebugLog.describe(data))"
+        )
         session.writeHandler(data)
     }
 
@@ -99,6 +133,10 @@ public final class InMemoryTerminalSession: @unchecked Sendable {
         let session = Unmanaged<InMemoryTerminalSession>
             .fromOpaque(userdata)
             .takeUnretainedValue()
+        TerminalDebugLog.log(
+            .metrics,
+            "receive resize cols=\(cols) rows=\(rows) pixels=\(widthPx)x\(heightPx)"
+        )
         session.dispatchResize(InMemoryTerminalViewport(
             columns: cols,
             rows: rows,
@@ -112,11 +150,19 @@ public final class InMemoryTerminalSession: @unchecked Sendable {
         let mergedResize = mergedResize(resize)
         guard mergedResize != lastResize else {
             lock.unlock()
+            TerminalDebugLog.log(
+                .metrics,
+                "resize unchanged cols=\(mergedResize.columns) rows=\(mergedResize.rows) pixels=\(mergedResize.widthPixels)x\(mergedResize.heightPixels) cell=\(mergedResize.cellWidthPixels)x\(mergedResize.cellHeightPixels)"
+            )
             return
         }
         lastResize = mergedResize
         lock.unlock()
 
+        TerminalDebugLog.log(
+            .metrics,
+            "resize dispatched cols=\(mergedResize.columns) rows=\(mergedResize.rows) pixels=\(mergedResize.widthPixels)x\(mergedResize.heightPixels) cell=\(mergedResize.cellWidthPixels)x\(mergedResize.cellHeightPixels)"
+        )
         resizeHandler(mergedResize)
     }
 

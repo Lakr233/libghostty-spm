@@ -43,11 +43,19 @@
             _ key: UIKey,
             action: ghostty_input_action_e
         ) {
-            guard let surface else { return }
+            guard let surface else {
+                TerminalDebugLog.log(.input, "uikit key ignored: missing surface")
+                return
+            }
 
             let filteredModifierFlags = filteredModifierFlags(for: key)
             let isCommandModified = filteredModifierFlags.contains(.command)
             let mods = TerminalInputModifiers(from: filteredModifierFlags)
+            let keyboardZoomDirection = commandZoomDirection(
+                for: key,
+                action: action,
+                filteredModifierFlags: filteredModifierFlags
+            )
 
             if action == GHOSTTY_ACTION_PRESS,
                shouldSuppressUIKeyInput(for: key, isCommandModified: isCommandModified)
@@ -60,6 +68,11 @@
                 backend: configuration.backend
             )
 
+            TerminalDebugLog.log(
+                .input,
+                "uikit key action=\(TerminalDebugLog.describe(action)) code=\(key.keyCode.rawValue) chars=\(TerminalDebugLog.describe(key.characters)) ignoring=\(TerminalDebugLog.describe(key.charactersIgnoringModifiers)) mods=0x\(String(filteredModifierFlags.rawValue, radix: 16)) delivery=\(delivery.debugSummary) marked=\(inputHandler.hasMarkedText)"
+            )
+
             if action == GHOSTTY_ACTION_RELEASE, delivery.isDirectInput {
                 return
             }
@@ -70,6 +83,9 @@
                 isCommandModified: isCommandModified,
                 filteredModifierFlags: filteredModifierFlags
             ) {
+                if let keyboardZoomDirection {
+                    scheduleViewportRefreshAfterKeyboardZoom(keyboardZoomDirection)
+                }
                 return
             }
 
@@ -89,7 +105,7 @@
             keyEvent.consumed_mods = TerminalInputModifiers(from: consumedFlags).ghosttyMods
 
             guard action == GHOSTTY_ACTION_PRESS || action == GHOSTTY_ACTION_REPEAT else {
-                surface.sendKeyEvent(keyEvent)
+                _ = surface.sendKeyEvent(keyEvent)
                 return
             }
 
@@ -102,20 +118,23 @@
             }
 
             guard !isCommandModified else {
-                surface.sendKeyEvent(keyEvent)
+                _ = surface.sendKeyEvent(keyEvent)
+                if let keyboardZoomDirection {
+                    scheduleViewportRefreshAfterKeyboardZoom(keyboardZoomDirection)
+                }
                 return
             }
 
             guard let text = TerminalInputText.filteredFunctionKeyText(key.characters),
                   !text.isEmpty
             else {
-                surface.sendKeyEvent(keyEvent)
+                _ = surface.sendKeyEvent(keyEvent)
                 return
             }
 
             text.withCString { ptr in
                 keyEvent.text = ptr
-                surface.sendKeyEvent(keyEvent)
+                _ = surface.sendKeyEvent(keyEvent)
             }
         }
 
@@ -165,6 +184,59 @@
                 flags.remove(.numericPad)
             }
             return flags
+        }
+
+        private func commandZoomDirection(
+            for key: UIKey,
+            action: ghostty_input_action_e,
+            filteredModifierFlags: UIKeyModifierFlags
+        ) -> KeyboardZoomDirection? {
+            guard action == GHOSTTY_ACTION_PRESS || action == GHOSTTY_ACTION_REPEAT else {
+                return nil
+            }
+            guard filteredModifierFlags.contains(.command) else { return nil }
+
+            let candidates = [
+                key.characters,
+                key.charactersIgnoringModifiers,
+            ]
+            if candidates.contains(where: { $0 == "+" || $0 == "=" }) {
+                return .increase
+            }
+            if candidates.contains(where: { $0 == "-" || $0 == "_" }) {
+                return .decrease
+            }
+            return nil
+        }
+
+        private func scheduleViewportRefreshAfterKeyboardZoom(
+            _ direction: KeyboardZoomDirection
+        ) {
+            TerminalDebugLog.log(
+                .actions,
+                "keyboard zoom shortcut direction=\(direction.rawValue)"
+            )
+            #if !targetEnvironment(macCatalyst)
+                switch direction {
+                case .increase:
+                    currentFontSize = min(currentFontSize + 1, Self.maxFontSize)
+                case .decrease:
+                    currentFontSize = max(currentFontSize - 1, Self.minFontSize)
+                }
+            #endif
+
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                core.synchronizeMetrics()
+                refreshTextInputGeometry(
+                    reason: "keyboard-zoom-\(direction.rawValue)"
+                )
+            }
+        }
+
+        private enum KeyboardZoomDirection: String {
+            case increase
+            case decrease
         }
     }
 #endif

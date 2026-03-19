@@ -21,6 +21,7 @@ actor Engine {
     private var commandHistory: [String] = []
     private var historyIndex = -1
     private var savedInput = ""
+    private var pendingResizeRedrawTask: Task<Void, Never>?
     private var terminalSize = InMemoryTerminalViewport(
         columns: 80,
         rows: 20,
@@ -47,7 +48,29 @@ actor Engine {
     }
 
     func updateSize(_ size: InMemoryTerminalViewport) {
+        let previous = terminalSize
         terminalSize = size
+
+        shellDebugLog(
+            .metrics,
+            "shell resize cols=\(previous.columns)x\(previous.rows) -> \(size.columns)x\(size.rows) pixels=\(size.widthPixels)x\(size.heightPixels)"
+        )
+
+        guard hasStarted, !isTerminated else { return }
+        guard previous != size else { return }
+
+        shellDebugLog(
+            .actions,
+            "shell redraw after resize input=\(shellDebugDescribe(currentInput)) cursorPosition=\(cursorPosition)"
+        )
+        redrawInputLine()
+
+        pendingResizeRedrawTask?.cancel()
+        pendingResizeRedrawTask = Task { [self] in
+            try? await Task.sleep(nanoseconds: 75_000_000)
+            guard !Task.isCancelled else { return }
+            redrawInputLineIfViewportStable(size)
+        }
     }
 
     func handleOutbound(_ data: Data) {
@@ -366,6 +389,10 @@ actor Engine {
     }
 
     private func redrawInputLine() {
+        shellDebugLog(
+            .actions,
+            "shell redraw promptWidth=\(shell.promptDisplayWidth) input=\(shellDebugDescribe(currentInput)) cursorPosition=\(cursorPosition)"
+        )
         send("\r\u{1B}[2K")
         send(shell.prompt)
         send(currentInput)
@@ -375,6 +402,19 @@ actor Engine {
             cursorPosition: cursorPosition
         )
         send("\u{1B}[\(cursorColumn)G")
+    }
+
+    private func redrawInputLineIfViewportStable(
+        _ expectedViewport: InMemoryTerminalViewport
+    ) {
+        guard hasStarted, !isTerminated else { return }
+        guard terminalSize == expectedViewport else { return }
+
+        shellDebugLog(
+            .actions,
+            "shell redraw settle viewport=\(expectedViewport.columns)x\(expectedViewport.rows) pixels=\(expectedViewport.widthPixels)x\(expectedViewport.heightPixels)"
+        )
+        redrawInputLine()
     }
 
     private func send(_ string: String) {
@@ -396,4 +436,26 @@ func terminalCursorColumn(
     cursorPosition: Int
 ) -> Int {
     promptDisplayWidth + String(input.prefix(cursorPosition)).terminalDisplayWidth + 1
+}
+
+private func shellDebugLog(
+    _ category: TerminalDebugCategory,
+    _ message: @autoclosure () -> String
+) {
+    guard TerminalDebugLog.isEnabled else { return }
+    guard TerminalDebugLog.categories.contains(category) else { return }
+    TerminalDebugLog.sink("[ShellCraftKit] \(message())")
+}
+
+private func shellDebugDescribe(_ string: String?) -> String {
+    guard let string else { return "nil" }
+    let truncated = String(string.prefix(96))
+    let escaped = truncated
+        .replacingOccurrences(of: "\\", with: "\\\\")
+        .replacingOccurrences(of: "\u{1B}", with: "\\e")
+        .replacingOccurrences(of: "\n", with: "\\n")
+        .replacingOccurrences(of: "\r", with: "\\r")
+        .replacingOccurrences(of: "\t", with: "\\t")
+    let suffix = string.count > truncated.count ? "..." : ""
+    return "\"\(escaped)\(suffix)\""
 }

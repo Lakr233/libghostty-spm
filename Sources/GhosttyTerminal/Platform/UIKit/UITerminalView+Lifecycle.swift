@@ -11,6 +11,10 @@
     public extension UITerminalView {
         override func didMoveToWindow() {
             super.didMoveToWindow()
+            TerminalDebugLog.log(
+                .lifecycle,
+                "didMoveToWindow attached=\(window != nil)"
+            )
             updateDisplayScale()
             if window != nil {
                 core.rebuildIfReady()
@@ -31,6 +35,10 @@
 
         override func layoutSubviews() {
             super.layoutSubviews()
+            TerminalDebugLog.log(
+                .metrics,
+                "layoutSubviews bounds=\(NSCoder.string(for: bounds))"
+            )
             updateSublayerFrames()
             core.synchronizeMetrics()
         }
@@ -47,6 +55,10 @@
 
         internal func updateDisplayScale() {
             let scale = resolvedDisplayScale()
+            TerminalDebugLog.log(
+                .metrics,
+                "updateDisplayScale scale=\(String(format: "%.2f", scale))"
+            )
             contentScaleFactor = scale
             layer.contentsScale = scale
             updateSublayerFrames()
@@ -95,6 +107,7 @@
         internal func updateColorScheme() {
             let style = traitCollection.userInterfaceStyle
             let scheme: TerminalColorScheme = style == .dark ? .dark : .light
+            TerminalDebugLog.log(.lifecycle, "updateColorScheme scheme=\(scheme)")
             surface?.setColorScheme(scheme.ghosttyValue)
             controller?.setColorScheme(scheme)
         }

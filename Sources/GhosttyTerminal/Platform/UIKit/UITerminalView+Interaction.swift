@@ -87,6 +87,10 @@
 
                 let translation = gesture.translation(in: self)
                 gesture.setTranslation(.zero, in: self)
+                TerminalDebugLog.log(
+                    .input,
+                    "catalyst scroll translation=\(String(format: "%.2f", translation.x))x\(String(format: "%.2f", translation.y))"
+                )
 
                 let scrollMods = TerminalScrollModifiers(precision: true)
                 surface?.sendMouseScroll(
@@ -178,11 +182,16 @@
         ) {
             switch gesture.state {
             case .began:
+                TerminalDebugLog.log(.input, "touch scroll began")
                 stopMomentumScrolling()
 
             case .changed:
                 let translation = gesture.translation(in: self)
                 gesture.setTranslation(.zero, in: self)
+                TerminalDebugLog.log(
+                    .input,
+                    "touch scroll changed translation=\(String(format: "%.2f", translation.x))x\(String(format: "%.2f", translation.y))"
+                )
 
                 let scrollMods = TerminalScrollModifiers(precision: true)
                 surface?.sendMouseScroll(
@@ -193,9 +202,14 @@
 
             case .ended:
                 let velocity = gesture.velocity(in: self)
+                TerminalDebugLog.log(
+                    .input,
+                    "touch scroll ended velocity=\(String(format: "%.2f", velocity.x))x\(String(format: "%.2f", velocity.y))"
+                )
                 startMomentumScrolling(velocity: velocity)
 
             case .cancelled, .failed:
+                TerminalDebugLog.log(.input, "touch scroll cancelled")
                 stopMomentumScrolling()
 
             default:
@@ -207,6 +221,10 @@
             guard abs(velocity.x) > 50 || abs(velocity.y) > 50 else { return }
 
             momentumVelocity = velocity
+            TerminalDebugLog.log(
+                .input,
+                "momentum start velocity=\(String(format: "%.2f", velocity.x))x\(String(format: "%.2f", velocity.y))"
+            )
 
             let mods = TerminalScrollModifiers(precision: true, momentum: .began)
             surface?.sendMouseScroll(x: 0, y: 0, mods: mods.rawValue)
@@ -234,6 +252,11 @@
                 return
             }
 
+            TerminalDebugLog.log(
+                .input,
+                "momentum frame velocity=\(String(format: "%.2f", momentumVelocity.x))x\(String(format: "%.2f", momentumVelocity.y)) delta=\(String(format: "%.2f", deltaX))x\(String(format: "%.2f", deltaY))"
+            )
+
             let mods = TerminalScrollModifiers(precision: true, momentum: .changed)
             surface?.sendMouseScroll(
                 x: Double(deltaX),
@@ -244,6 +267,7 @@
 
         func stopMomentumScrolling() {
             guard momentumDisplayLink != nil else { return }
+            TerminalDebugLog.log(.input, "momentum stop")
 
             let mods = TerminalScrollModifiers(precision: true, momentum: .none)
             surface?.sendMouseScroll(x: 0, y: 0, mods: mods.rawValue)

@@ -18,6 +18,7 @@ final class TerminalCallbackBridge {
     weak var delegate: (any TerminalSurfaceViewDelegate)?
     /// Raw surface pointer for use in C callbacks (e.g. clipboard).
     nonisolated(unsafe) var rawSurface: ghostty_surface_t?
+    var onCellSizeChange: ((UInt32, UInt32) -> Void)?
 
     init(delegate: (any TerminalSurfaceViewDelegate)? = nil) {
         self.delegate = delegate
@@ -27,23 +28,44 @@ final class TerminalCallbackBridge {
         switch action.tag {
         case GHOSTTY_ACTION_SET_TITLE:
             if let cStr = action.action.set_title.title {
+                let title = String(cString: cStr)
+                TerminalDebugLog.log(
+                    .actions,
+                    "callback action=set_title title=\(TerminalDebugLog.describe(title))"
+                )
                 (delegate as? any TerminalSurfaceTitleDelegate)?
-                    .terminalDidChangeTitle(String(cString: cStr))
+                    .terminalDidChangeTitle(title)
             }
 
         case GHOSTTY_ACTION_CELL_SIZE:
-            break
+            let cellSize = action.action.cell_size
+            TerminalDebugLog.log(
+                .actions,
+                "callback action=cell_size width=\(cellSize.width) height=\(cellSize.height)"
+            )
+            onCellSizeChange?(cellSize.width, cellSize.height)
 
         case GHOSTTY_ACTION_RING_BELL:
+            TerminalDebugLog.log(.actions, "callback action=ring_bell")
             (delegate as? any TerminalSurfaceBellDelegate)?
                 .terminalDidRingBell()
 
         default:
+            let category: TerminalDebugCategory =
+                action.tag == GHOSTTY_ACTION_RENDER ? .render : .actions
+            TerminalDebugLog.log(
+                category,
+                "callback action=\(TerminalDebugLog.describe(action.tag))"
+            )
             break
         }
     }
 
     func handleClose(processAlive: Bool) {
+        TerminalDebugLog.log(
+            .lifecycle,
+            "callback close processAlive=\(processAlive)"
+        )
         (delegate as? any TerminalSurfaceCloseDelegate)?
             .terminalDidClose(processAlive: processAlive)
     }

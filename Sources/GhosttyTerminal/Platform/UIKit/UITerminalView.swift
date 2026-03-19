@@ -14,6 +14,10 @@
         let core = TerminalSurfaceCoordinator()
         var momentumDisplayLink: CADisplayLink?
         var momentumVelocity: CGPoint = .zero
+        #if !targetEnvironment(macCatalyst)
+            static let minFontSize: Float = 4
+            static let maxFontSize: Float = 64
+        #endif
         #if targetEnvironment(macCatalyst)
             var activePointerButton: ghostty_input_mouse_button_e?
         #endif
@@ -89,11 +93,20 @@
             core.onMetricsUpdate = { [weak self] in
                 self?.updateSublayerFrames()
             }
+            core.onCellSizeDidChange = { [weak self] in
+                self?.refreshTextInputGeometry(reason: "cell-size-action")
+            }
             core.onPostRender = { [weak self] in
                 self?.enforceSublayerScale()
             }
 
             setupPlatformInput()
+        }
+
+        func refreshTextInputGeometry(reason: String) {
+            guard isFirstResponder || inputHandler.hasMarkedText else { return }
+            TerminalDebugLog.log(.ime, "refresh text geometry reason=\(reason)")
+            inputHandler.notifyGeometryDidChange(reason: reason)
         }
     }
 #endif

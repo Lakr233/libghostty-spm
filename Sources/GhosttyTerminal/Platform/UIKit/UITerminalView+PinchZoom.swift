@@ -7,8 +7,6 @@
     import UIKit
 
     extension UITerminalView {
-        private static let minFontSize: Float = 4
-        private static let maxFontSize: Float = 64
         private static let scaleStepThreshold: CGFloat = 0.1
 
         func setupPinchZoomGesture() {
@@ -23,6 +21,10 @@
             switch gesture.state {
             case .began:
                 lastPinchScale = gesture.scale
+                TerminalDebugLog.log(
+                    .actions,
+                    "pinch began scale=\(String(format: "%.3f", gesture.scale)) fontSize=\(currentFontSize)"
+                )
 
             case .changed:
                 let delta = gesture.scale - lastPinchScale
@@ -31,6 +33,10 @@
                 guard steps != 0 else { return }
 
                 lastPinchScale += CGFloat(steps) * Self.scaleStepThreshold
+                TerminalDebugLog.log(
+                    .actions,
+                    "pinch changed scale=\(String(format: "%.3f", gesture.scale)) delta=\(String(format: "%.3f", delta)) steps=\(steps)"
+                )
 
                 var changed = false
                 if steps > 0 {
@@ -51,10 +57,19 @@
 
                 if changed {
                     core.synchronizeMetrics()
+                    refreshTextInputGeometry(reason: "pinch-zoom")
+                    TerminalDebugLog.log(
+                        .actions,
+                        "pinch applied fontSize=\(currentFontSize)"
+                    )
                 }
 
             case .ended, .cancelled, .failed:
                 lastPinchScale = 1.0
+                TerminalDebugLog.log(
+                    .actions,
+                    "pinch ended state=\(gesture.state.rawValue) fontSize=\(currentFontSize)"
+                )
 
             default:
                 break

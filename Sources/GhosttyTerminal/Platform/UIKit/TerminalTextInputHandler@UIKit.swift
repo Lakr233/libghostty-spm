@@ -30,6 +30,11 @@
             guard let view else { return }
             let shouldNotifySelectionChange = shouldNotifySelectionChange
 
+            TerminalDebugLog.log(
+                .input,
+                "insertText text=\(TerminalDebugLog.describe(text)) marked=\(hasMarkedText)"
+            )
+
             view.inputDelegate?.textWillChange(view)
             if shouldNotifySelectionChange {
                 view.inputDelegate?.selectionWillChange(view)
@@ -47,6 +52,11 @@
 
         func setMarkedText(_ text: String?, selectedRange: NSRange) {
             guard let view else { return }
+
+            TerminalDebugLog.log(
+                .ime,
+                "setMarkedText text=\(TerminalDebugLog.describe(text)) selected=\(TerminalDebugLog.describe(selectedRange))"
+            )
 
             view.inputDelegate?.textWillChange(view)
             view.inputDelegate?.selectionWillChange(view)
@@ -67,6 +77,11 @@
             guard let view else { return }
             let shouldNotifySelectionChange = shouldNotifySelectionChange
             let committedText = markedTextState.text
+
+            TerminalDebugLog.log(
+                .ime,
+                "unmarkText committed=\(TerminalDebugLog.describe(committedText))"
+            )
 
             view.inputDelegate?.textWillChange(view)
             if shouldNotifySelectionChange {
@@ -111,6 +126,10 @@
             }
             let clampedRange = clampedSelectedRange(updatedRange)
             guard markedTextState.selectedRange != clampedRange else { return }
+            TerminalDebugLog.log(
+                .ime,
+                "setSelectedTextRange range=\(TerminalDebugLog.describe(clampedRange))"
+            )
             notifySelectionWillChange()
             markedTextState.setMarkedText(markedTextState.text, selectedRange: clampedRange)
             notifySelectionDidChange()
@@ -127,6 +146,10 @@
             guard let view else { return false }
             guard markedTextState.hasMarkedText else { return false }
             let shouldNotifySelectionChange = shouldNotifySelectionChange
+            TerminalDebugLog.log(
+                .ime,
+                "deleteBackwardInMarkedText selected=\(TerminalDebugLog.describe(markedTextState.selectedRange))"
+            )
             view.inputDelegate?.textWillChange(view)
             if shouldNotifySelectionChange {
                 view.inputDelegate?.selectionWillChange(view)
@@ -140,6 +163,19 @@
             }
             view.inputDelegate?.textDidChange(view)
             return true
+        }
+
+        func notifyGeometryDidChange(reason: String) {
+            guard let view else { return }
+            TerminalDebugLog.log(
+                .ime,
+                "notifyGeometryDidChange reason=\(reason) selected=\(TerminalDebugLog.describe(markedTextState.selectedRange)) documentLength=\(markedTextState.documentLength) marked=\(hasMarkedText)"
+            )
+            view.inputDelegate?.selectionWillChange(view)
+            view.inputDelegate?.selectionDidChange(view)
+            if view.isFirstResponder {
+                view.reloadInputViews()
+            }
         }
 
         private var shouldNotifySelectionChange: Bool {

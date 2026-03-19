@@ -49,6 +49,10 @@
 
         public func insertText(_ text: String) {
             guard !hardwareKeyHandled else {
+                TerminalDebugLog.log(
+                    .input,
+                    "insertText suppressed text=\(TerminalDebugLog.describe(text))"
+                )
                 hardwareKeyHandled = false
                 return
             }
@@ -57,11 +61,13 @@
 
         public func deleteBackward() {
             if inputHandler.deleteBackwardInMarkedText() {
+                TerminalDebugLog.log(.input, "deleteBackward handled by marked text")
                 hardwareKeyHandled = false
                 return
             }
 
             guard !hardwareKeyHandled else {
+                TerminalDebugLog.log(.input, "deleteBackward suppressed")
                 hardwareKeyHandled = false
                 return
             }
@@ -318,31 +324,46 @@
             let baseRect = imeRect()
             let cellWidth = compositionCellWidth(in: baseRect)
             guard inputHandler.documentLength > 0 else {
-                return CGRect(
+                let rect = CGRect(
                     x: baseRect.minX,
                     y: baseRect.minY,
                     width: cellWidth,
                     height: baseRect.height
                 )
+                TerminalDebugLog.log(
+                    .ime,
+                    "caretRect empty position base=\(NSCoder.string(for: baseRect)) rect=\(NSCoder.string(for: rect))"
+                )
+                return rect
             }
 
             guard let position = position as? TerminalTextPosition else {
-                return CGRect(
+                let rect = CGRect(
                     x: baseRect.maxX,
                     y: baseRect.minY,
                     width: cellWidth,
                     height: baseRect.height
                 )
+                TerminalDebugLog.log(
+                    .ime,
+                    "caretRect fallback base=\(NSCoder.string(for: baseRect)) rect=\(NSCoder.string(for: rect))"
+                )
+                return rect
             }
 
             let clampedIndex = min(max(position.index, 0), inputHandler.documentLength)
             let x = baseRect.minX + CGFloat(clampedIndex) * cellWidth
-            return CGRect(
+            let rect = CGRect(
                 x: x,
                 y: baseRect.minY,
                 width: cellWidth,
                 height: baseRect.height
             )
+            TerminalDebugLog.log(
+                .ime,
+                "caretRect index=\(clampedIndex) base=\(NSCoder.string(for: baseRect)) cellWidth=\(String(format: "%.2f", cellWidth)) rect=\(NSCoder.string(for: rect))"
+            )
+            return rect
         }
 
         private func rect(
@@ -384,7 +405,12 @@
 
             let relativeX = point.x - baseRect.minX
             let rawIndex = Int((relativeX / cellWidth).rounded(.down))
-            return min(max(rawIndex, 0), inputHandler.documentLength)
+            let index = min(max(rawIndex, 0), inputHandler.documentLength)
+            TerminalDebugLog.log(
+                .ime,
+                "textIndex point=\(NSCoder.string(for: point)) base=\(NSCoder.string(for: baseRect)) cellWidth=\(String(format: "%.2f", cellWidth)) index=\(index)"
+            )
+            return index
         }
     }
 #endif

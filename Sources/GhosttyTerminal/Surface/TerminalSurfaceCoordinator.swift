@@ -44,6 +44,7 @@ final class TerminalSurfaceCoordinator {
     var viewSize: () -> (width: Double, height: Double) = { (0, 0) }
     var platformSetup: ((inout ghostty_surface_config_s) -> Void)?
     var onMetricsUpdate: (() -> Void)?
+    var onCellSizeDidChange: (() -> Void)?
 
     /// Called after every display-link render (`tick`).
     ///
@@ -68,8 +69,15 @@ final class TerminalSurfaceCoordinator {
     private var displayLink: DisplayLink?
     private let displayLinkTarget = DisplayLinkTarget()
 
+    init() {
+        bridge.onCellSizeChange = { [weak self] width, height in
+            self?.handleCellSizeChange(width: width, height: height)
+        }
+    }
+
     func startDisplayLink() {
         guard displayLink == nil else { return }
+        TerminalDebugLog.log(.lifecycle, "display link start")
         displayLinkTarget.core = self
         let link = DisplayLink()
         link.delegatingObject(displayLinkTarget)
@@ -77,6 +85,7 @@ final class TerminalSurfaceCoordinator {
     }
 
     func stopDisplayLink() {
+        TerminalDebugLog.log(.lifecycle, "display link stop")
         displayLink = nil
         displayLinkTarget.core = nil
     }
@@ -85,10 +94,20 @@ final class TerminalSurfaceCoordinator {
 
     func rebuildIfReady(removingBridgeFrom previousController: TerminalController? = nil) {
         tearDownSurface(removingBridgeFrom: previousController ?? controller)
-        guard let controller else { return }
-        guard isAttached() else { return }
+        guard let controller else {
+            TerminalDebugLog.log(.lifecycle, "surface rebuild skipped: missing controller")
+            return
+        }
+        guard isAttached() else {
+            TerminalDebugLog.log(.lifecycle, "surface rebuild skipped: view detached")
+            return
+        }
 
         let scale = scaleFactor()
+        TerminalDebugLog.log(
+            .lifecycle,
+            "surface rebuild scale=\(String(format: "%.2f", scale)) \(configuration.debugSummary)"
+        )
         let rawSurface = controller.createSurface(
             bridge: bridge,
             configuration: configuration,
@@ -97,25 +116,49 @@ final class TerminalSurfaceCoordinator {
                 config.scale_factor = scale
             }
         )
-        guard let rawSurface else { return }
+        guard let rawSurface else {
+            TerminalDebugLog.log(.lifecycle, "surface rebuild failed")
+            return
+        }
 
         bridge.rawSurface = rawSurface
         surface = TerminalSurface(rawSurface)
+        TerminalDebugLog.log(.lifecycle, "surface rebuild succeeded")
         synchronizeMetrics()
     }
 
     // MARK: - Metrics
 
     func synchronizeMetrics() {
-        guard let surface else { return }
+        guard let surface else {
+            TerminalDebugLog.log(.metrics, "synchronizeMetrics skipped: missing surface")
+            return
+        }
 
         let scale = scaleFactor()
         let size = viewSize()
-        guard size.width > 0, size.height > 0 else { return }
+        guard size.width > 0, size.height > 0 else {
+            TerminalDebugLog.log(
+                .metrics,
+                "synchronizeMetrics skipped: invalid view size=\(String(format: "%.2f", size.width))x\(String(format: "%.2f", size.height))"
+            )
+            return
+        }
 
         let pixelWidth = UInt32((size.width * scale).rounded(.down))
         let pixelHeight = UInt32((size.height * scale).rounded(.down))
-        guard pixelWidth > 0, pixelHeight > 0 else { return }
+        guard pixelWidth > 0, pixelHeight > 0 else {
+            TerminalDebugLog.log(
+                .metrics,
+                "synchronizeMetrics skipped: invalid pixel size=\(pixelWidth)x\(pixelHeight)"
+            )
+            return
+        }
+
+        TerminalDebugLog.log(
+            .metrics,
+            "sync view=\(String(format: "%.2f", size.width))x\(String(format: "%.2f", size.height)) scale=\(String(format: "%.2f", scale)) pixels=\(pixelWidth)x\(pixelHeight)"
+        )
 
         surface.setContentScale(x: scale, y: scale)
         surface.setSize(width: pixelWidth, height: pixelHeight)
@@ -123,17 +166,23 @@ final class TerminalSurfaceCoordinator {
         guard let surfaceSize = surface.size(),
               surfaceSize.columns > 0, surfaceSize.rows > 0
         else {
+            TerminalDebugLog.log(.metrics, "sync missing grid metrics after resize")
             onMetricsUpdate?()
             return
         }
 
         let metrics = TerminalViewportMetrics(surfaceSize: surfaceSize, scale: scale)
         guard metrics != lastMetrics else {
+            TerminalDebugLog.log(
+                .metrics,
+                "sync unchanged \(metrics.debugSummary)"
+            )
             onMetricsUpdate?()
             return
         }
 
         lastMetrics = metrics
+        TerminalDebugLog.log(.metrics, "sync updated \(metrics.debugSummary)")
         configuration.inMemorySession?.updateViewport(surfaceSize)
         if let delegate = delegate as? any TerminalSurfaceGridResizeDelegate {
             delegate.terminalDidResize(surfaceSize)
@@ -153,6 +202,7 @@ final class TerminalSurfaceCoordinator {
     // MARK: - Frame Rendering
 
     func tick() {
+        TerminalDebugLog.log(.render, "tick")
         controller?.tick()
         surface?.refresh()
         surface?.draw()
@@ -162,6 +212,7 @@ final class TerminalSurfaceCoordinator {
     // MARK: - Focus
 
     func setFocus(_ focused: Bool) {
+        TerminalDebugLog.log(.lifecycle, "focus=\(focused)")
         surface?.setFocus(focused)
         (delegate as? any TerminalSurfaceFocusDelegate)?
             .terminalDidChangeFocus(focused)
@@ -170,6 +221,7 @@ final class TerminalSurfaceCoordinator {
     // MARK: - Cleanup
 
     func freeSurface() {
+        TerminalDebugLog.log(.lifecycle, "free surface")
         tearDownSurface(removingBridgeFrom: controller)
     }
 
@@ -178,6 +230,7 @@ final class TerminalSurfaceCoordinator {
     }
 
     private func tearDownSurface(removingBridgeFrom controller: TerminalController?) {
+        TerminalDebugLog.log(.lifecycle, "tear down surface")
         configuration.inMemorySession?.setSurface(nil)
         bridge.rawSurface = nil
         surface?.setFocus(false)
@@ -185,6 +238,15 @@ final class TerminalSurfaceCoordinator {
         surface = nil
         lastMetrics = nil
         controller?.remove(bridge)
+    }
+
+    private func handleCellSizeChange(width: UInt32, height: UInt32) {
+        TerminalDebugLog.log(
+            .metrics,
+            "cell size changed width=\(width) height=\(height)"
+        )
+        synchronizeMetrics()
+        onCellSizeDidChange?()
     }
 }
 
