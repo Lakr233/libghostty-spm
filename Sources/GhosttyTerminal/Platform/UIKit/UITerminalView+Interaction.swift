@@ -23,8 +23,10 @@
             #if targetEnvironment(macCatalyst)
                 becomeFirstResponder()
             #else
+                pendingKeyboardDismissOnTouchEnd = false
+                touchDidScrollDuringCurrentTouch = false
                 if softwareKeyboardVisible {
-                    resignFirstResponder()
+                    pendingKeyboardDismissOnTouchEnd = true
                 } else {
                     becomeFirstResponder()
                 }
@@ -52,6 +54,13 @@
                     return
                 }
             #endif
+            #if !targetEnvironment(macCatalyst)
+                if pendingKeyboardDismissOnTouchEnd, !touchDidScrollDuringCurrentTouch {
+                    resignFirstResponder()
+                }
+                pendingKeyboardDismissOnTouchEnd = false
+                touchDidScrollDuringCurrentTouch = false
+            #endif
             super.touchesEnded(touches, with: event)
         }
 
@@ -63,6 +72,10 @@
                 if handleIndirectPointerTouches(touches, phase: .cancelled, event: event) {
                     return
                 }
+            #endif
+            #if !targetEnvironment(macCatalyst)
+                pendingKeyboardDismissOnTouchEnd = false
+                touchDidScrollDuringCurrentTouch = false
             #endif
             super.touchesCancelled(touches, with: event)
         }
@@ -190,6 +203,7 @@
         ) {
             switch gesture.state {
             case .began:
+                touchDidScrollDuringCurrentTouch = true
                 TerminalDebugLog.log(.input, "touch scroll began")
                 stopMomentumScrolling()
 
