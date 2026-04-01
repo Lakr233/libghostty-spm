@@ -46,7 +46,11 @@
             markedTextState.clear()
             view.surface?.preedit("")
             if applyingStickyModifiers {
-                _ = view.handleStickyCommittedText(text)
+                #if !targetEnvironment(macCatalyst)
+                    _ = view.handleStickyCommittedText(text)
+                #else
+                    view.surface?.sendText(text)
+                #endif
             } else {
                 view.surface?.sendText(text)
             }
@@ -126,7 +130,11 @@
             view.surface?.preedit("")
             if let committedText, !committedText.isEmpty {
                 if applyingStickyModifiers {
-                    _ = view.handleStickyCommittedText(committedText)
+                    #if !targetEnvironment(macCatalyst)
+                        _ = view.handleStickyCommittedText(committedText)
+                    #else
+                        view.surface?.sendText(committedText)
+                    #endif
                 } else {
                     view.surface?.sendText(committedText)
                 }

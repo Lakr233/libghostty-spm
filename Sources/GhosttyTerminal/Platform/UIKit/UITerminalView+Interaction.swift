@@ -58,6 +58,9 @@
                 if pendingKeyboardDismissOnTouchEnd, !touchDidScrollDuringCurrentTouch {
                     resignFirstResponder()
                 }
+                if !pendingKeyboardDismissOnTouchEnd, !touchDidScrollDuringCurrentTouch {
+                    forwardDirectTouchTap(touches, event: event)
+                }
                 pendingKeyboardDismissOnTouchEnd = false
                 touchDidScrollDuringCurrentTouch = false
             #endif
@@ -196,96 +199,134 @@
                 currentFontSize = configuration.fontSize ?? 14
                 setupPinchZoomGesture()
             }
+
+            func forwardDirectTouchTap(
+                _ touches: Set<UITouch>,
+                event _: UIEvent?
+            ) {
+                guard let touch = touches.first(where: { $0.type == .direct }) ?? touches.first else {
+                    return
+                }
+
+                let mods = ghostty_input_mods_e(rawValue: 0)
+                let location = touch.location(in: self)
+                TerminalDebugLog.log(
+                    .input,
+                    "direct touch tap x=\(String(format: "%.2f", location.x)) y=\(String(format: "%.2f", location.y))"
+                )
+                surface?.sendMousePos(
+                    x: location.x,
+                    y: location.y,
+                    mods: mods
+                )
+                surface?.sendMouseButton(
+                    state: GHOSTTY_MOUSE_PRESS,
+                    button: GHOSTTY_MOUSE_LEFT,
+                    mods: mods
+                )
+                surface?.sendMousePos(
+                    x: location.x,
+                    y: location.y,
+                    mods: mods
+                )
+                surface?.sendMouseButton(
+                    state: GHOSTTY_MOUSE_RELEASE,
+                    button: GHOSTTY_MOUSE_LEFT,
+                    mods: mods
+                )
+            }
         #endif
 
-        @objc func handleTouchScrollGesture(
-            _ gesture: UIPanGestureRecognizer
-        ) {
-            switch gesture.state {
-            case .began:
-                touchDidScrollDuringCurrentTouch = true
-                TerminalDebugLog.log(.input, "touch scroll began")
-                stopMomentumScrolling()
+        #if !targetEnvironment(macCatalyst)
+            @objc func handleTouchScrollGesture(
+                _ gesture: UIPanGestureRecognizer
+            ) {
+                switch gesture.state {
+                case .began:
+                    touchDidScrollDuringCurrentTouch = true
+                    TerminalDebugLog.log(.input, "touch scroll began")
+                    stopMomentumScrolling()
 
-            case .changed:
-                let translation = gesture.translation(in: self)
-                gesture.setTranslation(.zero, in: self)
+                case .changed:
+                    let translation = gesture.translation(in: self)
+                    gesture.setTranslation(.zero, in: self)
+                    TerminalDebugLog.log(
+                        .input,
+                        "touch scroll changed translation=\(String(format: "%.2f", translation.x))x\(String(format: "%.2f", translation.y))"
+                    )
+
+                    let scrollMods = TerminalScrollModifiers(precision: true)
+                    surface?.sendMouseScroll(
+                        x: Double(translation.x * touchScrollMultiplier),
+                        y: Double(translation.y * touchScrollMultiplier),
+                        mods: scrollMods.rawValue
+                    )
+
+                case .ended:
+                    let velocity = gesture.velocity(in: self)
+                    TerminalDebugLog.log(
+                        .input,
+                        "touch scroll ended velocity=\(String(format: "%.2f", velocity.x))x\(String(format: "%.2f", velocity.y))"
+                    )
+                    startMomentumScrolling(velocity: velocity)
+
+                case .cancelled, .failed:
+                    TerminalDebugLog.log(.input, "touch scroll cancelled")
+                    stopMomentumScrolling()
+
+                default:
+                    break
+                }
+            }
+
+            func startMomentumScrolling(velocity: CGPoint) {
+                guard abs(velocity.x) > 50 || abs(velocity.y) > 50 else { return }
+
+                momentumVelocity = velocity
                 TerminalDebugLog.log(
                     .input,
-                    "touch scroll changed translation=\(String(format: "%.2f", translation.x))x\(String(format: "%.2f", translation.y))"
+                    "momentum start velocity=\(String(format: "%.2f", velocity.x))x\(String(format: "%.2f", velocity.y))"
                 )
 
-                let scrollMods = TerminalScrollModifiers(precision: true)
+                let mods = TerminalScrollModifiers(precision: true, momentum: .began)
+                surface?.sendMouseScroll(x: 0, y: 0, mods: mods.rawValue)
+
+                let link = CADisplayLink(
+                    target: self,
+                    selector: #selector(momentumScrollFrame(_:))
+                )
+                link.add(to: .main, forMode: .common)
+                momentumDisplayLink = link
+            }
+
+            @objc func momentumScrollFrame(_ link: CADisplayLink) {
+                let dt = link.targetTimestamp - link.timestamp
+                let deceleration: CGFloat = 0.92
+
+                momentumVelocity.x *= deceleration
+                momentumVelocity.y *= deceleration
+
+                let deltaX = momentumVelocity.x * dt * touchScrollMultiplier
+                let deltaY = momentumVelocity.y * dt * touchScrollMultiplier
+
+                if abs(momentumVelocity.x) < 50, abs(momentumVelocity.y) < 50 {
+                    stopMomentumScrolling()
+                    return
+                }
+
+                TerminalDebugLog.log(
+                    .input,
+                    "momentum frame velocity=\(String(format: "%.2f", momentumVelocity.x))x\(String(format: "%.2f", momentumVelocity.y)) delta=\(String(format: "%.2f", deltaX))x\(String(format: "%.2f", deltaY))"
+                )
+
+                let mods = TerminalScrollModifiers(precision: true, momentum: .changed)
                 surface?.sendMouseScroll(
-                    x: Double(translation.x * touchScrollMultiplier),
-                    y: Double(translation.y * touchScrollMultiplier),
-                    mods: scrollMods.rawValue
+                    x: Double(deltaX),
+                    y: Double(deltaY),
+                    mods: mods.rawValue
                 )
-
-            case .ended:
-                let velocity = gesture.velocity(in: self)
-                TerminalDebugLog.log(
-                    .input,
-                    "touch scroll ended velocity=\(String(format: "%.2f", velocity.x))x\(String(format: "%.2f", velocity.y))"
-                )
-                startMomentumScrolling(velocity: velocity)
-
-            case .cancelled, .failed:
-                TerminalDebugLog.log(.input, "touch scroll cancelled")
-                stopMomentumScrolling()
-
-            default:
-                break
             }
-        }
-
-        func startMomentumScrolling(velocity: CGPoint) {
-            guard abs(velocity.x) > 50 || abs(velocity.y) > 50 else { return }
-
-            momentumVelocity = velocity
-            TerminalDebugLog.log(
-                .input,
-                "momentum start velocity=\(String(format: "%.2f", velocity.x))x\(String(format: "%.2f", velocity.y))"
-            )
-
-            let mods = TerminalScrollModifiers(precision: true, momentum: .began)
-            surface?.sendMouseScroll(x: 0, y: 0, mods: mods.rawValue)
-
-            let link = CADisplayLink(
-                target: self,
-                selector: #selector(momentumScrollFrame(_:))
-            )
-            link.add(to: .main, forMode: .common)
-            momentumDisplayLink = link
-        }
-
-        @objc func momentumScrollFrame(_ link: CADisplayLink) {
-            let dt = link.targetTimestamp - link.timestamp
-            let deceleration: CGFloat = 0.92
-
-            momentumVelocity.x *= deceleration
-            momentumVelocity.y *= deceleration
-
-            let deltaX = momentumVelocity.x * dt * touchScrollMultiplier
-            let deltaY = momentumVelocity.y * dt * touchScrollMultiplier
-
-            if abs(momentumVelocity.x) < 50, abs(momentumVelocity.y) < 50 {
-                stopMomentumScrolling()
-                return
-            }
-
-            TerminalDebugLog.log(
-                .input,
-                "momentum frame velocity=\(String(format: "%.2f", momentumVelocity.x))x\(String(format: "%.2f", momentumVelocity.y)) delta=\(String(format: "%.2f", deltaX))x\(String(format: "%.2f", deltaY))"
-            )
-
-            let mods = TerminalScrollModifiers(precision: true, momentum: .changed)
-            surface?.sendMouseScroll(
-                x: Double(deltaX),
-                y: Double(deltaY),
-                mods: mods.rawValue
-            )
-        }
+        #endif
 
         func stopMomentumScrolling() {
             guard momentumDisplayLink != nil else { return }
