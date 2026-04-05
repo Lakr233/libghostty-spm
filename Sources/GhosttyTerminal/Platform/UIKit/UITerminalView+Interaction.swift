@@ -203,7 +203,9 @@
         ) {
             switch gesture.state {
             case .began:
-                touchDidScrollDuringCurrentTouch = true
+                #if !targetEnvironment(macCatalyst)
+                    touchDidScrollDuringCurrentTouch = true
+                #endif
                 TerminalDebugLog.log(.input, "touch scroll began")
                 stopMomentumScrolling()
 
