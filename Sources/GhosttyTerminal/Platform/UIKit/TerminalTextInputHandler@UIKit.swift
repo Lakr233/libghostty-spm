@@ -45,11 +45,15 @@
 
             markedTextState.clear()
             view.surface?.preedit("")
-            if applyingStickyModifiers {
-                _ = view.handleStickyCommittedText(text)
-            } else {
+            #if !targetEnvironment(macCatalyst)
+                if applyingStickyModifiers {
+                    _ = view.handleStickyCommittedText(text)
+                } else {
+                    view.surface?.sendText(text)
+                }
+            #else
                 view.surface?.sendText(text)
-            }
+            #endif
             view.refreshInputAccessoryContent()
 
             if shouldNotifySelectionChange {
@@ -125,11 +129,15 @@
             markedTextState.clear()
             view.surface?.preedit("")
             if let committedText, !committedText.isEmpty {
-                if applyingStickyModifiers {
-                    _ = view.handleStickyCommittedText(committedText)
-                } else {
+                #if !targetEnvironment(macCatalyst)
+                    if applyingStickyModifiers {
+                        _ = view.handleStickyCommittedText(committedText)
+                    } else {
+                        view.surface?.sendText(committedText)
+                    }
+                #else
                     view.surface?.sendText(committedText)
-                }
+                #endif
             }
             view.refreshInputAccessoryContent()
 
