@@ -49,8 +49,17 @@
 
         override func viewDidMoveToWindow() {
             super.viewDidMoveToWindow()
+            removeWindowObservers()
             if window != nil {
-                core.rebuildIfReady()
+                // SwiftUI/AppKit can temporarily detach and reattach the terminal view while
+                // diffing the view hierarchy. Rebuilding on every reattach discards Ghostty's
+                // scrollback/state, so only create a new surface when one does not already exist.
+                if surface == nil {
+                    core.rebuildIfReady()
+                } else {
+                    core.synchronizeMetrics()
+                }
+                updateMetalLayerMetrics()
                 updateColorScheme()
                 core.startDisplayLink()
 
@@ -68,8 +77,7 @@
                 )
             } else {
                 core.stopDisplayLink()
-                core.freeSurface()
-                NotificationCenter.default.removeObserver(self)
+                core.setFocus(false)
             }
         }
 
@@ -119,6 +127,22 @@
             if metalLayer.contentsScale != scale {
                 metalLayer.contentsScale = scale
             }
+        }
+
+        private func removeWindowObservers() {
+            // Remove any existing key-window observers before registering for the
+            // current window. AppKit can move the view directly between windows
+            // without an intermediate nil attachment.
+            NotificationCenter.default.removeObserver(
+                self,
+                name: NSWindow.didBecomeKeyNotification,
+                object: nil
+            )
+            NotificationCenter.default.removeObserver(
+                self,
+                name: NSWindow.didResignKeyNotification,
+                object: nil
+            )
         }
 
         override func viewDidChangeEffectiveAppearance() {
