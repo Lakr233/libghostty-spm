@@ -85,8 +85,18 @@
                 return
             }
 
+            let usage = UInt16(UIKeyboardHIDUsage.keyboardDeleteOrBackspace.rawValue)
+
+            #if !targetEnvironment(macCatalyst)
+                if stickyModifiers.hasActiveModifiers {
+                    let mods = stickyModifiers.consumeForNextKey()
+                    sendSyntheticKey(usage: usage, additionalMods: mods)
+                    return
+                }
+            #endif
+
             let delivery = TerminalHardwareKeyRouter.routeUIKit(
-                usage: UInt16(UIKeyboardHIDUsage.keyboardDeleteOrBackspace.rawValue),
+                usage: usage,
                 backend: configuration.backend
             )
             if case let .data(sequence) = delivery,
@@ -99,11 +109,9 @@
             var keyEvent = ghostty_input_key_s()
             keyEvent.action = GHOSTTY_ACTION_PRESS
             keyEvent.mods = ghostty_input_mods_e(rawValue: 0)
-            if case let .ghostty(ghosttyKey) = delivery {
-                keyEvent.keycode = ghosttyKey.rawValue
-            } else {
-                keyEvent.keycode = GHOSTTY_KEY_BACKSPACE.rawValue
-            }
+            keyEvent.keycode = TerminalHardwareKeyRouter.appKitKeyCodeForUIKit(
+                usage: usage
+            )
             keyEvent.composing = false
 
             let delete = "\u{7F}"

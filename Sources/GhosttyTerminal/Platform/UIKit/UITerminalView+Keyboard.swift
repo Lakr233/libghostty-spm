@@ -65,7 +65,8 @@
 
             let delivery = TerminalHardwareKeyRouter.routeUIKit(
                 usage: UInt16(key.keyCode.rawValue),
-                backend: configuration.backend
+                backend: configuration.backend,
+                modifiers: mods
             )
 
             TerminalDebugLog.log(
@@ -92,11 +93,14 @@
             var keyEvent = ghostty_input_key_s()
             keyEvent.action = action
             keyEvent.mods = mods.ghosttyMods
-            if case let .ghostty(ghosttyKey) = delivery {
-                keyEvent.keycode = ghosttyKey.rawValue
-            } else {
-                keyEvent.keycode = GHOSTTY_KEY_UNIDENTIFIED.rawValue
-            }
+            // Ghostty expects a platform-native keycode, which it resolves
+            // to its internal Key enum via src/input/keycodes.zig. On iOS
+            // that table uses macOS virtual keycodes (native_idx = 4), so
+            // translate the documented HID usage value from UIKey into the
+            // corresponding AppKit keycode here.
+            keyEvent.keycode = TerminalHardwareKeyRouter.appKitKeyCodeForUIKit(
+                usage: UInt16(key.keyCode.rawValue)
+            )
             keyEvent.composing = inputHandler.hasMarkedText
 
             var consumedFlags = filteredModifierFlags
