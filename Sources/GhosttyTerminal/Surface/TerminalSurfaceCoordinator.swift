@@ -225,7 +225,8 @@ final class TerminalSurfaceCoordinator {
         tearDownSurface(removingBridgeFrom: controller)
     }
 
-    deinit {
+    isolated deinit {
+        tearDownSurface(removingBridgeFrom: controller)
         displayLink = nil
     }
 
