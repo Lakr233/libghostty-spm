@@ -35,6 +35,28 @@ public final class InMemoryTerminalSession: @unchecked Sendable {
         )
     }
 
+    func clearSurface(ifMatches expectedSurface: ghostty_surface_t?) {
+        lock.lock()
+        defer { lock.unlock() }
+
+        guard surface == expectedSurface else {
+            TerminalDebugLog.log(
+                .lifecycle,
+                "in-memory session clear skipped expected=\(expectedSurface == nil ? "nil" : "set") current=\(surface == nil ? "nil" : "set")"
+            )
+            return
+        }
+
+        surface = nil
+        TerminalDebugLog.log(.lifecycle, "in-memory session surface=nil matched")
+    }
+
+    var currentSurface: ghostty_surface_t? {
+        lock.lock()
+        defer { lock.unlock() }
+        return surface
+    }
+
     func updateViewport(_ size: TerminalGridMetrics) {
         TerminalDebugLog.log(.metrics, "in-memory viewport update \(size.debugSummary)")
         dispatchResize(InMemoryTerminalViewport(
