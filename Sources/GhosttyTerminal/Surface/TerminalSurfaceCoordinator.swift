@@ -244,7 +244,9 @@ final class TerminalSurfaceCoordinator {
 
     private func tearDownSurface(removingBridgeFrom controller: TerminalController?) {
         TerminalDebugLog.log(.lifecycle, "tear down surface")
-        configuration.inMemorySession?.setSurface(nil)
+        if let session = configuration.inMemorySession {
+            session.clearSurface(ifMatches: surface?.rawValue)
+        }
         bridge.rawSurface = nil
         surface?.setFocus(false)
         surface?.free()
