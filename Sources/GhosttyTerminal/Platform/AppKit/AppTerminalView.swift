@@ -14,6 +14,7 @@
         let core = TerminalSurfaceCoordinator()
         var metalLayer: CAMetalLayer?
         var inputHandler: TerminalKeyEventHandler?
+        var lastPerformKeyEvent: TimeInterval?
 
         public weak var delegate: (any TerminalSurfaceViewDelegate)? {
             get { core.delegate }
