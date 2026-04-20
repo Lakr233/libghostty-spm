@@ -199,6 +199,19 @@ final class TerminalSurfaceCoordinator {
         synchronizeMetrics()
     }
 
+    func forceRefresh(reason: String = "unspecified") {
+        guard let surface else {
+            TerminalDebugLog.log(.render, "forceRefresh skipped: missing surface reason=\(reason)")
+            return
+        }
+
+        TerminalDebugLog.log(.render, "forceRefresh reason=\(reason)")
+        synchronizeMetrics()
+        surface.refresh()
+        surface.draw()
+        onPostRender?()
+    }
+
     // MARK: - Frame Rendering
 
     func tick() {
