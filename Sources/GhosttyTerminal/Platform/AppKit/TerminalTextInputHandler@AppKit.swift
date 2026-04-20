@@ -14,7 +14,6 @@
         private weak var view: AppTerminalView?
         private var markedTextState = TerminalMarkedTextState()
         private var accumulatedTexts: [String]?
-        private var handledTextCommand = false
 
         var hasMarkedText: Bool {
             markedTextState.hasMarkedText
@@ -27,7 +26,6 @@
 
         func startCollectingText() {
             accumulatedTexts = []
-            handledTextCommand = false
         }
 
         func finishCollectingText() -> [String]? {
@@ -36,14 +34,11 @@
             return texts
         }
 
-        func consumeHandledTextCommand() -> Bool {
-            defer { handledTextCommand = false }
-            return handledTextCommand
-        }
-
         // MARK: - Text Input
 
         func insertText(_ string: Any) {
+            guard NSApp.currentEvent != nil else { return }
+
             let text: String
             if let attrStr = string as? NSAttributedString {
                 text = attrStr.string
@@ -53,8 +48,7 @@
                 return
             }
 
-            markedTextState.clear()
-            view?.surface?.preedit("")
+            unmarkText()
 
             if accumulatedTexts != nil {
                 accumulatedTexts?.append(text)
@@ -78,16 +72,15 @@
 
             markedTextState.setMarkedText(text, selectedRange: selectedRange)
 
-            if text.isEmpty {
-                view?.surface?.preedit("")
-            } else {
-                view?.surface?.preedit(text)
+            if accumulatedTexts == nil {
+                syncPreedit()
             }
         }
 
         func unmarkText() {
+            guard markedTextState.hasMarkedText else { return }
             markedTextState.clear()
-            view?.surface?.preedit("")
+            syncPreedit()
         }
 
         func currentSelectedRange() -> NSRange {
@@ -103,7 +96,6 @@
             actualRange: NSRangePointer?
         ) -> NSAttributedString? {
             guard markedTextState.hasMarkedText else {
-                actualRange?.pointee = NSRange(location: NSNotFound, length: 0)
                 return nil
             }
 
@@ -119,23 +111,14 @@
             return NSAttributedString(string: text)
         }
 
-        func handleCommand(_ selector: Selector) {
-            guard hasMarkedText else { return }
-
-            switch selector {
-            case #selector(NSResponder.deleteBackward(_:)):
-                deleteBackward()
-            case #selector(NSResponder.cancelOperation(_:)):
-                unmarkText()
-            default:
-                break
+        func syncPreedit(clearIfNeeded: Bool = true) {
+            guard let text = markedTextState.text else {
+                guard clearIfNeeded else { return }
+                view?.surface?.preedit("")
+                return
             }
-        }
 
-        private func deleteBackward() {
-            guard markedTextState.deleteBackward() else { return }
-            view?.surface?.preedit(markedTextState.text ?? "")
-            handledTextCommand = true
+            view?.surface?.preedit(text)
         }
     }
 #endif

@@ -23,8 +23,8 @@ struct TerminalMarkedTextStateTests {
 
         #expect(deleted)
         #expect(state.text == nil)
-        #expect(state.markedRange == NSRange(location: NSNotFound, length: 0))
-        #expect(state.currentSelectedRange == NSRange(location: NSNotFound, length: 0))
+        #expect(state.markedRange == NSRange())
+        #expect(state.currentSelectedRange == NSRange())
     }
 
     @Test

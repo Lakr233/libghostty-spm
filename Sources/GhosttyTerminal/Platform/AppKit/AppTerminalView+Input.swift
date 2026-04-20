@@ -14,6 +14,72 @@
             inputHandler?.handleKeyDown(with: event)
         }
 
+        override func performKeyEquivalent(with event: NSEvent) -> Bool {
+            guard event.type == .keyDown else { return false }
+            guard window?.firstResponder === self else { return false }
+            guard let surface else { return false }
+
+            if keyIsBinding(event, on: surface) {
+                keyDown(with: event)
+                return true
+            }
+
+            let equivalent: String
+            switch event.charactersIgnoringModifiers {
+            case "\r":
+                guard event.modifierFlags.contains(.control) else {
+                    return false
+                }
+                equivalent = "\r"
+
+            case "/":
+                guard event.modifierFlags.contains(.control),
+                      event.modifierFlags.isDisjoint(with: [.shift, .command, .option]) else {
+                    return false
+                }
+                equivalent = "_"
+
+            default:
+                if event.timestamp == 0 {
+                    return false
+                }
+
+                if !event.modifierFlags.contains(.command),
+                   !event.modifierFlags.contains(.control) {
+                    lastPerformKeyEvent = nil
+                    return false
+                }
+
+                if let lastPerformKeyEvent,
+                   lastPerformKeyEvent == event.timestamp {
+                    self.lastPerformKeyEvent = nil
+                    equivalent = event.characters ?? ""
+                    break
+                }
+
+                lastPerformKeyEvent = event.timestamp
+                return false
+            }
+
+            guard let translatedEvent = NSEvent.keyEvent(
+                with: .keyDown,
+                location: event.locationInWindow,
+                modifierFlags: event.modifierFlags,
+                timestamp: event.timestamp,
+                windowNumber: event.windowNumber,
+                context: nil,
+                characters: equivalent,
+                charactersIgnoringModifiers: equivalent,
+                isARepeat: event.isARepeat,
+                keyCode: event.keyCode
+            ) else {
+                return false
+            }
+
+            keyDown(with: translatedEvent)
+            return true
+        }
+
         override func keyUp(with event: NSEvent) {
             inputHandler?.handleKeyUp(with: event)
         }
@@ -23,7 +89,12 @@
         }
 
         override func doCommand(by selector: Selector) {
-            inputHandler?.handleTextCommand(selector)
+            if let lastPerformKeyEvent,
+               let current = NSApp.currentEvent,
+               lastPerformKeyEvent == current.timestamp
+            {
+                NSApp.sendEvent(current)
+            }
         }
 
         internal func mousePoint(from event: NSEvent) -> (x: CGFloat, y: CGFloat) {
@@ -125,6 +196,23 @@
                 y: event.scrollingDeltaY,
                 mods: scrollMods.rawValue
             )
+        }
+
+        private func keyIsBinding(
+            _ event: NSEvent,
+            on surface: TerminalSurface
+        ) -> Bool {
+            guard let rawSurface = surface.rawValue else {
+                return false
+            }
+
+            var keyEvent = event.buildKeyInput(action: GHOSTTY_ACTION_PRESS)
+            var bindingFlags = ghostty_binding_flags_e(rawValue: 0)
+            let text = event.characters ?? ""
+            return text.withCString { ptr in
+                keyEvent.text = ptr
+                return ghostty_surface_key_is_binding(rawSurface, keyEvent, &bindingFlags)
+            }
         }
     }
 #endif

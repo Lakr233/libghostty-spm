@@ -30,12 +30,12 @@
 
         public func selectedRange() -> NSRange {
             inputHandler?.inputMethodHandler?.currentSelectedRange()
-                ?? NSRange(location: NSNotFound, length: 0)
+                ?? NSRange()
         }
 
         public func markedRange() -> NSRange {
             inputHandler?.inputMethodHandler?.markedRange()
-                ?? NSRange(location: NSNotFound, length: 0)
+                ?? NSRange()
         }
 
         public func hasMarkedText() -> Bool {
@@ -53,7 +53,7 @@
         }
 
         public func validAttributesForMarkedText() -> [NSAttributedString.Key] {
-            [.underlineStyle, .backgroundColor]
+            []
         }
 
         public func firstRect(

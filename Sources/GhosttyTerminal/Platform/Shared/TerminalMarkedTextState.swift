@@ -17,14 +17,14 @@ struct TerminalMarkedTextState {
 
     var markedRange: NSRange {
         guard hasMarkedText else {
-            return NSRange(location: NSNotFound, length: 0)
+            return NSRange()
         }
         return NSRange(location: 0, length: documentLength)
     }
 
     var currentSelectedRange: NSRange {
         guard hasMarkedText else {
-            return NSRange(location: NSNotFound, length: 0)
+            return NSRange()
         }
         return selectedRange
     }
