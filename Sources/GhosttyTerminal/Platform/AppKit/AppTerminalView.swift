@@ -32,6 +32,10 @@
             set { core.configuration = newValue }
         }
 
+        public func setSurfaceVisible(_ visible: Bool) {
+            core.setDisplayVisible(visible)
+        }
+
         var surface: TerminalSurface? {
             core.surface
         }

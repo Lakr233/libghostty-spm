@@ -63,6 +63,7 @@ final class TerminalSurfaceCoordinator {
     var onPostRender: (() -> Void)?
 
     private var lastMetrics: TerminalViewportMetrics?
+    private var isDisplayVisible = true
 
     // MARK: - Display Link
 
@@ -76,6 +77,7 @@ final class TerminalSurfaceCoordinator {
     }
 
     func startDisplayLink() {
+        guard isDisplayVisible else { return }
         guard displayLink == nil else { return }
         TerminalDebugLog.log(.lifecycle, "display link start")
         displayLinkTarget.core = self
@@ -123,6 +125,7 @@ final class TerminalSurfaceCoordinator {
 
         bridge.rawSurface = rawSurface
         surface = TerminalSurface(rawSurface)
+        surface?.setOcclusion(isDisplayVisible)
         TerminalDebugLog.log(.lifecycle, "surface rebuild succeeded")
         synchronizeMetrics()
     }
@@ -212,6 +215,23 @@ final class TerminalSurfaceCoordinator {
         onPostRender?()
     }
 
+    func setDisplayVisible(_ visible: Bool) {
+        guard isDisplayVisible != visible else {
+            surface?.setOcclusion(visible)
+            return
+        }
+
+        isDisplayVisible = visible
+        surface?.setOcclusion(visible)
+
+        if visible {
+            if isAttached() {
+                startDisplayLink()
+            }
+        } else {
+            stopDisplayLink()
+        }
+    }
     // MARK: - Frame Rendering
 
     func tick() {
