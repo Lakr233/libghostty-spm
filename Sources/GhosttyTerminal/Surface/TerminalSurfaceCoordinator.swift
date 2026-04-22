@@ -13,7 +13,7 @@ import MSDisplayLink
 ///
 /// Platform views own a `TerminalSurfaceCoordinator` instance and set platform-specific
 /// hooks via closures. The core handles surface lifecycle, metrics
-/// synchronization, and frame rendering via display link.
+/// synchronization, and frame rendering via scheduled wakeups.
 @MainActor
 final class TerminalSurfaceCoordinator {
     weak var delegate: (any TerminalSurfaceViewDelegate)? {
@@ -67,13 +67,14 @@ final class TerminalSurfaceCoordinator {
     private var isSurfaceFocused = false
     private var pendingImmediateTick = true
     private var lastTickTimestamp: TimeInterval = 0
-    private let focusedIdleTickInterval: TimeInterval = 1.0 / 12.0
-    private let unfocusedIdleTickInterval: TimeInterval = 0.5
+    private let focusedIdleTickInterval: TimeInterval = 0.25
+    private let unfocusedIdleTickInterval: TimeInterval? = nil
 
-    // MARK: - Display Link
+    // MARK: - Scheduled Rendering
 
-    private var displayLink: DisplayLink?
-    private let displayLinkTarget = DisplayLinkTarget()
+    private var renderTimer: DispatchSourceTimer?
+    private var scheduledTickTimestamp: TimeInterval?
+    private let renderSchedulingLeeway: DispatchTimeInterval = .milliseconds(8)
 
     init() {
         bridge.onCellSizeChange = { [weak self] width, height in
@@ -83,22 +84,17 @@ final class TerminalSurfaceCoordinator {
 
     func requestImmediateTick() {
         pendingImmediateTick = true
+        scheduleNextTick(after: 0)
     }
 
     func startDisplayLink() {
-        guard isDisplayVisible else { return }
-        guard displayLink == nil else { return }
-        TerminalDebugLog.log(.lifecycle, "display link start")
-        displayLinkTarget.core = self
-        let link = DisplayLink()
-        link.delegatingObject(displayLinkTarget)
-        displayLink = link
+        guard isDisplayVisible, isAttached() else { return }
+        scheduleNextTick(after: pendingImmediateTick ? 0 : nextIdleTickDelay() ?? 0)
     }
 
     func stopDisplayLink() {
-        TerminalDebugLog.log(.lifecycle, "display link stop")
-        displayLink = nil
-        displayLinkTarget.core = nil
+        TerminalDebugLog.log(.lifecycle, "render timer stop")
+        cancelScheduledTick()
     }
 
     // MARK: - Surface Lifecycle
@@ -228,7 +224,6 @@ final class TerminalSurfaceCoordinator {
         if visible {
             if isAttached() {
                 requestImmediateTick()
-                startDisplayLink()
             }
         } else {
             stopDisplayLink()
@@ -238,6 +233,7 @@ final class TerminalSurfaceCoordinator {
 
     func tick(context: DisplayLinkCallbackContext) {
         guard shouldRenderFrame(at: context.timestamp) else {
+            scheduleNextTick(after: nextDelayUntilEligibleRender(at: context.timestamp) ?? 0)
             return
         }
         pendingImmediateTick = false
@@ -247,6 +243,7 @@ final class TerminalSurfaceCoordinator {
         surface?.refresh()
         surface?.draw()
         onPostRender?()
+        scheduleNextTick(after: nextIdleTickDelay())
     }
 
     // MARK: - Focus
@@ -268,11 +265,12 @@ final class TerminalSurfaceCoordinator {
     }
 
     deinit {
-        displayLink = nil
+        // Scheduled work is cancelled explicitly during surface teardown.
     }
 
     private func tearDownSurface(removingBridgeFrom controller: TerminalController?) {
         TerminalDebugLog.log(.lifecycle, "tear down surface")
+        cancelScheduledTick()
         if let session = configuration.inMemorySession {
             session.clearSurface(ifMatches: surface?.rawValue)
         }
@@ -298,7 +296,7 @@ final class TerminalSurfaceCoordinator {
     }
 
     private func shouldRenderFrame(at timestamp: TimeInterval) -> Bool {
-        guard isDisplayVisible else {
+        guard isDisplayVisible, isAttached() else {
             return false
         }
         guard pendingImmediateTick == false else {
@@ -307,22 +305,80 @@ final class TerminalSurfaceCoordinator {
         guard lastTickTimestamp > 0 else {
             return true
         }
-        let minimumInterval = isSurfaceFocused ? focusedIdleTickInterval : unfocusedIdleTickInterval
+        guard let minimumInterval = nextIdleTickDelay() else {
+            return false
+        }
         return (timestamp - lastTickTimestamp) >= minimumInterval
     }
-}
 
-// MARK: - DisplayLinkTarget
+    private func nextIdleTickDelay() -> TimeInterval? {
+        isSurfaceFocused ? focusedIdleTickInterval : unfocusedIdleTickInterval
+    }
 
-/// Bridges the `nonisolated` display link callback back to `@MainActor`
-/// TerminalSurfaceCoordinator. Stored as a separate object because `TerminalSurfaceCoordinator` itself
-/// is `@MainActor` and cannot directly conform to `nonisolated` protocol.
-private final class DisplayLinkTarget: DisplayLinkDelegate, @unchecked Sendable {
-    @MainActor var core: TerminalSurfaceCoordinator?
-
-    nonisolated func synchronization(context: DisplayLinkCallbackContext) {
-        terminalRunOnMain { [weak self] in
-            self?.core?.tick(context: context)
+    private func nextDelayUntilEligibleRender(at timestamp: TimeInterval) -> TimeInterval? {
+        guard pendingImmediateTick == false else {
+            return 0
         }
+        guard let minimumInterval = nextIdleTickDelay() else {
+            return nil
+        }
+        guard lastTickTimestamp > 0 else {
+            return 0
+        }
+        return max(0, minimumInterval - (timestamp - lastTickTimestamp))
+    }
+
+    private func scheduleNextTick(after delay: TimeInterval?) {
+        guard isDisplayVisible, isAttached() else {
+            cancelScheduledTick()
+            return
+        }
+        guard let delay else {
+            cancelScheduledTick()
+            return
+        }
+
+        let sanitizedDelay = max(0, delay)
+        let targetTimestamp = Self.monotonicTimestamp() + sanitizedDelay
+        if let scheduledTickTimestamp,
+           scheduledTickTimestamp <= (targetTimestamp + 0.001) {
+            return
+        }
+
+        cancelScheduledTick()
+        TerminalDebugLog.log(.lifecycle, "render timer schedule delay=\(String(format: "%.3f", sanitizedDelay))")
+
+        let timer = DispatchSource.makeTimerSource(queue: .main)
+        timer.schedule(deadline: .now() + sanitizedDelay, leeway: renderSchedulingLeeway)
+        timer.setEventHandler { [weak self] in
+            guard let self else { return }
+            self.renderTimer = nil
+            self.scheduledTickTimestamp = nil
+
+            let timestamp = Self.monotonicTimestamp()
+            let idleDelay = self.nextIdleTickDelay() ?? self.focusedIdleTickInterval
+            self.tick(
+                context: .init(
+                    duration: idleDelay,
+                    timestamp: timestamp,
+                    targetTimestamp: timestamp + idleDelay
+                )
+            )
+        }
+        renderTimer = timer
+        scheduledTickTimestamp = targetTimestamp
+        timer.resume()
+    }
+
+    private func cancelScheduledTick() {
+        scheduledTickTimestamp = nil
+        guard let renderTimer else { return }
+        renderTimer.setEventHandler {}
+        renderTimer.cancel()
+        self.renderTimer = nil
+    }
+
+    private static func monotonicTimestamp() -> TimeInterval {
+        ProcessInfo.processInfo.systemUptime
     }
 }
