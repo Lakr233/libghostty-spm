@@ -148,6 +148,141 @@ struct ShellCraftKitTests {
     }
 
     @Test
+    func tabExpansionUsesVisibleCursorColumn() {
+        #expect(
+            terminalExpandedTabText(
+                promptDisplayWidth: 2,
+                input: "abc",
+                cursorPosition: 3,
+                terminalColumns: 80
+            ) == "   "
+        )
+        #expect(
+            terminalExpandedTabText(
+                promptDisplayWidth: 7,
+                input: "",
+                cursorPosition: 0,
+                terminalColumns: 80
+            ) == " "
+        )
+    }
+
+    @Test
+    func tabExpansionRespectsWrappedCursorColumn() {
+        #expect(
+            terminalExpandedTabText(
+                promptDisplayWidth: 18,
+                input: "ab",
+                cursorPosition: 2,
+                terminalColumns: 20
+            ) == String(repeating: " ", count: 5)
+        )
+    }
+
+    @Test
+    func metaEditingActionRecognizesWordSequences() {
+        #expect(terminalMetaEditingAction(for: 0x7F) == .deleteBackwardWord)
+        #expect(terminalMetaEditingAction(for: 0x08) == .deleteBackwardWord)
+        #expect(terminalMetaEditingAction(for: 0x62) == .moveBackwardWord)
+        #expect(terminalMetaEditingAction(for: 0x66) == .moveForwardWord)
+        #expect(terminalMetaEditingAction(for: 0x64) == .deleteForwardWord)
+        #expect(terminalMetaEditingAction(for: 0x42) == nil)
+        #expect(terminalMetaEditingAction(for: 0x78) == nil)
+    }
+
+    @Test
+    func csiEditingActionRecognizesModifiedArrowWordSequences() {
+        #expect(
+            terminalCSIEditingAction(params: Data("1;3".utf8), finalByte: 0x44)
+                == .moveCursorBackwardWord
+        )
+        #expect(
+            terminalCSIEditingAction(params: Data("1;3".utf8), finalByte: 0x43)
+                == .moveCursorForwardWord
+        )
+        #expect(
+            terminalCSIEditingAction(params: Data(), finalByte: 0x44)
+                == .moveCursorLeft
+        )
+        #expect(
+            terminalCSIEditingAction(params: Data(), finalByte: 0x43)
+                == .moveCursorRight
+        )
+        #expect(
+            terminalCSIEditingAction(params: Data("3".utf8), finalByte: 0x7E)
+                == .deleteForward
+        )
+        #expect(
+            terminalCSIEditingAction(params: Data("1;4".utf8), finalByte: 0x44)
+                == .moveCursorBackwardWord
+        )
+        #expect(
+            terminalCSIEditingAction(params: Data("3;3".utf8), finalByte: 0x7E)
+                == .deleteForwardWord
+        )
+    }
+
+    @Test
+    func csiModifierDetectionMatchesAltSuffix() {
+        #expect(terminalCSIHasAltModifier(Data("1;3".utf8)))
+        #expect(terminalCSIHasAltModifier(Data("1;4".utf8)))
+        #expect(!terminalCSIHasAltModifier(Data("1;5".utf8)))
+        #expect(!terminalCSIHasAltModifier(Data("3".utf8)))
+        #expect(!terminalCSIHasAltModifier(Data()))
+    }
+
+    @Test
+    func wordBoundariesTreatPunctuationAsSeparatorsForMetaMotion() {
+        #expect(terminalPreviousWordBoundary(in: "alpha beta", from: 10) == 6)
+        #expect(terminalPreviousWordBoundary(in: "alpha beta  ", from: 12) == 6)
+        #expect(terminalNextWordBoundary(in: "alpha beta", from: 0) == 5)
+        #expect(terminalNextWordBoundary(in: "alpha   beta", from: 5) == 12)
+        #expect(terminalPreviousWordBoundary(in: "foo-bar", from: 7) == 4)
+        #expect(terminalNextWordBoundary(in: "foo-bar", from: 0) == 3)
+        #expect(terminalPreviousWordBoundary(in: "héllo wörld", from: 11) == 6)
+    }
+
+    @Test
+    func shellWordBoundariesRemainWhitespaceDelimitedForControlW() {
+        #expect(terminalPreviousShellWordBoundary(in: "foo-bar baz", from: 11) == 8)
+        #expect(terminalPreviousShellWordBoundary(in: "alpha beta  ", from: 12) == 6)
+        #expect(terminalNextShellWordBoundary(in: "alpha   beta", from: 5) == 12)
+    }
+
+    @Test
+    func deleteBackwardWordRemovesPreviousWordAndTrailingSpaces() {
+        let result = terminalDeleteBackwardWord(
+            input: "alpha beta  ",
+            cursorPosition: 12
+        )
+
+        #expect(result.input == "alpha ")
+        #expect(result.cursorPosition == 6)
+    }
+
+    @Test
+    func deleteForwardWordRemovesNextWordAndLeadingSpaces() {
+        let result = terminalDeleteForwardWord(
+            input: "alpha   beta gamma",
+            cursorPosition: 5
+        )
+
+        #expect(result.input == "alpha gamma")
+        #expect(result.cursorPosition == 5)
+    }
+
+    @Test
+    func deleteBackwardShellWordRemovesPreviousWhitespaceDelimitedToken() {
+        let result = terminalDeleteBackwardShellWord(
+            input: "foo-bar baz  ",
+            cursorPosition: 13
+        )
+
+        #expect(result.input == "foo-bar ")
+        #expect(result.cursorPosition == 8)
+    }
+
+    @Test
     func sandboxShellSupportsExitAndStyledFallback() {
         let viewport = InMemoryTerminalViewport(
             columns: 80,
