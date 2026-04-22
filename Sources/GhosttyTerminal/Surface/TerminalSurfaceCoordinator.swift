@@ -73,6 +73,9 @@ final class TerminalSurfaceCoordinator {
         bridge.onCellSizeChange = { [weak self] width, height in
             self?.handleCellSizeChange(width: width, height: height)
         }
+        bridge.onRenderRequest = { [weak self] in
+            self?.requestImmediateTick()
+        }
     }
 
     func requestImmediateTick() {
