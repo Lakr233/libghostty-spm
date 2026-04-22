@@ -67,14 +67,7 @@ final class TerminalSurfaceCoordinator {
     private var isSurfaceFocused = false
     private var pendingImmediateTick = true
     private var lastTickTimestamp: TimeInterval = 0
-    private let focusedIdleTickInterval: TimeInterval = 0.25
-    private let unfocusedIdleTickInterval: TimeInterval? = nil
-
-    // MARK: - Scheduled Rendering
-
-    private var renderTimer: DispatchSourceTimer?
-    private var scheduledTickTimestamp: TimeInterval?
-    private let renderSchedulingLeeway: DispatchTimeInterval = .milliseconds(8)
+    private var tickScheduled = false
 
     init() {
         bridge.onCellSizeChange = { [weak self] width, height in
@@ -84,17 +77,15 @@ final class TerminalSurfaceCoordinator {
 
     func requestImmediateTick() {
         pendingImmediateTick = true
-        scheduleNextTick(after: 0)
+        scheduleTickIfNeeded()
     }
 
     func startDisplayLink() {
-        guard isDisplayVisible, isAttached() else { return }
-        scheduleNextTick(after: pendingImmediateTick ? 0 : nextIdleTickDelay() ?? 0)
+        scheduleTickIfNeeded()
     }
 
     func stopDisplayLink() {
-        TerminalDebugLog.log(.lifecycle, "render timer stop")
-        cancelScheduledTick()
+        tickScheduled = false
     }
 
     // MARK: - Surface Lifecycle
@@ -233,7 +224,6 @@ final class TerminalSurfaceCoordinator {
 
     func tick(context: DisplayLinkCallbackContext) {
         guard shouldRenderFrame(at: context.timestamp) else {
-            scheduleNextTick(after: nextDelayUntilEligibleRender(at: context.timestamp) ?? 0)
             return
         }
         pendingImmediateTick = false
@@ -243,7 +233,6 @@ final class TerminalSurfaceCoordinator {
         surface?.refresh()
         surface?.draw()
         onPostRender?()
-        scheduleNextTick(after: nextIdleTickDelay())
     }
 
     // MARK: - Focus
@@ -265,12 +254,12 @@ final class TerminalSurfaceCoordinator {
     }
 
     deinit {
-        // Scheduled work is cancelled explicitly during surface teardown.
+        // Main-queue tick dispatches are allowed to drain naturally on teardown.
     }
 
     private func tearDownSurface(removingBridgeFrom controller: TerminalController?) {
         TerminalDebugLog.log(.lifecycle, "tear down surface")
-        cancelScheduledTick()
+        tickScheduled = false
         if let session = configuration.inMemorySession {
             session.clearSurface(ifMatches: surface?.rawValue)
         }
@@ -299,83 +288,31 @@ final class TerminalSurfaceCoordinator {
         guard isDisplayVisible, isAttached() else {
             return false
         }
-        guard pendingImmediateTick == false else {
-            return true
-        }
-        guard lastTickTimestamp > 0 else {
-            return true
-        }
-        guard let minimumInterval = nextIdleTickDelay() else {
-            return false
-        }
-        return (timestamp - lastTickTimestamp) >= minimumInterval
+        return pendingImmediateTick || lastTickTimestamp == 0
     }
 
-    private func nextIdleTickDelay() -> TimeInterval? {
-        isSurfaceFocused ? focusedIdleTickInterval : unfocusedIdleTickInterval
-    }
-
-    private func nextDelayUntilEligibleRender(at timestamp: TimeInterval) -> TimeInterval? {
-        guard pendingImmediateTick == false else {
-            return 0
-        }
-        guard let minimumInterval = nextIdleTickDelay() else {
-            return nil
-        }
-        guard lastTickTimestamp > 0 else {
-            return 0
-        }
-        return max(0, minimumInterval - (timestamp - lastTickTimestamp))
-    }
-
-    private func scheduleNextTick(after delay: TimeInterval?) {
+    private func scheduleTickIfNeeded() {
         guard isDisplayVisible, isAttached() else {
-            cancelScheduledTick()
+            tickScheduled = false
             return
         }
-        guard let delay else {
-            cancelScheduledTick()
+        guard !tickScheduled else {
             return
         }
-
-        let sanitizedDelay = max(0, delay)
-        let targetTimestamp = Self.monotonicTimestamp() + sanitizedDelay
-        if let scheduledTickTimestamp,
-           scheduledTickTimestamp <= (targetTimestamp + 0.001) {
-            return
-        }
-
-        cancelScheduledTick()
-        TerminalDebugLog.log(.lifecycle, "render timer schedule delay=\(String(format: "%.3f", sanitizedDelay))")
-
-        let timer = DispatchSource.makeTimerSource(queue: .main)
-        timer.schedule(deadline: .now() + sanitizedDelay, leeway: renderSchedulingLeeway)
-        timer.setEventHandler { [weak self] in
+        tickScheduled = true
+        TerminalDebugLog.log(.lifecycle, "tick scheduled")
+        DispatchQueue.main.async { [weak self] in
             guard let self else { return }
-            self.renderTimer = nil
-            self.scheduledTickTimestamp = nil
-
+            self.tickScheduled = false
             let timestamp = Self.monotonicTimestamp()
-            let idleDelay = self.nextIdleTickDelay() ?? self.focusedIdleTickInterval
             self.tick(
                 context: .init(
-                    duration: idleDelay,
+                    duration: 0,
                     timestamp: timestamp,
-                    targetTimestamp: timestamp + idleDelay
+                    targetTimestamp: timestamp
                 )
             )
         }
-        renderTimer = timer
-        scheduledTickTimestamp = targetTimestamp
-        timer.resume()
-    }
-
-    private func cancelScheduledTick() {
-        scheduledTickTimestamp = nil
-        guard let renderTimer else { return }
-        renderTimer.setEventHandler {}
-        renderTimer.cancel()
-        self.renderTimer = nil
     }
 
     private static func monotonicTimestamp() -> TimeInterval {
