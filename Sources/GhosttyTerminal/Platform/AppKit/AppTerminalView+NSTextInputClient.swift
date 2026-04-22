@@ -30,12 +30,12 @@
 
         public func selectedRange() -> NSRange {
             inputHandler?.inputMethodHandler?.currentSelectedRange()
-                ?? NSRange()
+                ?? NSRange(location: NSNotFound, length: 0)
         }
 
         public func markedRange() -> NSRange {
             inputHandler?.inputMethodHandler?.markedRange()
-                ?? NSRange()
+                ?? NSRange(location: NSNotFound, length: 0)
         }
 
         public func hasMarkedText() -> Bool {

@@ -116,6 +116,12 @@ actor Engine {
             if (0x40 ... 0x7E).contains(byte) {
                 escapeState = .none
                 handleCSI(buffer, finalByte: byte)
+            } else if buffer.count >= 64 {
+                // Cap the CSI parameter buffer to guard against a peer that
+                // sends ESC[ followed by an unbounded stream of intermediate
+                // bytes, which would otherwise grow memory until the process
+                // is killed.
+                escapeState = .none
             } else {
                 buffer.append(byte)
                 escapeState = .csi(buffer)
