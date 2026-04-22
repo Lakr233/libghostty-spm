@@ -11,19 +11,93 @@
 
     public extension AppTerminalView {
         override func keyDown(with event: NSEvent) {
+            core.requestImmediateTick()
             inputHandler?.handleKeyDown(with: event)
         }
 
+        override func performKeyEquivalent(with event: NSEvent) -> Bool {
+            guard event.type == .keyDown else { return false }
+            guard window?.firstResponder === self else { return false }
+            guard let surface else { return false }
+
+            if keyIsBinding(event, on: surface) {
+                keyDown(with: event)
+                return true
+            }
+
+            let equivalent: String
+            switch event.charactersIgnoringModifiers {
+            case "\r":
+                guard event.modifierFlags.contains(.control) else {
+                    return false
+                }
+                equivalent = "\r"
+
+            case "/":
+                guard event.modifierFlags.contains(.control),
+                      event.modifierFlags.isDisjoint(with: [.shift, .command, .option]) else {
+                    return false
+                }
+                equivalent = "_"
+
+            default:
+                if event.timestamp == 0 {
+                    return false
+                }
+
+                if !event.modifierFlags.contains(.command),
+                   !event.modifierFlags.contains(.control) {
+                    lastPerformKeyEvent = nil
+                    return false
+                }
+
+                if let lastPerformKeyEvent,
+                   lastPerformKeyEvent == event.timestamp {
+                    self.lastPerformKeyEvent = nil
+                    equivalent = event.characters ?? ""
+                    break
+                }
+
+                lastPerformKeyEvent = event.timestamp
+                return false
+            }
+
+            guard let translatedEvent = NSEvent.keyEvent(
+                with: .keyDown,
+                location: event.locationInWindow,
+                modifierFlags: event.modifierFlags,
+                timestamp: event.timestamp,
+                windowNumber: event.windowNumber,
+                context: nil,
+                characters: equivalent,
+                charactersIgnoringModifiers: equivalent,
+                isARepeat: event.isARepeat,
+                keyCode: event.keyCode
+            ) else {
+                return false
+            }
+
+            keyDown(with: translatedEvent)
+            return true
+        }
+
         override func keyUp(with event: NSEvent) {
+            core.requestImmediateTick()
             inputHandler?.handleKeyUp(with: event)
         }
 
         override func flagsChanged(with event: NSEvent) {
+            core.requestImmediateTick()
             inputHandler?.handleFlagsChanged(with: event)
         }
 
         override func doCommand(by selector: Selector) {
-            inputHandler?.handleTextCommand(selector)
+            if let lastPerformKeyEvent,
+               let current = NSApp.currentEvent,
+               lastPerformKeyEvent == current.timestamp
+            {
+                NSApp.sendEvent(current)
+            }
         }
 
         internal func mousePoint(from event: NSEvent) -> (x: CGFloat, y: CGFloat) {
@@ -32,6 +106,7 @@
         }
 
         override func mouseDown(with event: NSEvent) {
+            core.requestImmediateTick()
             let (x, y) = mousePoint(from: event)
             let mods = TerminalInputModifiers(from: event.modifierFlags)
             surface?.sendMousePos(x: x, y: y, mods: mods.ghosttyMods)
@@ -43,6 +118,7 @@
         }
 
         override func mouseUp(with event: NSEvent) {
+            core.requestImmediateTick()
             let (x, y) = mousePoint(from: event)
             let mods = TerminalInputModifiers(from: event.modifierFlags)
             surface?.sendMousePos(x: x, y: y, mods: mods.ghosttyMods)
@@ -54,6 +130,7 @@
         }
 
         override func rightMouseDown(with event: NSEvent) {
+            core.requestImmediateTick()
             let (x, y) = mousePoint(from: event)
             let mods = TerminalInputModifiers(from: event.modifierFlags)
             surface?.sendMousePos(x: x, y: y, mods: mods.ghosttyMods)
@@ -65,6 +142,7 @@
         }
 
         override func rightMouseUp(with event: NSEvent) {
+            core.requestImmediateTick()
             let (x, y) = mousePoint(from: event)
             let mods = TerminalInputModifiers(from: event.modifierFlags)
             surface?.sendMousePos(x: x, y: y, mods: mods.ghosttyMods)
@@ -76,6 +154,7 @@
         }
 
         override func otherMouseDown(with event: NSEvent) {
+            core.requestImmediateTick()
             let (x, y) = mousePoint(from: event)
             let mods = TerminalInputModifiers(from: event.modifierFlags)
             surface?.sendMousePos(x: x, y: y, mods: mods.ghosttyMods)
@@ -87,6 +166,7 @@
         }
 
         override func otherMouseUp(with event: NSEvent) {
+            core.requestImmediateTick()
             let (x, y) = mousePoint(from: event)
             let mods = TerminalInputModifiers(from: event.modifierFlags)
             surface?.sendMousePos(x: x, y: y, mods: mods.ghosttyMods)
@@ -98,6 +178,7 @@
         }
 
         override func mouseMoved(with event: NSEvent) {
+            core.requestImmediateTick()
             let (x, y) = mousePoint(from: event)
             let mods = TerminalInputModifiers(from: event.modifierFlags)
             surface?.sendMousePos(x: x, y: y, mods: mods.ghosttyMods)
@@ -116,6 +197,7 @@
         }
 
         override func scrollWheel(with event: NSEvent) {
+            core.requestImmediateTick()
             let scrollMods = TerminalScrollModifiers(
                 precision: event.hasPreciseScrollingDeltas,
                 momentum: TerminalScrollModifiers.momentumFrom(phase: event.momentumPhase)
@@ -125,6 +207,23 @@
                 y: event.scrollingDeltaY,
                 mods: scrollMods.rawValue
             )
+        }
+
+        private func keyIsBinding(
+            _ event: NSEvent,
+            on surface: TerminalSurface
+        ) -> Bool {
+            guard let rawSurface = surface.rawValue else {
+                return false
+            }
+
+            var keyEvent = event.buildKeyInput(action: GHOSTTY_ACTION_PRESS)
+            var bindingFlags = ghostty_binding_flags_e(rawValue: 0)
+            let text = event.characters ?? ""
+            return text.withCString { ptr in
+                keyEvent.text = ptr
+                return ghostty_surface_key_is_binding(rawSurface, keyEvent, &bindingFlags)
+            }
         }
     }
 #endif

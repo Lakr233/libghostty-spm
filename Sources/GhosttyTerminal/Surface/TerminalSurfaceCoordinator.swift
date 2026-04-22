@@ -13,7 +13,7 @@ import MSDisplayLink
 ///
 /// Platform views own a `TerminalSurfaceCoordinator` instance and set platform-specific
 /// hooks via closures. The core handles surface lifecycle, metrics
-/// synchronization, and frame rendering via display link.
+/// synchronization, and frame rendering via scheduled wakeups.
 @MainActor
 final class TerminalSurfaceCoordinator {
     weak var delegate: (any TerminalSurfaceViewDelegate)? {
@@ -63,11 +63,11 @@ final class TerminalSurfaceCoordinator {
     var onPostRender: (() -> Void)?
 
     private var lastMetrics: TerminalViewportMetrics?
-
-    // MARK: - Display Link
-
-    private var displayLink: DisplayLink?
-    private let displayLinkTarget = DisplayLinkTarget()
+    private var isDisplayVisible = true
+    private var isSurfaceFocused = false
+    private var pendingImmediateTick = true
+    private var lastTickTimestamp: TimeInterval = 0
+    private var tickScheduled = false
 
     init() {
         bridge.onCellSizeChange = { [weak self] width, height in
@@ -75,19 +75,17 @@ final class TerminalSurfaceCoordinator {
         }
     }
 
+    func requestImmediateTick() {
+        pendingImmediateTick = true
+        scheduleTickIfNeeded()
+    }
+
     func startDisplayLink() {
-        guard displayLink == nil else { return }
-        TerminalDebugLog.log(.lifecycle, "display link start")
-        displayLinkTarget.core = self
-        let link = DisplayLink()
-        link.delegatingObject(displayLinkTarget)
-        displayLink = link
+        scheduleTickIfNeeded()
     }
 
     func stopDisplayLink() {
-        TerminalDebugLog.log(.lifecycle, "display link stop")
-        displayLink = nil
-        displayLinkTarget.core = nil
+        tickScheduled = false
     }
 
     // MARK: - Surface Lifecycle
@@ -123,6 +121,11 @@ final class TerminalSurfaceCoordinator {
 
         bridge.rawSurface = rawSurface
         surface = TerminalSurface(rawSurface)
+        surface?.setOcclusion(isDisplayVisible)
+        controller.onWakeup = { [weak self] in
+            self?.requestImmediateTick()
+        }
+        requestImmediateTick()
         TerminalDebugLog.log(.lifecycle, "surface rebuild succeeded")
         synchronizeMetrics()
     }
@@ -197,11 +200,34 @@ final class TerminalSurfaceCoordinator {
 
     func fitToSize() {
         synchronizeMetrics()
+        requestImmediateTick()
     }
 
+    func setDisplayVisible(_ visible: Bool) {
+        guard isDisplayVisible != visible else {
+            surface?.setOcclusion(visible)
+            return
+        }
+
+        isDisplayVisible = visible
+        surface?.setOcclusion(visible)
+
+        if visible {
+            if isAttached() {
+                requestImmediateTick()
+            }
+        } else {
+            stopDisplayLink()
+        }
+    }
     // MARK: - Frame Rendering
 
-    func tick() {
+    func tick(context: DisplayLinkCallbackContext) {
+        guard shouldRenderFrame(at: context.timestamp) else {
+            return
+        }
+        pendingImmediateTick = false
+        lastTickTimestamp = context.timestamp
         TerminalDebugLog.log(.render, "tick")
         controller?.tick()
         surface?.refresh()
@@ -212,6 +238,8 @@ final class TerminalSurfaceCoordinator {
     // MARK: - Focus
 
     func setFocus(_ focused: Bool) {
+        isSurfaceFocused = focused
+        requestImmediateTick()
         TerminalDebugLog.log(.lifecycle, "focus=\(focused)")
         surface?.setFocus(focused)
         (delegate as? any TerminalSurfaceFocusDelegate)?
@@ -227,17 +255,22 @@ final class TerminalSurfaceCoordinator {
 
     isolated deinit {
         tearDownSurface(removingBridgeFrom: controller)
-        displayLink = nil
     }
 
     private func tearDownSurface(removingBridgeFrom controller: TerminalController?) {
         TerminalDebugLog.log(.lifecycle, "tear down surface")
-        configuration.inMemorySession?.setSurface(nil)
+        tickScheduled = false
+        if let session = configuration.inMemorySession {
+            session.clearSurface(ifMatches: surface?.rawValue)
+        }
+        controller?.onWakeup = nil
         bridge.rawSurface = nil
         surface?.setFocus(false)
         surface?.free()
         surface = nil
         lastMetrics = nil
+        pendingImmediateTick = true
+        lastTickTimestamp = 0
         controller?.remove(bridge)
     }
 
@@ -247,21 +280,42 @@ final class TerminalSurfaceCoordinator {
             "cell size changed width=\(width) height=\(height)"
         )
         synchronizeMetrics()
+        requestImmediateTick()
         onCellSizeDidChange?()
     }
-}
 
-// MARK: - DisplayLinkTarget
-
-/// Bridges the `nonisolated` display link callback back to `@MainActor`
-/// TerminalSurfaceCoordinator. Stored as a separate object because `TerminalSurfaceCoordinator` itself
-/// is `@MainActor` and cannot directly conform to `nonisolated` protocol.
-private final class DisplayLinkTarget: DisplayLinkDelegate, @unchecked Sendable {
-    @MainActor var core: TerminalSurfaceCoordinator?
-
-    nonisolated func synchronization(context _: DisplayLinkCallbackContext) {
-        terminalRunOnMain { [weak self] in
-            self?.core?.tick()
+    private func shouldRenderFrame(at timestamp: TimeInterval) -> Bool {
+        guard isDisplayVisible, isAttached() else {
+            return false
         }
+        return pendingImmediateTick || lastTickTimestamp == 0
+    }
+
+    private func scheduleTickIfNeeded() {
+        guard isDisplayVisible, isAttached() else {
+            tickScheduled = false
+            return
+        }
+        guard !tickScheduled else {
+            return
+        }
+        tickScheduled = true
+        TerminalDebugLog.log(.lifecycle, "tick scheduled")
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.tickScheduled = false
+            let timestamp = Self.monotonicTimestamp()
+            self.tick(
+                context: .init(
+                    duration: 0,
+                    timestamp: timestamp,
+                    targetTimestamp: timestamp
+                )
+            )
+        }
+    }
+
+    private static func monotonicTimestamp() -> TimeInterval {
+        ProcessInfo.processInfo.systemUptime
     }
 }

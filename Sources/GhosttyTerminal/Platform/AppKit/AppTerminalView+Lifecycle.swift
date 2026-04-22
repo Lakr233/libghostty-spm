@@ -62,6 +62,7 @@
                 updateMetalLayerMetrics()
                 updateColorScheme()
                 core.startDisplayLink()
+                core.requestImmediateTick()
 
                 NotificationCenter.default.addObserver(
                     self,
@@ -91,20 +92,39 @@
             core.setFocus(false)
         }
 
+        private func removeWindowObservers() {
+            // Remove any existing key-window observers before registering for the
+            // current window. AppKit can move the view directly between windows
+            // without an intermediate nil attachment.
+            NotificationCenter.default.removeObserver(
+                self,
+                name: NSWindow.didBecomeKeyNotification,
+                object: nil
+            )
+            NotificationCenter.default.removeObserver(
+                self,
+                name: NSWindow.didResignKeyNotification,
+                object: nil
+            )
+        }
+
         override func setFrameSize(_ newSize: NSSize) {
             super.setFrameSize(newSize)
             core.synchronizeMetrics()
+            core.requestImmediateTick()
         }
 
         override func layout() {
             super.layout()
             core.synchronizeMetrics()
+            core.requestImmediateTick()
         }
 
         override func viewDidChangeBackingProperties() {
             super.viewDidChangeBackingProperties()
             updateMetalLayerMetrics()
             core.synchronizeMetrics()
+            core.requestImmediateTick()
         }
 
         func fitToSize() {
@@ -127,22 +147,6 @@
             if metalLayer.contentsScale != scale {
                 metalLayer.contentsScale = scale
             }
-        }
-
-        private func removeWindowObservers() {
-            // Remove any existing key-window observers before registering for the
-            // current window. AppKit can move the view directly between windows
-            // without an intermediate nil attachment.
-            NotificationCenter.default.removeObserver(
-                self,
-                name: NSWindow.didBecomeKeyNotification,
-                object: nil
-            )
-            NotificationCenter.default.removeObserver(
-                self,
-                name: NSWindow.didResignKeyNotification,
-                object: nil
-            )
         }
 
         override func viewDidChangeEffectiveAppearance() {

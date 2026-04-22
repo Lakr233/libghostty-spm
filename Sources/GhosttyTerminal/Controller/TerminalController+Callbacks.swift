@@ -19,6 +19,7 @@ private enum TerminalCallbacks {
             .takeUnretainedValue()
         terminalRunOnMain {
             controller.tick()
+            controller.onWakeup?()
         }
     }
 

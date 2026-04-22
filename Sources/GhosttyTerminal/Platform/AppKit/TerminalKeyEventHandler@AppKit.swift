@@ -28,21 +28,24 @@
 
             let action: ghostty_input_action_e = event.isARepeat
                 ? GHOSTTY_ACTION_REPEAT : GHOSTTY_ACTION_PRESS
-
-            guard !event.modifierFlags.contains(.command) else {
-                sendKeyEvent(for: event, action: action, to: surface, includeText: false)
-                return
-            }
+            let translationEvent = translatedEvent(for: event, on: surface)
 
             inputMethodHandler?.startCollectingText()
-            view.interpretKeyEvents([event])
-
-            if inputMethodHandler?.consumeHandledTextCommand() == true {
+            let markedTextBefore = inputMethodHandler?.hasMarkedText == true
+            let keyboardIdBefore = markedTextBefore ? nil : KeyboardLayout.id
+            view.lastPerformKeyEvent = nil
+            view.interpretKeyEvents([translationEvent])
+            if !markedTextBefore, keyboardIdBefore != KeyboardLayout.id {
+                _ = inputMethodHandler?.finishCollectingText()
                 return
             }
+            inputMethodHandler?.syncPreedit(clearIfNeeded: markedTextBefore)
 
             if let collected = inputMethodHandler?.finishCollectingText() {
-                var input = event.buildKeyInput(action: action)
+                var input = event.buildKeyInput(
+                    action: action,
+                    translationModifiers: translationEvent.modifierFlags
+                )
                 for text in collected {
                     text.withCString { ptr in
                         input.text = ptr
@@ -52,12 +55,14 @@
                 return
             }
 
-            guard inputMethodHandler?.hasMarkedText != true else { return }
-            sendKeyEvent(for: event, action: action, to: surface, includeText: true)
-        }
-
-        func handleTextCommand(_ selector: Selector) {
-            inputMethodHandler?.handleCommand(selector)
+            sendKeyEvent(
+                for: event,
+                translationEvent: translationEvent,
+                action: action,
+                to: surface,
+                includeText: true,
+                composing: inputMethodHandler?.hasMarkedText == true || markedTextBefore
+            )
         }
 
         func handleKeyUp(with event: NSEvent) {
@@ -71,37 +76,66 @@
         }
 
         func handleFlagsChanged(with event: NSEvent) {
-            guard let view, let surface = view.surface else { return }
+            guard let surface = view?.surface else { return }
+            guard inputMethodHandler?.hasMarkedText != true else { return }
 
-            let action: ghostty_input_action_e = isModifierPress(event)
-                ? GHOSTTY_ACTION_PRESS : GHOSTTY_ACTION_RELEASE
+            let mod: UInt32
+            switch event.keyCode {
+            case 0x39: mod = GHOSTTY_MODS_CAPS.rawValue
+            case 0x38, 0x3C: mod = GHOSTTY_MODS_SHIFT.rawValue
+            case 0x3B, 0x3E: mod = GHOSTTY_MODS_CTRL.rawValue
+            case 0x3A, 0x3D: mod = GHOSTTY_MODS_ALT.rawValue
+            case 0x37, 0x36: mod = GHOSTTY_MODS_SUPER.rawValue
+            default: return
+            }
+
+            let mods = TerminalInputModifiers(from: event.modifierFlags).ghosttyMods
+
+            var action = GHOSTTY_ACTION_RELEASE
+            if mods.rawValue & mod != 0 {
+                let sidePressed: Bool
+                switch event.keyCode {
+                case 0x3C:
+                    sidePressed = event.modifierFlags.rawValue
+                        & UInt(NX_DEVICERSHIFTKEYMASK) != 0
+                case 0x3E:
+                    sidePressed = event.modifierFlags.rawValue
+                        & UInt(NX_DEVICERCTLKEYMASK) != 0
+                case 0x3D:
+                    sidePressed = event.modifierFlags.rawValue
+                        & UInt(NX_DEVICERALTKEYMASK) != 0
+                case 0x36:
+                    sidePressed = event.modifierFlags.rawValue
+                        & UInt(NX_DEVICERCMDKEYMASK) != 0
+                default:
+                    sidePressed = true
+                }
+
+                if sidePressed {
+                    action = GHOSTTY_ACTION_PRESS
+                }
+            }
 
             var input = event.buildKeyInput(action: action)
             input.text = nil
             surface.sendKeyEvent(input)
         }
 
-        private func isModifierPress(_ event: NSEvent) -> Bool {
-            let flags = event.modifierFlags
-            switch event.keyCode {
-            case 56, 60: return flags.contains(.shift)
-            case 58, 61: return flags.contains(.option)
-            case 59, 62: return flags.contains(.control)
-            case 55, 54: return flags.contains(.command)
-            case 57: return flags.contains(.capsLock)
-            default: return false
-            }
-        }
-
         private func sendKeyEvent(
             for event: NSEvent,
+            translationEvent: NSEvent,
             action: ghostty_input_action_e,
             to surface: TerminalSurface,
-            includeText: Bool
+            includeText: Bool,
+            composing: Bool = false
         ) {
-            var input = event.buildKeyInput(action: action)
+            var input = event.buildKeyInput(
+                action: action,
+                translationModifiers: translationEvent.modifierFlags
+            )
+            input.composing = composing
             guard includeText,
-                  let chars = event.filteredCharacters,
+                  let chars = translationEvent.filteredCharacters,
                   !chars.isEmpty
             else {
                 surface.sendKeyEvent(input)
@@ -140,12 +174,71 @@
                 backend: view.configuration.backend
             ).isDirectInput
         }
+
+        private func translatedEvent(
+            for event: NSEvent,
+            on surface: TerminalSurface
+        ) -> NSEvent {
+            guard let rawSurface = surface.rawValue else {
+                return event
+            }
+
+            let translatedMods = eventModifierFlags(
+                from: ghostty_surface_key_translation_mods(
+                    rawSurface,
+                    TerminalInputModifiers(from: event.modifierFlags).ghosttyMods
+                )
+            )
+
+            var finalModifiers = event.modifierFlags
+            for flag in [
+                NSEvent.ModifierFlags.shift,
+                .control,
+                .option,
+                .command,
+            ] {
+                if translatedMods.contains(flag) {
+                    finalModifiers.insert(flag)
+                } else {
+                    finalModifiers.remove(flag)
+                }
+            }
+
+            guard finalModifiers != event.modifierFlags else {
+                return event
+            }
+
+            return NSEvent.keyEvent(
+                with: event.type,
+                location: event.locationInWindow,
+                modifierFlags: finalModifiers,
+                timestamp: event.timestamp,
+                windowNumber: event.windowNumber,
+                context: nil,
+                characters: event.characters(byApplyingModifiers: finalModifiers) ?? "",
+                charactersIgnoringModifiers: event.charactersIgnoringModifiers ?? "",
+                isARepeat: event.isARepeat,
+                keyCode: event.keyCode
+            ) ?? event
+        }
+
+        private func eventModifierFlags(from mods: ghostty_input_mods_e) -> NSEvent.ModifierFlags {
+            var flags = NSEvent.ModifierFlags()
+            if mods.rawValue & GHOSTTY_MODS_SHIFT.rawValue != 0 { flags.insert(.shift) }
+            if mods.rawValue & GHOSTTY_MODS_CTRL.rawValue != 0 { flags.insert(.control) }
+            if mods.rawValue & GHOSTTY_MODS_ALT.rawValue != 0 { flags.insert(.option) }
+            if mods.rawValue & GHOSTTY_MODS_SUPER.rawValue != 0 { flags.insert(.command) }
+            return flags
+        }
     }
 
     // MARK: - NSEvent Terminal Input Helpers
 
     extension NSEvent {
-        func buildKeyInput(action: ghostty_input_action_e) -> ghostty_input_key_s {
+        func buildKeyInput(
+            action: ghostty_input_action_e,
+            translationModifiers: NSEvent.ModifierFlags? = nil
+        ) -> ghostty_input_key_s {
             var input = ghostty_input_key_s()
             input.action = action
             // Ghostty expects the native platform keycode, which it maps to
@@ -155,14 +248,13 @@
             input.composing = false
             input.text = nil
 
-            let mods = TerminalInputModifiers(from: modifierFlags)
-            input.mods = mods.ghosttyMods
+            input.mods = TerminalInputModifiers(from: modifierFlags).ghosttyMods
 
             // Consumed modifiers: modifiers the key binding system should
             // treat as already handled by text generation. We pass through
             // all modifiers except control and command, which should remain
             // available for keybind matching.
-            var consumedFlags = modifierFlags
+            var consumedFlags = translationModifiers ?? modifierFlags
             consumedFlags.remove(.control)
             consumedFlags.remove(.command)
             input.consumed_mods = TerminalInputModifiers(from: consumedFlags).ghosttyMods
@@ -178,29 +270,29 @@
         }
 
         var filteredCharacters: String? {
-            guard let characters else { return nil }
-            guard characters.count == 1,
-                  let scalar = characters.unicodeScalars.first
+            guard let filtered = TerminalInputText.filteredFunctionKeyText(characters) else {
+                return nil
+            }
+            guard filtered.count == 1,
+                  let scalar = filtered.unicodeScalars.first
             else {
-                return characters
+                return filtered
             }
 
             // macOS encodes function keys as Private Use Area scalars —
             // these have no printable representation.
-            if TerminalInputText.isPrivateUseFunctionKey(scalar) {
-                return nil
-            }
-
             // When the control modifier produces a raw control character,
             // re-derive printable text without the control modifier so
             // Ghostty can map the physical key correctly.
             if scalar.isASCIIControl {
                 var flags = modifierFlags
                 flags.remove(.control)
-                return self.characters(byApplyingModifiers: flags)
+                return TerminalInputText.filteredFunctionKeyText(
+                    self.characters(byApplyingModifiers: flags)
+                )
             }
 
-            return characters
+            return filtered
         }
     }
 

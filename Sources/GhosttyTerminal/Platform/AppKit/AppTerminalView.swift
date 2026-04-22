@@ -14,6 +14,7 @@
         let core = TerminalSurfaceCoordinator()
         var metalLayer: CAMetalLayer?
         var inputHandler: TerminalKeyEventHandler?
+        var lastPerformKeyEvent: TimeInterval?
 
         public weak var delegate: (any TerminalSurfaceViewDelegate)? {
             get { core.delegate }
@@ -28,6 +29,10 @@
         public var configuration: TerminalSurfaceOptions {
             get { core.configuration }
             set { core.configuration = newValue }
+        }
+
+        public func setSurfaceVisible(_ visible: Bool) {
+            core.setDisplayVisible(visible)
         }
 
         var surface: TerminalSurface? {
