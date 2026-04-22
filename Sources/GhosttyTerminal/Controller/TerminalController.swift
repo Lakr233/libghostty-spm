@@ -56,6 +56,7 @@ public final class TerminalController {
     var renderedConfigContents: String = TerminalController.defaultRenderedConfig
 
     public internal(set) var lastConfigurationIssue: String?
+    var onWakeup: (() -> Void)?
 
     // MARK: - Config Resolution State
 
