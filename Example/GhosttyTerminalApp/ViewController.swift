@@ -34,9 +34,23 @@ final class ViewController: NSViewController {
         terminalView.fitToSize()
     }
 
+    override func viewDidChangeEffectiveAppearance() {
+        super.viewDidChangeEffectiveAppearance()
+        applyWindowBackgroundColor()
+    }
+
     private func configureView() {
         view.wantsLayer = true
-        view.layer?.backgroundColor = NSColor.windowBackgroundColor.cgColor
+        applyWindowBackgroundColor()
+    }
+
+    private func applyWindowBackgroundColor() {
+        // `NSColor.windowBackgroundColor.cgColor` snapshots the current
+        // appearance; resolve it against the view's effective appearance on
+        // every change so the layer follows light/dark toggles.
+        view.layer?.backgroundColor = NSColor.windowBackgroundColor
+            .resolvedColor(with: view.effectiveAppearance)
+            .cgColor
     }
 
     private func configureTerminalView() {
