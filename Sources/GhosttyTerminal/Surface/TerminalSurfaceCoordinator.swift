@@ -64,6 +64,11 @@ final class TerminalSurfaceCoordinator {
 
     private var lastMetrics: TerminalViewportMetrics?
     private var isDisplayVisible = true
+    private var isSurfaceFocused = false
+    private var pendingImmediateTick = true
+    private var lastTickTimestamp: TimeInterval = 0
+    private let focusedIdleTickInterval: TimeInterval = 1.0 / 12.0
+    private let unfocusedIdleTickInterval: TimeInterval = 0.5
 
     // MARK: - Display Link
 
@@ -74,6 +79,10 @@ final class TerminalSurfaceCoordinator {
         bridge.onCellSizeChange = { [weak self] width, height in
             self?.handleCellSizeChange(width: width, height: height)
         }
+    }
+
+    func requestImmediateTick() {
+        pendingImmediateTick = true
     }
 
     func startDisplayLink() {
@@ -126,6 +135,10 @@ final class TerminalSurfaceCoordinator {
         bridge.rawSurface = rawSurface
         surface = TerminalSurface(rawSurface)
         surface?.setOcclusion(isDisplayVisible)
+        controller.onWakeup = { [weak self] in
+            self?.requestImmediateTick()
+        }
+        requestImmediateTick()
         TerminalDebugLog.log(.lifecycle, "surface rebuild succeeded")
         synchronizeMetrics()
     }
@@ -200,19 +213,7 @@ final class TerminalSurfaceCoordinator {
 
     func fitToSize() {
         synchronizeMetrics()
-    }
-
-    func forceRefresh(reason: String = "unspecified") {
-        guard let surface else {
-            TerminalDebugLog.log(.render, "forceRefresh skipped: missing surface reason=\(reason)")
-            return
-        }
-
-        TerminalDebugLog.log(.render, "forceRefresh reason=\(reason)")
-        synchronizeMetrics()
-        surface.refresh()
-        surface.draw()
-        onPostRender?()
+        requestImmediateTick()
     }
 
     func setDisplayVisible(_ visible: Bool) {
@@ -226,6 +227,7 @@ final class TerminalSurfaceCoordinator {
 
         if visible {
             if isAttached() {
+                requestImmediateTick()
                 startDisplayLink()
             }
         } else {
@@ -234,7 +236,12 @@ final class TerminalSurfaceCoordinator {
     }
     // MARK: - Frame Rendering
 
-    func tick() {
+    func tick(context: DisplayLinkCallbackContext) {
+        guard shouldRenderFrame(at: context.timestamp) else {
+            return
+        }
+        pendingImmediateTick = false
+        lastTickTimestamp = context.timestamp
         TerminalDebugLog.log(.render, "tick")
         controller?.tick()
         surface?.refresh()
@@ -245,6 +252,8 @@ final class TerminalSurfaceCoordinator {
     // MARK: - Focus
 
     func setFocus(_ focused: Bool) {
+        isSurfaceFocused = focused
+        requestImmediateTick()
         TerminalDebugLog.log(.lifecycle, "focus=\(focused)")
         surface?.setFocus(focused)
         (delegate as? any TerminalSurfaceFocusDelegate)?
@@ -267,11 +276,14 @@ final class TerminalSurfaceCoordinator {
         if let session = configuration.inMemorySession {
             session.clearSurface(ifMatches: surface?.rawValue)
         }
+        controller?.onWakeup = nil
         bridge.rawSurface = nil
         surface?.setFocus(false)
         surface?.free()
         surface = nil
         lastMetrics = nil
+        pendingImmediateTick = true
+        lastTickTimestamp = 0
         controller?.remove(bridge)
     }
 
@@ -281,7 +293,22 @@ final class TerminalSurfaceCoordinator {
             "cell size changed width=\(width) height=\(height)"
         )
         synchronizeMetrics()
+        requestImmediateTick()
         onCellSizeDidChange?()
+    }
+
+    private func shouldRenderFrame(at timestamp: TimeInterval) -> Bool {
+        guard isDisplayVisible else {
+            return false
+        }
+        guard pendingImmediateTick == false else {
+            return true
+        }
+        guard lastTickTimestamp > 0 else {
+            return true
+        }
+        let minimumInterval = isSurfaceFocused ? focusedIdleTickInterval : unfocusedIdleTickInterval
+        return (timestamp - lastTickTimestamp) >= minimumInterval
     }
 }
 
@@ -293,9 +320,9 @@ final class TerminalSurfaceCoordinator {
 private final class DisplayLinkTarget: DisplayLinkDelegate, @unchecked Sendable {
     @MainActor var core: TerminalSurfaceCoordinator?
 
-    nonisolated func synchronization(context _: DisplayLinkCallbackContext) {
+    nonisolated func synchronization(context: DisplayLinkCallbackContext) {
         terminalRunOnMain { [weak self] in
-            self?.core?.tick()
+            self?.core?.tick(context: context)
         }
     }
 }
