@@ -148,15 +148,10 @@
         func buildKeyInput(action: ghostty_input_action_e) -> ghostty_input_key_s {
             var input = ghostty_input_key_s()
             input.action = action
-            let delivery = TerminalHardwareKeyRouter.routeAppKit(
-                keyCode: keyCode,
-                backend: .exec
-            )
-            if case let .ghostty(ghosttyKey) = delivery {
-                input.keycode = ghosttyKey.rawValue
-            } else {
-                input.keycode = GHOSTTY_KEY_UNIDENTIFIED.rawValue
-            }
+            // Ghostty expects the native platform keycode, which it maps to
+            // its internal Key enum via src/input/keycodes.zig. On macOS
+            // that's the AppKit virtual keycode from NSEvent.keyCode.
+            input.keycode = UInt32(keyCode)
             input.composing = false
             input.text = nil
 

@@ -32,6 +32,20 @@ enum TerminalHardwareKeyRouter {
         return .ghostty(ghosttyKeyForUIKit(usage: usage))
     }
 
+    static func routeUIKit(
+        usage: UInt16,
+        backend: TerminalSessionBackend,
+        modifiers: TerminalInputModifiers
+    ) -> TerminalHardwareKeyDelivery {
+        // Raw host-managed bytes only represent the unmodified control key.
+        // Modified synthetic accessory keys need a real Ghostty key event so
+        // the backend can emit the correct escape sequence for those modifiers.
+        guard modifiers.isEmpty else {
+            return .ghostty(ghosttyKeyForUIKit(usage: usage))
+        }
+        return routeUIKit(usage: usage, backend: backend)
+    }
+
     static func routeAppKit(
         keyCode: UInt16,
         backend: TerminalSessionBackend
@@ -49,6 +63,8 @@ enum TerminalHardwareKeyRouter {
         switch usage {
         case 0x2A:
             Data([0x7F])
+        case 0x2B:
+            Data([0x09])
         case 0x4C:
             Data("\u{1B}[3~".utf8)
         case 0x4A:
@@ -76,6 +92,8 @@ enum TerminalHardwareKeyRouter {
         switch keyCode {
         case 0x33:
             Data([0x7F])
+        case 0x30:
+            Data([0x09])
         case 0x75:
             Data("\u{1B}[3~".utf8)
         case 0x73:
@@ -107,6 +125,61 @@ enum TerminalHardwareKeyRouter {
         appKitMap[keyCode] ?? GHOSTTY_KEY_UNIDENTIFIED
     }
 
+    /// Sentinel `keycode` value for keys that have no macOS AppKit
+    /// equivalent (e.g. CUT/COPY/PASTE, media keys, CONTEXT_MENU, INSERT on
+    /// PC keyboards). Any value outside the 8-bit AppKit virtual keycode
+    /// range falls out of libghostty's native-keycode lookup and resolves
+    /// to `.unidentified`. The pinned Ghostty keycode table uses 8-bit macOS
+    /// keycodes, so `0x1_0000` stays safely outside the native range. Using
+    /// plain `0` would instead collide with AppKit's keycode for the `A` key.
+    static let unidentifiedAppKitKeyCode: UInt32 = 0x1_0000
+
+    /// Translate a Ghostty key enum to the macOS AppKit virtual keycode
+    /// for the same physical key. This is used by synthetic UIKit key
+    /// events that already know the logical Ghostty key but still need to
+    /// satisfy libghostty's native-keycode contract.
+    static func appKitKeyCode(for ghosttyKey: ghostty_input_key_e) -> UInt32 {
+        guard let macKeyCode = ghosttyKeyToAppKitCode[ghosttyKey.rawValue]
+        else { return unidentifiedAppKitKeyCode }
+        return UInt32(macKeyCode)
+    }
+
+    /// Translate a UIKit (USB HID) usage code to the macOS AppKit virtual
+    /// keycode for the same physical key. Libghostty's keycode lookup
+    /// (`src/input/keycodes.zig`) uses macOS keycodes on both macOS and iOS
+    /// builds, so UIKit callers need to translate HID → mac before handing
+    /// the keycode to `ghostty_surface_key`. Returns
+    /// `unidentifiedAppKitKeyCode` for HID usages with no AppKit counterpart
+    /// (keys that do not exist on Mac keyboards).
+    static func appKitKeyCodeForUIKit(usage: UInt16) -> UInt32 {
+        // Prefer explicit HID -> AppKit overrides before falling back to the
+        // shared Ghostty key mapping. Some physical keys do not share the same
+        // logical Ghostty enum on UIKit and AppKit.
+        if let macKeyCode = uiKitToAppKitKeyCodeOverrides[usage] {
+            return UInt32(macKeyCode)
+        }
+        guard let ghosttyKey = uiKitMap[usage]
+        else { return unidentifiedAppKitKeyCode }
+        return appKitKeyCode(for: ghosttyKey)
+    }
+
+    private static let ghosttyKeyToAppKitCode: [UInt32: UInt16] = {
+        var result: [UInt32: UInt16] = [:]
+        for (code, key) in appKitMap {
+            result[key.rawValue] = code
+        }
+        return result
+    }()
+
+    /// UIKit and AppKit do not always use the same logical Ghostty key for the
+    /// same physical key. Prefer the AppKit keycode directly for those cases.
+    private static let uiKitToAppKitKeyCodeOverrides: [UInt16: UInt16] = [
+        // keyboardNumLock -> kVK_ANSI_KeypadClear
+        0x53: 0x47,
+        // keyboardNonUSBackslash -> kVK_ISO_Section
+        0x64: 0x0A,
+    ]
+
     private typealias Pair = (UInt16, ghostty_input_key_e)
 
     private static let uiKitMap = buildMap(
@@ -121,7 +194,6 @@ enum TerminalHardwareKeyRouter {
             (0x2F, GHOSTTY_KEY_BRACKET_LEFT),
             (0x30, GHOSTTY_KEY_BRACKET_RIGHT),
             (0x31, GHOSTTY_KEY_BACKSLASH),
-            (0x32, GHOSTTY_KEY_INTL_BACKSLASH),
             (0x33, GHOSTTY_KEY_SEMICOLON),
             (0x34, GHOSTTY_KEY_QUOTE),
             (0x35, GHOSTTY_KEY_BACKQUOTE),
@@ -217,12 +289,16 @@ enum TerminalHardwareKeyRouter {
         ]
     )
 
+    // JIS keyboard entries are still absent from this table:
+    //   (0x5D, GHOSTTY_KEY_INTL_YEN)   // kVK_JIS_Yen
+    //   (0x5E, GHOSTTY_KEY_INTL_RO)    // kVK_JIS_Underscore
     private static let appKitMap = buildMap(
         literalPairs: [
             (0x00, GHOSTTY_KEY_A), (0x01, GHOSTTY_KEY_S), (0x02, GHOSTTY_KEY_D),
             (0x03, GHOSTTY_KEY_F), (0x04, GHOSTTY_KEY_H), (0x05, GHOSTTY_KEY_G),
             (0x06, GHOSTTY_KEY_Z), (0x07, GHOSTTY_KEY_X), (0x08, GHOSTTY_KEY_C),
-            (0x09, GHOSTTY_KEY_V), (0x0B, GHOSTTY_KEY_B), (0x0C, GHOSTTY_KEY_Q),
+            (0x09, GHOSTTY_KEY_V),
+            (0x0B, GHOSTTY_KEY_B), (0x0C, GHOSTTY_KEY_Q),
             (0x0D, GHOSTTY_KEY_W), (0x0E, GHOSTTY_KEY_E), (0x0F, GHOSTTY_KEY_R),
             (0x10, GHOSTTY_KEY_Y), (0x11, GHOSTTY_KEY_T), (0x12, GHOSTTY_KEY_DIGIT_1),
             (0x13, GHOSTTY_KEY_DIGIT_2), (0x14, GHOSTTY_KEY_DIGIT_3), (0x15, GHOSTTY_KEY_DIGIT_4),
@@ -239,12 +315,17 @@ enum TerminalHardwareKeyRouter {
             (0x35, GHOSTTY_KEY_ESCAPE), (0x36, GHOSTTY_KEY_META_RIGHT), (0x37, GHOSTTY_KEY_META_LEFT),
             (0x38, GHOSTTY_KEY_SHIFT_LEFT), (0x39, GHOSTTY_KEY_CAPS_LOCK), (0x3A, GHOSTTY_KEY_ALT_LEFT),
             (0x3B, GHOSTTY_KEY_CONTROL_LEFT), (0x3C, GHOSTTY_KEY_SHIFT_RIGHT), (0x3D, GHOSTTY_KEY_ALT_RIGHT),
-            (0x3E, GHOSTTY_KEY_CONTROL_RIGHT), (0x3F, GHOSTTY_KEY_FN), (0x41, GHOSTTY_KEY_NUMPAD_DECIMAL),
+            (0x3E, GHOSTTY_KEY_CONTROL_RIGHT), (0x3F, GHOSTTY_KEY_FN), (0x40, GHOSTTY_KEY_F17),
+            (0x41, GHOSTTY_KEY_NUMPAD_DECIMAL),
             (0x43, GHOSTTY_KEY_NUMPAD_MULTIPLY), (0x45, GHOSTTY_KEY_NUMPAD_ADD), (0x47, GHOSTTY_KEY_NUMPAD_CLEAR),
-            (0x4B, GHOSTTY_KEY_NUMPAD_DIVIDE), (0x4C, GHOSTTY_KEY_NUMPAD_ENTER), (0x4E, GHOSTTY_KEY_NUMPAD_SUBTRACT),
-            (0x51, GHOSTTY_KEY_NUMPAD_EQUAL), (0x52, GHOSTTY_KEY_NUMPAD_0), (0x53, GHOSTTY_KEY_NUMPAD_1),
+            (0x48, GHOSTTY_KEY_AUDIO_VOLUME_UP), (0x49, GHOSTTY_KEY_AUDIO_VOLUME_DOWN),
+            (0x4A, GHOSTTY_KEY_AUDIO_VOLUME_MUTE), (0x4B, GHOSTTY_KEY_NUMPAD_DIVIDE),
+            (0x4C, GHOSTTY_KEY_NUMPAD_ENTER), (0x4E, GHOSTTY_KEY_NUMPAD_SUBTRACT),
+            (0x4F, GHOSTTY_KEY_F18), (0x50, GHOSTTY_KEY_F19), (0x51, GHOSTTY_KEY_NUMPAD_EQUAL),
+            (0x52, GHOSTTY_KEY_NUMPAD_0), (0x53, GHOSTTY_KEY_NUMPAD_1),
             (0x54, GHOSTTY_KEY_NUMPAD_2), (0x55, GHOSTTY_KEY_NUMPAD_3), (0x56, GHOSTTY_KEY_NUMPAD_4),
             (0x57, GHOSTTY_KEY_NUMPAD_5), (0x58, GHOSTTY_KEY_NUMPAD_6), (0x59, GHOSTTY_KEY_NUMPAD_7),
+            (0x5A, GHOSTTY_KEY_F20),
             (0x5B, GHOSTTY_KEY_NUMPAD_8), (0x5C, GHOSTTY_KEY_NUMPAD_9), (0x60, GHOSTTY_KEY_F5),
             (0x61, GHOSTTY_KEY_F6), (0x62, GHOSTTY_KEY_F7), (0x63, GHOSTTY_KEY_F3),
             (0x64, GHOSTTY_KEY_F8), (0x65, GHOSTTY_KEY_F9), (0x67, GHOSTTY_KEY_F11),
