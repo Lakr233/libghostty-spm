@@ -49,8 +49,14 @@
 
         override func viewDidMoveToWindow() {
             super.viewDidMoveToWindow()
+            removeWindowObservers()
             if window != nil {
-                core.rebuildIfReady()
+                if surface == nil {
+                    core.rebuildIfReady()
+                } else {
+                    core.synchronizeMetrics()
+                }
+                updateMetalLayerMetrics()
                 updateColorScheme()
                 core.startDisplayLink()
                 core.requestImmediateTick()
@@ -69,8 +75,7 @@
                 )
             } else {
                 core.stopDisplayLink()
-                core.freeSurface()
-                NotificationCenter.default.removeObserver(self)
+                core.setFocus(false)
             }
         }
 
@@ -82,6 +87,19 @@
 
         @objc internal func windowDidResignKey(_: Notification) {
             core.setFocus(false)
+        }
+
+        private func removeWindowObservers() {
+            NotificationCenter.default.removeObserver(
+                self,
+                name: NSWindow.didBecomeKeyNotification,
+                object: nil
+            )
+            NotificationCenter.default.removeObserver(
+                self,
+                name: NSWindow.didResignKeyNotification,
+                object: nil
+            )
         }
 
         override func setFrameSize(_ newSize: NSSize) {
