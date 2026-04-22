@@ -51,6 +51,9 @@
             super.viewDidMoveToWindow()
             removeWindowObservers()
             if window != nil {
+                // SwiftUI/AppKit can temporarily detach and reattach the terminal view while
+                // diffing the view hierarchy. Rebuilding on every reattach discards Ghostty's
+                // scrollback/state, so only create a new surface when one does not already exist.
                 if surface == nil {
                     core.rebuildIfReady()
                 } else {
@@ -90,6 +93,9 @@
         }
 
         private func removeWindowObservers() {
+            // Remove any existing key-window observers before registering for the
+            // current window. AppKit can move the view directly between windows
+            // without an intermediate nil attachment.
             NotificationCenter.default.removeObserver(
                 self,
                 name: NSWindow.didBecomeKeyNotification,

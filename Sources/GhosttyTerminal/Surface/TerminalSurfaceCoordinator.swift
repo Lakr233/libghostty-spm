@@ -253,8 +253,8 @@ final class TerminalSurfaceCoordinator {
         tearDownSurface(removingBridgeFrom: controller)
     }
 
-    deinit {
-        // Main-queue tick dispatches are allowed to drain naturally on teardown.
+    isolated deinit {
+        tearDownSurface(removingBridgeFrom: controller)
     }
 
     private func tearDownSurface(removingBridgeFrom controller: TerminalController?) {
