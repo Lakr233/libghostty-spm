@@ -32,11 +32,14 @@
             modifierFlags.intersection([.shift, .control, .option, .command]).isEmpty
         }
 
-        nonisolated static func shouldSendKeyEvent(
-            forInterpretedCommand selector: Selector
+        nonisolated static func shouldReplayInterpretedCommand(
+            _ selector: Selector
         ) -> Bool {
-            selector == #selector(NSResponder.insertTab(_:))
-                || selector == NSSelectorFromString("insertBacktab:")
+            // AppKit sometimes resolves non-text keys into editing commands
+            // (for example Shift-Tab -> insertBacktab:). In a terminal, those
+            // commands still need to reach Ghostty as the original hardware key.
+            let _ = selector
+            return true
         }
 
         func handleKeyDown(with event: NSEvent) {
@@ -78,7 +81,7 @@
 
             if let selector = interpretedCommandSelector {
                 interpretedCommandSelector = nil
-                if Self.shouldSendKeyEvent(forInterpretedCommand: selector) {
+                if Self.shouldReplayInterpretedCommand(selector) {
                     sendKeyEvent(
                         for: event,
                         translationEvent: translationEvent,

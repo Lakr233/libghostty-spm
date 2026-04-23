@@ -130,20 +130,20 @@ struct TerminalHardwareKeyRouterTests {
     }
 
     @Test
-    func appKitInterpretedTabCommandsAreReplayedAsKeyEvents() {
+    func appKitInterpretedCommandsAreReplayedAsKeyEvents() {
         #expect(
-            TerminalKeyEventHandler.shouldSendKeyEvent(
-                forInterpretedCommand: #selector(NSResponder.insertTab(_:))
+            TerminalKeyEventHandler.shouldReplayInterpretedCommand(
+                #selector(NSResponder.insertTab(_:))
             )
         )
         #expect(
-            TerminalKeyEventHandler.shouldSendKeyEvent(
-                forInterpretedCommand: NSSelectorFromString("insertBacktab:")
+            TerminalKeyEventHandler.shouldReplayInterpretedCommand(
+                NSSelectorFromString("insertBacktab:")
             )
         )
         #expect(
-            !TerminalKeyEventHandler.shouldSendKeyEvent(
-                forInterpretedCommand: #selector(NSResponder.moveUp(_:))
+            TerminalKeyEventHandler.shouldReplayInterpretedCommand(
+                #selector(NSResponder.moveUp(_:))
             )
         )
     }

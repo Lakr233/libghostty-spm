@@ -97,7 +97,7 @@
                 return
             }
 
-            if TerminalKeyEventHandler.shouldSendKeyEvent(forInterpretedCommand: selector) {
+            if TerminalKeyEventHandler.shouldReplayInterpretedCommand(selector) {
                 inputHandler?.recordInterpretedCommand(selector)
             }
         }
