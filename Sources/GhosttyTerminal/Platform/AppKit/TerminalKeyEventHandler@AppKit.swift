@@ -19,6 +19,7 @@
     final class TerminalKeyEventHandler {
         private weak var view: AppTerminalView?
         var inputMethodHandler: TerminalTextInputHandler?
+        private var interpretedCommandSelector: Selector?
 
         init(view: AppTerminalView) {
             self.view = view
@@ -29,6 +30,13 @@
             modifierFlags: NSEvent.ModifierFlags
         ) -> Bool {
             modifierFlags.intersection([.shift, .control, .option, .command]).isEmpty
+        }
+
+        nonisolated static func shouldSendKeyEvent(
+            forInterpretedCommand selector: Selector
+        ) -> Bool {
+            selector == #selector(NSResponder.insertTab(_:))
+                || selector == NSSelectorFromString("insertBacktab:")
         }
 
         func handleKeyDown(with event: NSEvent) {
@@ -43,6 +51,7 @@
             let translationEvent = translatedEvent(for: event, on: surface)
 
             inputMethodHandler?.startCollectingText()
+            interpretedCommandSelector = nil
             let markedTextBefore = inputMethodHandler?.hasMarkedText == true
             let keyboardIdBefore = markedTextBefore ? nil : KeyboardLayout.id
             view.lastPerformKeyEvent = nil
@@ -65,6 +74,21 @@
                     }
                 }
                 return
+            }
+
+            if let selector = interpretedCommandSelector {
+                interpretedCommandSelector = nil
+                if Self.shouldSendKeyEvent(forInterpretedCommand: selector) {
+                    sendKeyEvent(
+                        for: event,
+                        translationEvent: translationEvent,
+                        action: action,
+                        to: surface,
+                        includeText: false,
+                        composing: inputMethodHandler?.hasMarkedText == true || markedTextBefore
+                    )
+                    return
+                }
             }
 
             sendKeyEvent(
@@ -244,6 +268,10 @@
             if mods.rawValue & GHOSTTY_MODS_ALT.rawValue != 0 { flags.insert(.option) }
             if mods.rawValue & GHOSTTY_MODS_SUPER.rawValue != 0 { flags.insert(.command) }
             return flags
+        }
+
+        func recordInterpretedCommand(_ selector: Selector) {
+            interpretedCommandSelector = selector
         }
     }
 

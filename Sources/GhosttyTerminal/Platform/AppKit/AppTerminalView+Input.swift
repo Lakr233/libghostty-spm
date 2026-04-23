@@ -94,6 +94,11 @@
                lastPerformKeyEvent == current.timestamp
             {
                 NSApp.sendEvent(current)
+                return
+            }
+
+            if TerminalKeyEventHandler.shouldSendKeyEvent(forInterpretedCommand: selector) {
+                inputHandler?.recordInterpretedCommand(selector)
             }
         }
 

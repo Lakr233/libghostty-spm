@@ -129,6 +129,25 @@ struct TerminalHardwareKeyRouterTests {
         )
     }
 
+    @Test
+    func appKitInterpretedTabCommandsAreReplayedAsKeyEvents() {
+        #expect(
+            TerminalKeyEventHandler.shouldSendKeyEvent(
+                forInterpretedCommand: #selector(NSResponder.insertTab(_:))
+            )
+        )
+        #expect(
+            TerminalKeyEventHandler.shouldSendKeyEvent(
+                forInterpretedCommand: NSSelectorFromString("insertBacktab:")
+            )
+        )
+        #expect(
+            !TerminalKeyEventHandler.shouldSendKeyEvent(
+                forInterpretedCommand: #selector(NSResponder.moveUp(_:))
+            )
+        )
+    }
+
     /// Quote HID 0x34 must translate to AppKit keycode 0x27, not fall
     /// through to `0` (which is AppKit's keycode for the `A` key) nor to
     /// `GHOSTTY_KEY_QUOTE.rawValue` (which happens to equal AppKit's
