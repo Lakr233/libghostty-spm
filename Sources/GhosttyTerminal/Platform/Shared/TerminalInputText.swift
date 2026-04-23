@@ -2,6 +2,11 @@
 //  TerminalInputText.swift
 //  libghostty-spm
 //
+//  Reference:
+//  - ghostty-org/ghostty
+//  - macos/Sources/Ghostty/NSEvent+Extension.swift
+//  Keep the AppKit text filtering here aligned with Ghostty's native
+//  `ghosttyCharacters` behavior so future upstream syncs stay mechanical.
 
 import Foundation
 
