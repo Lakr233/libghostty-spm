@@ -19,6 +19,12 @@
             inputMethodHandler = TerminalTextInputHandler(view: view)
         }
 
+        nonisolated static func shouldUseDirectInput(
+            modifierFlags: NSEvent.ModifierFlags
+        ) -> Bool {
+            modifierFlags.intersection([.shift, .control, .option, .command]).isEmpty
+        }
+
         func handleKeyDown(with event: NSEvent) {
             guard let view, let surface = view.surface else { return }
 
@@ -153,7 +159,7 @@
             // During IME composition, AppKit needs to keep ownership of editing
             // commands so marked text can shrink, cancel, and move correctly.
             guard inputMethodHandler?.hasMarkedText != true else { return false }
-            guard event.modifierFlags.intersection([.command, .control, .option]).isEmpty else {
+            guard Self.shouldUseDirectInput(modifierFlags: event.modifierFlags) else {
                 return false
             }
             let delivery = TerminalHardwareKeyRouter.routeAppKit(
@@ -169,6 +175,9 @@
 
         private func shouldBypassGhosttyForDirectInput(_ event: NSEvent) -> Bool {
             guard let view else { return false }
+            guard Self.shouldUseDirectInput(modifierFlags: event.modifierFlags) else {
+                return false
+            }
             return TerminalHardwareKeyRouter.routeAppKit(
                 keyCode: event.keyCode,
                 backend: view.configuration.backend

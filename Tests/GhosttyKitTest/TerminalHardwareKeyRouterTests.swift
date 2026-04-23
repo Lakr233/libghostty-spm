@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import GhosttyKit
 @testable import GhosttyTerminal
@@ -319,5 +320,34 @@ struct TerminalHardwareKeyRouterTests {
         let sentinel = TerminalHardwareKeyRouter.unidentifiedAppKitKeyCode
         #expect(TerminalHardwareKeyRouter.appKitKeyCodeForUIKit(usage: 0xFFFE) == sentinel)
         #expect(TerminalHardwareKeyRouter.appKitKeyCodeForUIKit(usage: 0x0001) == sentinel)
+    }
+
+    @Test
+    func appKitDirectInputRequiresNoModifiers() {
+        #expect(
+            TerminalKeyEventHandler.shouldUseDirectInput(
+                modifierFlags: []
+            )
+        )
+        #expect(
+            !TerminalKeyEventHandler.shouldUseDirectInput(
+                modifierFlags: [.shift]
+            )
+        )
+        #expect(
+            !TerminalKeyEventHandler.shouldUseDirectInput(
+                modifierFlags: [.control]
+            )
+        )
+        #expect(
+            !TerminalKeyEventHandler.shouldUseDirectInput(
+                modifierFlags: [.option]
+            )
+        )
+        #expect(
+            !TerminalKeyEventHandler.shouldUseDirectInput(
+                modifierFlags: [.command]
+            )
+        )
     }
 }
