@@ -3,6 +3,12 @@
 //  libghostty-spm
 //
 //  Created by Lakr233 on 2026/3/16.
+//  Reference:
+//  - ghostty-org/ghostty
+//  - macos/Sources/Ghostty/Surface View/SurfaceView_AppKit.swift
+//  IME text accumulation intentionally follows Ghostty's AppKit flow:
+//  marked/preedit text is passed through as-is, without extra app-specific
+//  filtering, so composition behavior stays consistent with upstream.
 //
 
 #if canImport(AppKit) && !canImport(UIKit)

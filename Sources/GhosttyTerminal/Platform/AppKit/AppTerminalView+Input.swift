@@ -11,7 +11,6 @@
 
     public extension AppTerminalView {
         override func keyDown(with event: NSEvent) {
-            core.requestImmediateTick()
             inputHandler?.handleKeyDown(with: event)
         }
 
@@ -82,12 +81,10 @@
         }
 
         override func keyUp(with event: NSEvent) {
-            core.requestImmediateTick()
             inputHandler?.handleKeyUp(with: event)
         }
 
         override func flagsChanged(with event: NSEvent) {
-            core.requestImmediateTick()
             inputHandler?.handleFlagsChanged(with: event)
         }
 
@@ -100,13 +97,24 @@
             }
         }
 
+        @IBAction func copy(_ sender: Any?) {
+            _ = surface?.performBindingAction("copy_to_clipboard")
+        }
+
+        @IBAction func paste(_ sender: Any?) {
+            _ = surface?.performBindingAction("paste_from_clipboard")
+        }
+
+        @IBAction override func selectAll(_ sender: Any?) {
+            _ = surface?.performBindingAction("select_all")
+        }
+
         internal func mousePoint(from event: NSEvent) -> (x: CGFloat, y: CGFloat) {
             let point = convert(event.locationInWindow, from: nil)
             return (point.x, bounds.height - point.y)
         }
 
         override func mouseDown(with event: NSEvent) {
-            core.requestImmediateTick()
             let (x, y) = mousePoint(from: event)
             let mods = TerminalInputModifiers(from: event.modifierFlags)
             surface?.sendMousePos(x: x, y: y, mods: mods.ghosttyMods)
@@ -118,7 +126,6 @@
         }
 
         override func mouseUp(with event: NSEvent) {
-            core.requestImmediateTick()
             let (x, y) = mousePoint(from: event)
             let mods = TerminalInputModifiers(from: event.modifierFlags)
             surface?.sendMousePos(x: x, y: y, mods: mods.ghosttyMods)
@@ -130,7 +137,6 @@
         }
 
         override func rightMouseDown(with event: NSEvent) {
-            core.requestImmediateTick()
             let (x, y) = mousePoint(from: event)
             let mods = TerminalInputModifiers(from: event.modifierFlags)
             surface?.sendMousePos(x: x, y: y, mods: mods.ghosttyMods)
@@ -142,7 +148,6 @@
         }
 
         override func rightMouseUp(with event: NSEvent) {
-            core.requestImmediateTick()
             let (x, y) = mousePoint(from: event)
             let mods = TerminalInputModifiers(from: event.modifierFlags)
             surface?.sendMousePos(x: x, y: y, mods: mods.ghosttyMods)
@@ -154,7 +159,6 @@
         }
 
         override func otherMouseDown(with event: NSEvent) {
-            core.requestImmediateTick()
             let (x, y) = mousePoint(from: event)
             let mods = TerminalInputModifiers(from: event.modifierFlags)
             surface?.sendMousePos(x: x, y: y, mods: mods.ghosttyMods)
@@ -166,7 +170,6 @@
         }
 
         override func otherMouseUp(with event: NSEvent) {
-            core.requestImmediateTick()
             let (x, y) = mousePoint(from: event)
             let mods = TerminalInputModifiers(from: event.modifierFlags)
             surface?.sendMousePos(x: x, y: y, mods: mods.ghosttyMods)
@@ -178,7 +181,6 @@
         }
 
         override func mouseMoved(with event: NSEvent) {
-            core.requestImmediateTick()
             let (x, y) = mousePoint(from: event)
             let mods = TerminalInputModifiers(from: event.modifierFlags)
             surface?.sendMousePos(x: x, y: y, mods: mods.ghosttyMods)
@@ -197,7 +199,6 @@
         }
 
         override func scrollWheel(with event: NSEvent) {
-            core.requestImmediateTick()
             let scrollMods = TerminalScrollModifiers(
                 precision: event.hasPreciseScrollingDeltas,
                 momentum: TerminalScrollModifiers.momentumFrom(phase: event.momentumPhase)

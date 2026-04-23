@@ -3,6 +3,12 @@
 //  libghostty-spm
 //
 //  Created by Lakr233 on 2026/3/16.
+//  Reference:
+//  - ghostty-org/ghostty
+//  - macos/Sources/Ghostty/Surface View/SurfaceView_AppKit.swift
+//  Translation modifiers, interpretKeyEvents dispatch, and text emission are
+//  kept close to Ghostty's native AppKit implementation to reduce long-term
+//  drift from upstream keyboard/IME semantics.
 //
 
 #if canImport(AppKit) && !canImport(UIKit)
@@ -250,9 +256,6 @@
         ) -> ghostty_input_key_s {
             var input = ghostty_input_key_s()
             input.action = action
-            // Ghostty expects the native platform keycode, which it maps to
-            // its internal Key enum via src/input/keycodes.zig. On macOS
-            // that's the AppKit virtual keycode from NSEvent.keyCode.
             input.keycode = UInt32(keyCode)
             input.composing = false
             input.text = nil
