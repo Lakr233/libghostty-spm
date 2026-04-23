@@ -63,6 +63,85 @@ final class TerminalCallbackBridge {
             TerminalDebugLog.log(.actions, "callback action=config_change")
             onRenderRequest?()
 
+        case GHOSTTY_ACTION_PROGRESS_REPORT:
+            let report = action.action.progress_report
+            let state = TerminalProgressState(report.state) ?? .set
+            // int8_t -1 signals "no progress provided" — surface as nil.
+            let percent: Int? = report.progress < 0 ? nil : Int(report.progress)
+            TerminalDebugLog.log(
+                .actions,
+                "callback action=progress_report state=\(state) percent=\(percent.map { "\($0)" } ?? "nil")"
+            )
+            (delegate as? any TerminalSurfaceProgressReportDelegate)?
+                .terminalDidReportProgress(state: state, percent: percent)
+
+        case GHOSTTY_ACTION_COMMAND_FINISHED:
+            let finished = action.action.command_finished
+            // int16_t -1 signals unknown exit code.
+            let exit: Int? = finished.exit_code < 0 ? nil : Int(finished.exit_code)
+            TerminalDebugLog.log(
+                .actions,
+                "callback action=command_finished exit=\(exit.map { "\($0)" } ?? "nil") duration_ns=\(finished.duration)"
+            )
+            (delegate as? any TerminalSurfaceCommandFinishedDelegate)?
+                .terminalDidFinishCommand(
+                    exitCode: exit,
+                    durationNanos: finished.duration
+                )
+
+        case GHOSTTY_ACTION_DESKTOP_NOTIFICATION:
+            let payload = action.action.desktop_notification
+            let title = payload.title.map { String(cString: $0) } ?? ""
+            let body = payload.body.map { String(cString: $0) } ?? ""
+            TerminalDebugLog.log(
+                .actions,
+                "callback action=desktop_notification title=\(TerminalDebugLog.describe(title)) body=\(TerminalDebugLog.describe(body))"
+            )
+            (delegate as? any TerminalSurfaceDesktopNotificationDelegate)?
+                .terminalDidRequestDesktopNotification(title: title, body: body)
+
+        case GHOSTTY_ACTION_OPEN_URL:
+            let payload = action.action.open_url
+            let kind = TerminalOpenURLKind(payload.kind)
+            let url: String = payload.url.map { ptr in
+                // Ghostty provides a length-prefixed string; respect the
+                // documented length rather than trusting a NUL terminator.
+                let buf = UnsafeBufferPointer(start: ptr, count: Int(payload.len))
+                return String(decoding: buf.map(UInt8.init), as: UTF8.self)
+            } ?? ""
+            TerminalDebugLog.log(
+                .actions,
+                "callback action=open_url kind=\(kind) url=\(TerminalDebugLog.describe(url))"
+            )
+            (delegate as? any TerminalSurfaceOpenURLDelegate)?
+                .terminalDidRequestOpenURL(url, kind: kind)
+
+        case GHOSTTY_ACTION_MOUSE_OVER_LINK:
+            let payload = action.action.mouse_over_link
+            let url: String? = {
+                guard let ptr = payload.url, payload.len > 0 else { return nil }
+                let buf = UnsafeBufferPointer(start: ptr, count: Int(payload.len))
+                return String(decoding: buf.map(UInt8.init), as: UTF8.self)
+            }()
+            TerminalDebugLog.log(
+                .actions,
+                "callback action=mouse_over_link url=\(url.map { TerminalDebugLog.describe($0) } ?? "nil")"
+            )
+            (delegate as? any TerminalSurfaceHoverLinkDelegate)?
+                .terminalDidUpdateHoverLink(url)
+
+        case GHOSTTY_ACTION_PWD:
+            let payload = action.action.pwd
+            if let cStr = payload.pwd {
+                let pwd = String(cString: cStr)
+                TerminalDebugLog.log(
+                    .actions,
+                    "callback action=pwd pwd=\(TerminalDebugLog.describe(pwd))"
+                )
+                (delegate as? any TerminalSurfacePwdDelegate)?
+                    .terminalDidChangeWorkingDirectory(pwd)
+            }
+
         default:
             TerminalDebugLog.log(
                 .actions,
