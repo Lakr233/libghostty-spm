@@ -188,7 +188,7 @@ jobs:
   merge-test-release:
     needs: [prepare, build-target]
     if: needs.prepare.outputs.build_needed == 'true'
-    runs-on: macos-15
+    runs-on: macos-26
     timeout-minutes: 60
     steps:
       - name: Checkout
@@ -196,6 +196,9 @@ jobs:
         with:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Xcode
+        run: sudo xcode-select -s /Applications/Xcode.app
 
       - name: Download All Artifacts
         uses: actions/download-artifact@v4
