@@ -3,6 +3,12 @@
 //  libghostty-spm
 //
 //  Created by Lakr233 on 2026/3/16.
+//  Reference:
+//  - ghostty-org/ghostty
+//  - macos/Sources/Ghostty/Surface View/SurfaceView_AppKit.swift
+//  Translation modifiers, interpretKeyEvents dispatch, and text emission are
+//  kept close to Ghostty's native AppKit implementation to reduce long-term
+//  drift from upstream keyboard/IME semantics.
 //
 
 #if canImport(AppKit) && !canImport(UIKit)
@@ -13,10 +19,27 @@
     final class TerminalKeyEventHandler {
         private weak var view: AppTerminalView?
         var inputMethodHandler: TerminalTextInputHandler?
+        private var interpretedCommandSelector: Selector?
 
         init(view: AppTerminalView) {
             self.view = view
             inputMethodHandler = TerminalTextInputHandler(view: view)
+        }
+
+        nonisolated static func shouldUseDirectInput(
+            modifierFlags: NSEvent.ModifierFlags
+        ) -> Bool {
+            modifierFlags.intersection([.shift, .control, .option, .command]).isEmpty
+        }
+
+        nonisolated static func shouldReplayInterpretedCommand(
+            _ selector: Selector
+        ) -> Bool {
+            // AppKit sometimes resolves non-text keys into editing commands
+            // (for example Shift-Tab -> insertBacktab:). In a terminal, those
+            // commands still need to reach Ghostty as the original hardware key.
+            let _ = selector
+            return true
         }
 
         func handleKeyDown(with event: NSEvent) {
@@ -31,6 +54,7 @@
             let translationEvent = translatedEvent(for: event, on: surface)
 
             inputMethodHandler?.startCollectingText()
+            interpretedCommandSelector = nil
             let markedTextBefore = inputMethodHandler?.hasMarkedText == true
             let keyboardIdBefore = markedTextBefore ? nil : KeyboardLayout.id
             view.lastPerformKeyEvent = nil
@@ -53,6 +77,21 @@
                     }
                 }
                 return
+            }
+
+            if let selector = interpretedCommandSelector {
+                interpretedCommandSelector = nil
+                if Self.shouldReplayInterpretedCommand(selector) {
+                    sendKeyEvent(
+                        for: event,
+                        translationEvent: translationEvent,
+                        action: action,
+                        to: surface,
+                        includeText: false,
+                        composing: inputMethodHandler?.hasMarkedText == true || markedTextBefore
+                    )
+                    return
+                }
             }
 
             sendKeyEvent(
@@ -153,7 +192,7 @@
             // During IME composition, AppKit needs to keep ownership of editing
             // commands so marked text can shrink, cancel, and move correctly.
             guard inputMethodHandler?.hasMarkedText != true else { return false }
-            guard event.modifierFlags.intersection([.command, .control, .option]).isEmpty else {
+            guard Self.shouldUseDirectInput(modifierFlags: event.modifierFlags) else {
                 return false
             }
             let delivery = TerminalHardwareKeyRouter.routeAppKit(
@@ -169,6 +208,9 @@
 
         private func shouldBypassGhosttyForDirectInput(_ event: NSEvent) -> Bool {
             guard let view else { return false }
+            guard Self.shouldUseDirectInput(modifierFlags: event.modifierFlags) else {
+                return false
+            }
             return TerminalHardwareKeyRouter.routeAppKit(
                 keyCode: event.keyCode,
                 backend: view.configuration.backend
@@ -230,6 +272,10 @@
             if mods.rawValue & GHOSTTY_MODS_SUPER.rawValue != 0 { flags.insert(.command) }
             return flags
         }
+
+        func recordInterpretedCommand(_ selector: Selector) {
+            interpretedCommandSelector = selector
+        }
     }
 
     // MARK: - NSEvent Terminal Input Helpers
@@ -241,9 +287,6 @@
         ) -> ghostty_input_key_s {
             var input = ghostty_input_key_s()
             input.action = action
-            // Ghostty expects the native platform keycode, which it maps to
-            // its internal Key enum via src/input/keycodes.zig. On macOS
-            // that's the AppKit virtual keycode from NSEvent.keyCode.
             input.keycode = UInt32(keyCode)
             input.composing = false
             input.text = nil
