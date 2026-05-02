@@ -1,6 +1,7 @@
 @testable import GhosttyTerminal
 import Testing
 
+@Suite(.serialized)
 struct TerminalDebugLogTests {
     @Test
     func loggingIsDisabledByDefault() {
