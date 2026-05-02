@@ -57,6 +57,57 @@ public final class InMemoryTerminalSession: @unchecked Sendable {
         return surface
     }
 
+    // MARK: - Viewport Read
+
+    /// Returns the active viewport as a UTF-8 string, or `nil` if no surface
+    /// is attached. Lines are separated by `\n`. The `ghostty_text_s`
+    /// lifecycle (allocate via `ghostty_surface_read_text`, free via
+    /// `ghostty_surface_free_text`) is fully encapsulated — callers never
+    /// touch the C buffer.
+    ///
+    /// Selection grammar: `(VIEWPORT, TOP_LEFT)` to `(VIEWPORT, BOTTOM_RIGHT)`
+    /// with `rectangle: false` (linear flow). This reads exactly the visible
+    /// rows and ignores scrollback. Empty viewports return an empty string.
+    ///
+    /// Thread-safe: acquires the same `NSLock` as `receive(_:)` and
+    /// `setSurface(_:)`, preventing reads against a surface mid-replacement.
+    public func readViewportText() -> String? {
+        lock.lock()
+        defer { lock.unlock() }
+        guard let surface else { return nil }
+
+        let topLeft = ghostty_point_s(
+            tag: GHOSTTY_POINT_VIEWPORT,
+            coord: GHOSTTY_POINT_COORD_TOP_LEFT,
+            x: 0,
+            y: 0
+        )
+        let bottomRight = ghostty_point_s(
+            tag: GHOSTTY_POINT_VIEWPORT,
+            coord: GHOSTTY_POINT_COORD_BOTTOM_RIGHT,
+            x: 0,
+            y: 0
+        )
+        let selection = ghostty_selection_s(
+            top_left: topLeft,
+            bottom_right: bottomRight,
+            rectangle: false
+        )
+
+        var out = ghostty_text_s()
+        guard ghostty_surface_read_text(surface, selection, &out) else {
+            return nil
+        }
+        defer { ghostty_surface_free_text(surface, &out) }
+
+        guard let textPtr = out.text, out.text_len > 0 else {
+            return ""
+        }
+        let bytes = UnsafeBufferPointer(start: textPtr, count: Int(out.text_len))
+            .map { UInt8(bitPattern: $0) }
+        return String(decoding: bytes, as: UTF8.self)
+    }
+
     func updateViewport(_ size: TerminalGridMetrics) {
         TerminalDebugLog.log(.metrics, "in-memory viewport update \(size.debugSummary)")
         dispatchResize(InMemoryTerminalViewport(
