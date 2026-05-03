@@ -5,8 +5,10 @@ on:
     branches: [main]
     types: [opened, synchronize, reopened]
 
-permissions:
-  contents: read
+# Zero-scope GITHUB_TOKEN: PR runs untrusted contributor code, so the
+# token gets no permissions at all. Public repo, so checkout works
+# without auth. No secrets referenced anywhere in this workflow.
+permissions: {}
 
 concurrency:
   group: pr-${{ github.event.pull_request.number }}
