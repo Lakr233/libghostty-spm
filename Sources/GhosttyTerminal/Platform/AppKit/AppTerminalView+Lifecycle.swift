@@ -76,6 +76,21 @@
                     name: NSWindow.didResignKeyNotification,
                     object: window
                 )
+                // Cross-display rescue: AppKit posts didChangeScreen when the
+                // window's screen reference changes, even when the new screen
+                // has the same backingScaleFactor (in which case
+                // viewDidChangeBackingProperties does not fire). Listening
+                // here lets us re-run metric sync on every screen transition
+                // — required for the case where two displays share scale but
+                // differ in geometry / color profile, and harmless when
+                // viewDidChangeBackingProperties also fires for the
+                // different-scale case.
+                NotificationCenter.default.addObserver(
+                    self,
+                    selector: #selector(windowDidChangeScreen),
+                    name: NSWindow.didChangeScreenNotification,
+                    object: window
+                )
             } else {
                 core.stopDisplayLink()
                 core.setFocus(false)
@@ -92,6 +107,19 @@
             core.setFocus(false)
         }
 
+        @objc internal func windowDidChangeScreen(_: Notification) {
+            // Defer one runloop tick so AppKit's layout pass and the
+            // window's new backingScaleFactor have both settled before we
+            // re-derive metrics. Calling synchronously can race with the
+            // layout pass and re-introduce the drift we're trying to fix.
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                self.updateMetalLayerMetrics()
+                self.core.synchronizeMetrics()
+                self.core.requestImmediateTick()
+            }
+        }
+
         private func removeWindowObservers() {
             // Remove any existing key-window observers before registering for the
             // current window. AppKit can move the view directly between windows
@@ -104,6 +132,11 @@
             NotificationCenter.default.removeObserver(
                 self,
                 name: NSWindow.didResignKeyNotification,
+                object: nil
+            )
+            NotificationCenter.default.removeObserver(
+                self,
+                name: NSWindow.didChangeScreenNotification,
                 object: nil
             )
         }
@@ -134,6 +167,24 @@
         internal func updateMetalLayerMetrics() {
             guard bounds.width > 0, bounds.height > 0 else { return }
             let scale = core.scaleFactor()
+            // Write to the actually-attached backing layer (not just the
+            // cached `metalLayer` ivar). The render pipeline can swap
+            // `self.layer` to an IOSurfaceLayer for IOSurface-backed
+            // compositing; once that happens the cached CAMetalLayer
+            // reference is detached from the view tree and writes to its
+            // contentsScale are no-ops as far as what's visible. The
+            // observable symptom is text rendered at half size after the
+            // window crosses to a display with a different
+            // backingScaleFactor.
+            layer?.contentsScale = scale
+            if let metal = layer as? CAMetalLayer {
+                metal.drawableSize = CGSize(
+                    width: bounds.width * scale,
+                    height: bounds.height * scale
+                )
+            }
+            // Mirror to the cached ivar in case anything else still
+            // reads through it during a transitional layout pass.
             metalLayer?.contentsScale = scale
             metalLayer?.drawableSize = CGSize(
                 width: bounds.width * scale,
@@ -142,9 +193,11 @@
         }
 
         internal func enforceMetalLayerScale() {
-            guard let metalLayer else { return }
             let scale = core.scaleFactor()
-            if metalLayer.contentsScale != scale {
+            if let layer, layer.contentsScale != scale {
+                layer.contentsScale = scale
+            }
+            if let metalLayer, metalLayer.contentsScale != scale {
                 metalLayer.contentsScale = scale
             }
         }
