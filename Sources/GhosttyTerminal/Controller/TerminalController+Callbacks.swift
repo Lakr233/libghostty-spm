@@ -105,10 +105,34 @@ private enum TerminalCallbacks {
             "clipboard paste read bytes=\(string.utf8.count) lines=\(TerminalInputText.lineCount(in: string))"
         )
         string.withCString { cString in
-            ghostty_surface_complete_clipboard_request(surface, cString, opaquePtr, true)
+            ghostty_surface_complete_clipboard_request(surface, cString, opaquePtr, false)
         }
         TerminalDebugLog.log(.input, "clipboard paste complete")
         return true
+    }
+
+    static func confirmReadClipboard(
+        userdata: UnsafeMutableRawPointer?,
+        string: UnsafePointer<CChar>?,
+        opaquePtr: UnsafeMutableRawPointer?,
+        request: ghostty_clipboard_request_e
+    ) {
+        guard let userdata, let string, let opaquePtr else { return }
+
+        let bridge = Unmanaged<TerminalCallbackBridge>
+            .fromOpaque(userdata)
+            .takeUnretainedValue()
+        guard let surface = bridge.rawSurface else { return }
+
+        let text = String(cString: string)
+        TerminalDebugLog.log(
+            .input,
+            "clipboard paste confirm request=\(request.rawValue) bytes=\(text.utf8.count) lines=\(TerminalInputText.lineCount(in: text))"
+        )
+        text.withCString { cString in
+            ghostty_surface_complete_clipboard_request(surface, cString, opaquePtr, true)
+        }
+        TerminalDebugLog.log(.input, "clipboard paste confirmed")
     }
 }
 
@@ -156,5 +180,19 @@ func terminalControllerReadClipboardCallback(
         userdata: userdata,
         clipboard: clipboard,
         opaquePtr: opaquePtr
+    )
+}
+
+func terminalControllerConfirmReadClipboardCallback(
+    userdata: UnsafeMutableRawPointer?,
+    string: UnsafePointer<CChar>?,
+    opaquePtr: UnsafeMutableRawPointer?,
+    request: ghostty_clipboard_request_e
+) {
+    TerminalCallbacks.confirmReadClipboard(
+        userdata: userdata,
+        string: string,
+        opaquePtr: opaquePtr,
+        request: request
     )
 }

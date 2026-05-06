@@ -11,8 +11,6 @@
 import Foundation
 
 enum TerminalInputText {
-    static let directPasteMinimumBytes = 16 * 1024
-
     static func filteredFunctionKeyText(_ text: String?) -> String? {
         guard let text else { return nil }
         if isUIKitNamedFunctionKey(text) {
@@ -35,14 +33,6 @@ enum TerminalInputText {
                 count += 1
             }
         }
-    }
-
-    static func shouldSendPasteDirectly(_ text: String) -> Bool {
-        guard !text.isEmpty else { return false }
-        if lineCount(in: text) > 0 {
-            return true
-        }
-        return text.utf8.count >= directPasteMinimumBytes
     }
 
     static func isPrivateUseFunctionKey(_ scalar: UnicodeScalar) -> Bool {

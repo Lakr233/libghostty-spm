@@ -78,6 +78,7 @@ extension TerminalController {
         runtimeConfig.close_surface_cb = terminalControllerCloseSurfaceCallback
         runtimeConfig.write_clipboard_cb = terminalControllerWriteClipboardCallback
         runtimeConfig.read_clipboard_cb = terminalControllerReadClipboardCallback
+        runtimeConfig.confirm_read_clipboard_cb = terminalControllerConfirmReadClipboardCallback
 
         app = ghostty_app_new(&runtimeConfig, cfg)
     }
