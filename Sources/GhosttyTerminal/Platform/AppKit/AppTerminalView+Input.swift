@@ -112,6 +112,14 @@
                     .input,
                     "paste binding bytes=\(text.utf8.count) lines=\(TerminalInputText.lineCount(in: text))"
                 )
+                if TerminalInputText.shouldSendPasteDirectly(text) {
+                    TerminalDebugLog.log(
+                        .input,
+                        "paste direct bytes=\(text.utf8.count) lines=\(TerminalInputText.lineCount(in: text))"
+                    )
+                    surface?.sendText(text)
+                    return
+                }
             }
             _ = surface?.performBindingAction("paste_from_clipboard")
         }

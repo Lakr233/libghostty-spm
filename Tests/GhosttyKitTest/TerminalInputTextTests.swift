@@ -35,4 +35,25 @@ struct TerminalInputTextTests {
         #expect(TerminalInputText.lineCount(in: "line 1\nline 2\nline 3") == 2)
     }
 
+    @Test
+    func routesMultilinePasteToDirectTextPath() {
+        #expect(TerminalInputText.shouldSendPasteDirectly("line 1\nline 2"))
+
+        let codexSizedPaste = Array(repeating: "explain this code", count: 68)
+            .joined(separator: "\n")
+        #expect(TerminalInputText.lineCount(in: codexSizedPaste) == 67)
+        #expect(TerminalInputText.shouldSendPasteDirectly(codexSizedPaste))
+    }
+
+    @Test
+    func routesLargeSingleLinePasteToDirectTextPath() {
+        let text = String(repeating: "a", count: TerminalInputText.directPasteMinimumBytes)
+        #expect(TerminalInputText.shouldSendPasteDirectly(text))
+    }
+
+    @Test
+    func keepsSmallSingleLinePasteOnBindingPath() {
+        #expect(!TerminalInputText.shouldSendPasteDirectly(""))
+        #expect(!TerminalInputText.shouldSendPasteDirectly("echo ok"))
+    }
 }
