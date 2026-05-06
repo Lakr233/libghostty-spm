@@ -107,6 +107,17 @@
         }
 
         @IBAction func paste(_ sender: Any?) {
+            if let text = NSPasteboard.general.string(forType: .string),
+               TerminalInputText.shouldSendPasteDirectly(text)
+            {
+                TerminalDebugLog.log(
+                    .input,
+                    "large paste direct bytes=\(text.utf8.count)"
+                )
+                surface?.sendText(text)
+                return
+            }
+
             _ = surface?.performBindingAction("paste_from_clipboard")
         }
 

@@ -27,4 +27,24 @@ struct TerminalInputTextTests {
         #expect(!TerminalInputText.isUIKitNamedFunctionKey("a"))
         #expect(!TerminalInputText.isUIKitNamedFunctionKey("你好"))
     }
+
+    @Test
+    func recognizesLargePasteByByteCount() {
+        let text = String(repeating: "a", count: TerminalInputText.largePasteMinimumBytes)
+        #expect(TerminalInputText.shouldSendPasteDirectly(text))
+    }
+
+    @Test
+    func recognizesLargePasteByLineCount() {
+        let text = Array(repeating: "echo ok", count: TerminalInputText.largePasteMinimumLineCount + 1)
+            .joined(separator: "\n")
+        #expect(TerminalInputText.shouldSendPasteDirectly(text))
+    }
+
+    @Test
+    func keepsSmallPasteOnBindingPath() {
+        #expect(!TerminalInputText.shouldSendPasteDirectly(""))
+        #expect(!TerminalInputText.shouldSendPasteDirectly("echo ok"))
+        #expect(!TerminalInputText.shouldSendPasteDirectly("line 1\nline 2"))
+    }
 }
