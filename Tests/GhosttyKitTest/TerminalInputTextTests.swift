@@ -29,23 +29,10 @@ struct TerminalInputTextTests {
     }
 
     @Test
-    func recognizesLargePasteByByteCount() {
-        let text = String(repeating: "a", count: TerminalInputText.largePasteMinimumBytes)
-        #expect(TerminalInputText.shouldSendPasteDirectly(text))
-    }
-
-    @Test
-    func recognizesLargePasteByLineCount() {
-        let text = Array(repeating: "echo ok", count: TerminalInputText.largePasteMinimumLineCount + 1)
-            .joined(separator: "\n")
-        #expect(TerminalInputText.shouldSendPasteDirectly(text))
-    }
-
-    @Test
-    func keepsSmallPasteOnBindingPath() {
-        #expect(!TerminalInputText.shouldSendPasteDirectly(""))
-        #expect(!TerminalInputText.shouldSendPasteDirectly("echo ok"))
-        #expect(!TerminalInputText.shouldSendPasteDirectly("line 1\nline 2"))
+    func countsPasteLinesForDiagnosticsOnly() {
+        #expect(TerminalInputText.lineCount(in: "") == 0)
+        #expect(TerminalInputText.lineCount(in: "echo ok") == 0)
+        #expect(TerminalInputText.lineCount(in: "line 1\nline 2\nline 3") == 2)
     }
 
 }

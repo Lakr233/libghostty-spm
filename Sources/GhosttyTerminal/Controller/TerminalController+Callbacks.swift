@@ -96,10 +96,18 @@ private enum TerminalCallbacks {
             let string = NSPasteboard.general.string(forType: .string)
         #endif
 
-        guard let string else { return false }
-        string.withCString { cString in
-            ghostty_surface_complete_clipboard_request(surface, cString, opaquePtr, true)
+        guard let string else {
+            TerminalDebugLog.log(.input, "clipboard paste read empty")
+            return false
         }
+        TerminalDebugLog.log(
+            .input,
+            "clipboard paste read bytes=\(string.utf8.count) lines=\(TerminalInputText.lineCount(in: string))"
+        )
+        string.withCString { cString in
+            ghostty_surface_complete_clipboard_request(surface, cString, opaquePtr, false)
+        }
+        TerminalDebugLog.log(.input, "clipboard paste complete")
         return true
     }
 }
