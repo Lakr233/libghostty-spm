@@ -47,4 +47,5 @@ struct TerminalInputTextTests {
         #expect(!TerminalInputText.shouldSendPasteDirectly("echo ok"))
         #expect(!TerminalInputText.shouldSendPasteDirectly("line 1\nline 2"))
     }
+
 }
