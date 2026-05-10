@@ -42,10 +42,11 @@ public final class TerminalSurface {
         return result
     }
 
-    func sendText(_ text: String) {
+    @discardableResult
+    public func sendText(_ text: String) -> Bool {
         guard let s = surface else {
             TerminalDebugLog.log(.input, "surface text ignored: missing surface")
-            return
+            return false
         }
         TerminalDebugLog.log(
             .input,
@@ -54,6 +55,7 @@ public final class TerminalSurface {
         text.withCString { cStr in
             ghostty_surface_text(s, cStr, UInt(text.utf8.count))
         }
+        return true
     }
 
     @discardableResult

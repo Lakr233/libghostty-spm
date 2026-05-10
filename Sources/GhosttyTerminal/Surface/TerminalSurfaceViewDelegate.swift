@@ -136,3 +136,12 @@ public struct TerminalTextSelectionRequest: Sendable {
 public protocol TerminalSurfaceTextSelectionRequestDelegate: TerminalSurfaceViewDelegate {
     func terminalDidRequestTextSelection(_ request: TerminalTextSelectionRequest)
 }
+
+/// Notifies a delegate when the underlying ``TerminalSurface`` is created or
+/// torn down. Useful when a consumer needs surface-level APIs (e.g.
+/// ``TerminalSurface/sendText(_:)``) reachable from outside the platform view.
+@MainActor
+public protocol TerminalSurfaceLifecycleDelegate: TerminalSurfaceViewDelegate {
+    func terminalDidAttachSurface(_ surface: TerminalSurface)
+    func terminalDidDetachSurface()
+}
