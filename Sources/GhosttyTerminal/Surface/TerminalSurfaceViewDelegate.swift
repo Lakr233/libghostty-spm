@@ -114,3 +114,12 @@ public protocol TerminalSurfaceHoverLinkDelegate: TerminalSurfaceViewDelegate {
 public protocol TerminalSurfacePwdDelegate: TerminalSurfaceViewDelegate {
     func terminalDidChangeWorkingDirectory(_ path: String)
 }
+
+/// Notifies a delegate when the underlying ``TerminalSurface`` is created or
+/// torn down. Useful when a consumer needs surface-level APIs (e.g.
+/// ``TerminalSurface/sendText(_:)``) reachable from outside the platform view.
+@MainActor
+public protocol TerminalSurfaceLifecycleDelegate: TerminalSurfaceViewDelegate {
+    func terminalDidAttachSurface(_ surface: TerminalSurface)
+    func terminalDidDetachSurface()
+}

@@ -124,8 +124,9 @@ final class TerminalSurfaceCoordinator {
         }
 
         bridge.rawSurface = rawSurface
-        surface = TerminalSurface(rawSurface)
-        surface?.setOcclusion(effectiveSurfaceVisible)
+        let newSurface = TerminalSurface(rawSurface)
+        surface = newSurface
+        newSurface.setOcclusion(effectiveSurfaceVisible)
         controller.shouldProcessWakeup = { [weak self] in
             self?.canRenderFrame == true
         }
@@ -135,6 +136,8 @@ final class TerminalSurfaceCoordinator {
         requestImmediateTick()
         TerminalDebugLog.log(.lifecycle, "surface rebuild succeeded")
         synchronizeMetrics()
+        (delegate as? any TerminalSurfaceLifecycleDelegate)?
+            .terminalDidAttachSurface(newSurface)
     }
 
     // MARK: - Metrics
@@ -300,6 +303,7 @@ final class TerminalSurfaceCoordinator {
         controller?.onWakeup = nil
         controller?.shouldProcessWakeup = nil
         bridge.rawSurface = nil
+        let hadSurface = surface != nil
         surface?.setFocus(false)
         surface?.free()
         surface = nil
@@ -307,6 +311,10 @@ final class TerminalSurfaceCoordinator {
         pendingImmediateTick = true
         lastTickTimestamp = 0
         controller?.remove(bridge)
+        if hadSurface {
+            (delegate as? any TerminalSurfaceLifecycleDelegate)?
+                .terminalDidDetachSurface()
+        }
     }
 
     private func handleCellSizeChange(width: UInt32, height: UInt32) {

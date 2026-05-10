@@ -42,7 +42,7 @@ public final class TerminalSurface {
         return result
     }
 
-    func sendText(_ text: String) {
+    public func sendText(_ text: String) {
         guard let s = surface else {
             TerminalDebugLog.log(.input, "surface text ignored: missing surface")
             return
