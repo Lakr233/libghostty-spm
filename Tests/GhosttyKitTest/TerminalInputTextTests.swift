@@ -27,4 +27,12 @@ struct TerminalInputTextTests {
         #expect(!TerminalInputText.isUIKitNamedFunctionKey("a"))
         #expect(!TerminalInputText.isUIKitNamedFunctionKey("你好"))
     }
+
+    @Test
+    func countsPasteLinesForDiagnosticsOnly() {
+        #expect(TerminalInputText.lineCount(in: "") == 0)
+        #expect(TerminalInputText.lineCount(in: "echo ok") == 0)
+        #expect(TerminalInputText.lineCount(in: "line 1\nline 2\nline 3") == 2)
+    }
+
 }

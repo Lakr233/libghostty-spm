@@ -27,6 +27,14 @@ enum TerminalInputText {
         return text
     }
 
+    static func lineCount(in text: String) -> Int {
+        text.reduce(into: 0) { count, character in
+            if character == "\n" {
+                count += 1
+            }
+        }
+    }
+
     static func isPrivateUseFunctionKey(_ scalar: UnicodeScalar) -> Bool {
         scalar.value >= 0xF700 && scalar.value <= 0xF8FF
     }
