@@ -289,12 +289,14 @@
             )
         }
 
-        func stopMomentumScrolling() {
+        func stopMomentumScrolling(sendTerminalEndEvent: Bool = true) {
             guard momentumDisplayLink != nil else { return }
             TerminalDebugLog.log(.input, "momentum stop")
 
-            let mods = TerminalScrollModifiers(precision: true, momentum: .none)
-            surface?.sendMouseScroll(x: 0, y: 0, mods: mods.rawValue)
+            if sendTerminalEndEvent {
+                let mods = TerminalScrollModifiers(precision: true, momentum: .none)
+                surface?.sendMouseScroll(x: 0, y: 0, mods: mods.rawValue)
+            }
 
             momentumDisplayLink?.invalidate()
             momentumDisplayLink = nil

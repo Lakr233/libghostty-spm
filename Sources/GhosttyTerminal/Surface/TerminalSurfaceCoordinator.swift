@@ -64,6 +64,7 @@ final class TerminalSurfaceCoordinator {
 
     private var lastMetrics: TerminalViewportMetrics?
     private var isDisplayVisible = true
+    private var isApplicationActive = true
     private var isSurfaceFocused = false
     private var pendingImmediateTick = true
     private var lastTickTimestamp: TimeInterval = 0
@@ -124,7 +125,10 @@ final class TerminalSurfaceCoordinator {
 
         bridge.rawSurface = rawSurface
         surface = TerminalSurface(rawSurface)
-        surface?.setOcclusion(isDisplayVisible)
+        surface?.setOcclusion(effectiveSurfaceVisible)
+        controller.shouldProcessWakeup = { [weak self] in
+            self?.canRenderFrame == true
+        }
         controller.onWakeup = { [weak self] in
             self?.requestImmediateTick()
         }
@@ -208,21 +212,41 @@ final class TerminalSurfaceCoordinator {
 
     func setDisplayVisible(_ visible: Bool) {
         guard isDisplayVisible != visible else {
-            surface?.setOcclusion(visible)
+            surface?.setOcclusion(effectiveSurfaceVisible)
             return
         }
 
         isDisplayVisible = visible
-        surface?.setOcclusion(visible)
+        surface?.setOcclusion(effectiveSurfaceVisible)
 
-        if visible {
-            if isAttached() {
-                requestImmediateTick()
-            }
+        if canRenderFrame {
+            requestImmediateTick()
         } else {
             stopDisplayLink()
         }
     }
+
+    func setApplicationActive(_ active: Bool) {
+        guard isApplicationActive != active else {
+            if active {
+                renderImmediately()
+            } else {
+                stopDisplayLink()
+            }
+            return
+        }
+
+        isApplicationActive = active
+        surface?.setOcclusion(effectiveSurfaceVisible)
+
+        if active {
+            synchronizeMetrics()
+            renderImmediately()
+        } else {
+            stopDisplayLink()
+        }
+    }
+
     // MARK: - Frame Rendering
 
     func tick(context: DisplayLinkCallbackContext) {
@@ -274,6 +298,7 @@ final class TerminalSurfaceCoordinator {
             session.clearSurface(ifMatches: surface?.rawValue)
         }
         controller?.onWakeup = nil
+        controller?.shouldProcessWakeup = nil
         bridge.rawSurface = nil
         surface?.setFocus(false)
         surface?.free()
@@ -294,15 +319,15 @@ final class TerminalSurfaceCoordinator {
         onCellSizeDidChange?()
     }
 
-    private func shouldRenderFrame(at timestamp: TimeInterval) -> Bool {
-        guard isDisplayVisible, isAttached() else {
+    private func shouldRenderFrame(at _: TimeInterval) -> Bool {
+        guard canRenderFrame else {
             return false
         }
         return pendingImmediateTick || lastTickTimestamp == 0
     }
 
     private func scheduleTickIfNeeded() {
-        guard isDisplayVisible, isAttached() else {
+        guard canRenderFrame else {
             tickScheduled = false
             return
         }
@@ -327,5 +352,31 @@ final class TerminalSurfaceCoordinator {
 
     private static func monotonicTimestamp() -> TimeInterval {
         ProcessInfo.processInfo.systemUptime
+    }
+
+    private var effectiveSurfaceVisible: Bool {
+        isDisplayVisible && isApplicationActive
+    }
+
+    private var canRenderFrame: Bool {
+        effectiveSurfaceVisible && isAttached()
+    }
+
+    private func renderImmediately() {
+        guard canRenderFrame else {
+            tickScheduled = false
+            return
+        }
+
+        pendingImmediateTick = true
+        tickScheduled = false
+        let timestamp = Self.monotonicTimestamp()
+        tick(
+            context: .init(
+                duration: 0,
+                timestamp: timestamp,
+                targetTimestamp: timestamp
+            )
+        )
     }
 }

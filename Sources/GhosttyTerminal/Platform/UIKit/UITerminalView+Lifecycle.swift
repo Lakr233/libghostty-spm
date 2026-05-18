@@ -9,6 +9,40 @@
     import UIKit
 
     public extension UITerminalView {
+        internal func setupApplicationLifecycleObservers() {
+            NotificationCenter.default.addObserver(
+                self,
+                selector: #selector(applicationDidEnterBackground),
+                name: UIApplication.didEnterBackgroundNotification,
+                object: nil
+            )
+            NotificationCenter.default.addObserver(
+                self,
+                selector: #selector(applicationDidBecomeActive),
+                name: UIApplication.didBecomeActiveNotification,
+                object: nil
+            )
+        }
+
+        internal func syncApplicationActiveState() {
+            core.setApplicationActive(
+                UIApplication.shared.applicationState == .active
+            )
+        }
+
+        @objc internal func applicationDidEnterBackground(_: Notification) {
+            TerminalDebugLog.log(.lifecycle, "application did enter background")
+            stopMomentumScrolling(sendTerminalEndEvent: false)
+            core.setApplicationActive(false)
+        }
+
+        @objc internal func applicationDidBecomeActive(_: Notification) {
+            TerminalDebugLog.log(.lifecycle, "application did become active")
+            updateDisplayScale()
+            updateColorScheme()
+            core.setApplicationActive(true)
+        }
+
         override func didMoveToWindow() {
             super.didMoveToWindow()
             TerminalDebugLog.log(

@@ -57,6 +57,7 @@ public final class TerminalController {
 
     public internal(set) var lastConfigurationIssue: String?
     var onWakeup: (() -> Void)?
+    var shouldProcessWakeup: (() -> Bool)?
 
     // MARK: - Config Resolution State
 
@@ -247,6 +248,16 @@ public final class TerminalController {
     public func tick() {
         guard let app else { return }
         ghostty_app_tick(app)
+    }
+
+    func handleWakeup() {
+        guard shouldProcessWakeup?() ?? true else {
+            TerminalDebugLog.log(.lifecycle, "wakeup suspended")
+            return
+        }
+
+        tick()
+        onWakeup?()
     }
 
     private static func initializeRuntimeIfNeeded() {

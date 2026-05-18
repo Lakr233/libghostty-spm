@@ -54,4 +54,41 @@ struct TerminalLifecycleTests {
 
         #expect(controller.retainedBridgeCount == 0)
     }
+
+    @Test
+    func suspendedWakeupDoesNotScheduleRender() {
+        let controller = TerminalController()
+        var wakeups = 0
+
+        controller.shouldProcessWakeup = { false }
+        controller.onWakeup = {
+            wakeups += 1
+        }
+
+        controller.handleWakeup()
+
+        #expect(wakeups == 0)
+    }
+
+    @Test
+    func applicationActiveStateControlsImmediateTicks() async {
+        let coordinator = TerminalSurfaceCoordinator()
+        var renders = 0
+
+        coordinator.isAttached = { true }
+        coordinator.onPostRender = {
+            renders += 1
+        }
+
+        coordinator.setApplicationActive(false)
+        coordinator.requestImmediateTick()
+        await Task.yield()
+
+        #expect(renders == 0)
+
+        coordinator.setApplicationActive(true)
+        await Task.yield()
+
+        #expect(renders == 1)
+    }
 }

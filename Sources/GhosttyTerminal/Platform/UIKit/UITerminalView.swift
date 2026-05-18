@@ -115,10 +115,16 @@
                 self?.enforceSublayerScale()
             }
 
+            setupApplicationLifecycleObservers()
+            syncApplicationActiveState()
             setupPlatformInput()
             #if !targetEnvironment(macCatalyst)
                 setupKeyboardObservers()
             #endif
+        }
+
+        deinit {
+            NotificationCenter.default.removeObserver(self)
         }
 
         #if !targetEnvironment(macCatalyst)
