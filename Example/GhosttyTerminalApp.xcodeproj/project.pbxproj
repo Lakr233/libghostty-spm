@@ -11,6 +11,7 @@
 		509321E02F646FC40004661A /* GhosttyTerminal in Frameworks */ = {isa = PBXBuildFile; productRef = 509321DF2F646FC40004661A /* GhosttyTerminal */; };
 		50ED30062F705A9A00E2694B /* GhosttyTheme in Frameworks */ = {isa = PBXBuildFile; productRef = 50ED30052F705A9A00E2694B /* GhosttyTheme */; };
 		50ED300C2F705AA900E2694B /* GhosttyKit in Frameworks */ = {isa = PBXBuildFile; productRef = 50ED300B2F705AA900E2694B /* GhosttyKit */; };
+		9490B3D2513E2F168996B2CC /* LookInsideServer in Frameworks */ = {isa = PBXBuildFile; productRef = CDD6B0252BE1175EBA159634 /* LookInsideServer */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -20,6 +21,8 @@
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		509321CF2F645FC30004661A /* GhosttyTerminalApp */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+			);
 			path = GhosttyTerminalApp;
 			sourceTree = "<group>";
 		};
@@ -34,6 +37,7 @@
 				50ED30062F705A9A00E2694B /* GhosttyTheme in Frameworks */,
 				509321E02F646FC40004661A /* GhosttyTerminal in Frameworks */,
 				503AA0B32F685D3300D5C113 /* ShellCraftKit in Frameworks */,
+				9490B3D2513E2F168996B2CC /* LookInsideServer in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -88,6 +92,7 @@
 				503AA0B22F685D3300D5C113 /* ShellCraftKit */,
 				50ED30052F705A9A00E2694B /* GhosttyTheme */,
 				50ED300B2F705AA900E2694B /* GhosttyKit */,
+				CDD6B0252BE1175EBA159634 /* LookInsideServer */,
 			);
 			productName = GhosttyTerminalApp;
 			productReference = 509321CD2F645FC30004661A /* GhosttyTerminalApp.app */;
@@ -119,8 +124,10 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				509321F02F647A000004661A /* XCLocalSwiftPackageReference ".." */,
+				3F1C8C6DC0C844616926A27E /* XCRemoteSwiftPackageReference "LookInside-Release" */,
 			);
 			preferredProjectObjectVersion = 77;
+			productRefGroup = 509321CE2F645FC30004661A /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
@@ -313,6 +320,10 @@
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
+				EXCLUDED_SOURCE_FILE_NAMES = (
+					"$(inherited)",
+					"LookInsideServer*",
+				);
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -362,6 +373,17 @@
 		};
 /* End XCLocalSwiftPackageReference section */
 
+/* Begin XCRemoteSwiftPackageReference section */
+		3F1C8C6DC0C844616926A27E /* XCRemoteSwiftPackageReference "LookInside-Release" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/LookInsideApp/LookInside-Release.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 0.2.2;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
 /* Begin XCSwiftPackageProductDependency section */
 		503AA0B22F685D3300D5C113 /* ShellCraftKit */ = {
 			isa = XCSwiftPackageProductDependency;
@@ -379,6 +401,11 @@
 		50ED300B2F705AA900E2694B /* GhosttyKit */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = GhosttyKit;
+		};
+		CDD6B0252BE1175EBA159634 /* LookInsideServer */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 3F1C8C6DC0C844616926A27E /* XCRemoteSwiftPackageReference "LookInside-Release" */;
+			productName = LookInsideServer;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

@@ -219,3 +219,7 @@ Both use a mock echo terminal (`MockTerminalSession`) with the host-managed I/O 
 MIT License. See [LICENSE](LICENSE) for details.
 
 The bundled `libghostty` binary is built from [Ghostty](https://ghostty.org), which has its own license terms.
+
+## Sponsor
+
+[LookInside](https://lookinside-app.com/) helps you inspect a running iOS or macOS app UI from your Mac.
