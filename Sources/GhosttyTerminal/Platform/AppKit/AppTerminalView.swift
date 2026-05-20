@@ -15,6 +15,9 @@
         var metalLayer: CAMetalLayer?
         var inputHandler: TerminalKeyEventHandler?
         var lastPerformKeyEvent: TimeInterval?
+        var pointerSelectionStartPoint: CGPoint?
+        var lastPointerSelectionRect: CGRect?
+        var pendingSelectionMenuPoint: CGPoint?
 
         public weak var delegate: (any TerminalSurfaceViewDelegate)? {
             get { core.delegate }

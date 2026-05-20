@@ -18,9 +18,11 @@
             static let minFontSize: Float = 4
             static let maxFontSize: Float = 64
         #endif
-        #if targetEnvironment(macCatalyst)
-            var activePointerButton: ghostty_input_mouse_button_e?
-        #endif
+        var activePointerButton: ghostty_input_mouse_button_e?
+        var pointerSelectionStartPoint: CGPoint?
+        var lastPointerSelectionRect: CGRect?
+        var pendingSelectionMenuPoint: CGPoint?
+        lazy var selectionContextMenuInteraction = UIContextMenuInteraction(delegate: self)
         var hardwareKeyHandled = false
         let touchScrollMultiplier: CGFloat = 3.0
         #if !targetEnvironment(macCatalyst)

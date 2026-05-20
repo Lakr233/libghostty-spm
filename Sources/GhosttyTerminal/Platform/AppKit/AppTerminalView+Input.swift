@@ -106,6 +106,9 @@
         }
 
         @IBAction func copy(_: Any?) {
+            if copySelectedTextToPasteboard() {
+                return
+            }
             _ = surface?.performBindingAction("copy_to_clipboard")
         }
 
@@ -131,6 +134,8 @@
         override func mouseDown(with event: NSEvent) {
             let (x, y) = mousePoint(from: event)
             let mods = TerminalInputModifiers(from: event.modifierFlags)
+            pointerSelectionStartPoint = CGPoint(x: x, y: y)
+            pendingSelectionMenuPoint = nil
             surface?.sendMousePos(x: x, y: y, mods: mods.ghosttyMods)
             surface?.sendMouseButton(
                 state: GHOSTTY_MOUSE_PRESS,
@@ -148,12 +153,17 @@
                 button: GHOSTTY_MOUSE_LEFT,
                 mods: mods.ghosttyMods
             )
+            finishPointerSelection(at: CGPoint(x: x, y: y))
         }
 
         override func rightMouseDown(with event: NSEvent) {
             let (x, y) = mousePoint(from: event)
             let mods = TerminalInputModifiers(from: event.modifierFlags)
             surface?.sendMousePos(x: x, y: y, mods: mods.ghosttyMods)
+            if let menuPoint = selectionMenuPoint(at: CGPoint(x: x, y: y)) {
+                pendingSelectionMenuPoint = menuPoint
+                return
+            }
             surface?.sendMouseButton(
                 state: GHOSTTY_MOUSE_PRESS,
                 button: GHOSTTY_MOUSE_RIGHT,
@@ -165,6 +175,11 @@
             let (x, y) = mousePoint(from: event)
             let mods = TerminalInputModifiers(from: event.modifierFlags)
             surface?.sendMousePos(x: x, y: y, mods: mods.ghosttyMods)
+            if pendingSelectionMenuPoint != nil {
+                pendingSelectionMenuPoint = nil
+                showSelectionCopyMenu(with: event)
+                return
+            }
             surface?.sendMouseButton(
                 state: GHOSTTY_MOUSE_RELEASE,
                 button: GHOSTTY_MOUSE_RIGHT,
@@ -201,6 +216,8 @@
         }
 
         override func mouseDragged(with event: NSEvent) {
+            let (x, y) = mousePoint(from: event)
+            updatePointerSelectionRect(to: CGPoint(x: x, y: y))
             mouseMoved(with: event)
         }
 
@@ -222,6 +239,75 @@
                 y: event.scrollingDeltaY,
                 mods: scrollMods.rawValue
             )
+        }
+
+        private func updatePointerSelectionRect(to point: CGPoint) {
+            guard let start = pointerSelectionStartPoint else { return }
+            lastPointerSelectionRect = CGRect(
+                x: min(start.x, point.x),
+                y: min(start.y, point.y),
+                width: abs(start.x - point.x),
+                height: abs(start.y - point.y)
+            ).insetBy(dx: -2, dy: -2)
+        }
+
+        private func finishPointerSelection(at point: CGPoint) {
+            defer { pointerSelectionStartPoint = nil }
+            guard let start = pointerSelectionStartPoint else { return }
+            let dragDistance = hypot(point.x - start.x, point.y - start.y)
+            if dragDistance < 2 {
+                lastPointerSelectionRect = nil
+            } else {
+                updatePointerSelectionRect(to: point)
+            }
+        }
+
+        private func selectionMenuPoint(at point: CGPoint) -> CGPoint? {
+            guard surface?.hasSelection() == true,
+                  surface?.selectionContainsQuicklookWord() == true
+            else {
+                TerminalDebugLog.log(
+                    .input,
+                    "selection menu miss point=\(selectionPointDescription(point))"
+                )
+                return nil
+            }
+            TerminalDebugLog.log(
+                .input,
+                "selection menu hit point=\(selectionPointDescription(point))"
+            )
+            return point
+        }
+
+        private func selectionPointDescription(_ point: CGPoint) -> String {
+            "\(String(format: "%.2f", point.x))x\(String(format: "%.2f", point.y))"
+        }
+
+        private func showSelectionCopyMenu(with event: NSEvent) {
+            let menu = NSMenu()
+            let copyItem = NSMenuItem(
+                title: "Copy",
+                action: #selector(copy(_:)),
+                keyEquivalent: ""
+            )
+            copyItem.target = self
+            menu.addItem(copyItem)
+            NSMenu.popUpContextMenu(menu, with: event, for: self)
+        }
+
+        @discardableResult
+        private func copySelectedTextToPasteboard() -> Bool {
+            guard let text = surface?.readSelection(), !text.isEmpty else {
+                return false
+            }
+            let pasteboard = NSPasteboard.general
+            pasteboard.clearContents()
+            pasteboard.setString(text, forType: .string)
+            TerminalDebugLog.log(
+                .input,
+                "selection copied bytes=\(text.utf8.count) lines=\(TerminalInputText.lineCount(in: text))"
+            )
+            return true
         }
 
         private func keyIsBinding(

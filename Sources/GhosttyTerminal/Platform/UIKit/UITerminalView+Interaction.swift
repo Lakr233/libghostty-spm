@@ -14,11 +14,9 @@
             _ touches: Set<UITouch>,
             with event: UIEvent?
         ) {
-            #if targetEnvironment(macCatalyst)
-                if handleIndirectPointerTouches(touches, phase: .began, event: event) {
-                    return
-                }
-            #endif
+            if handleIndirectPointerTouches(touches, phase: .began, event: event) {
+                return
+            }
             super.touchesBegan(touches, with: event)
             #if targetEnvironment(macCatalyst)
                 becomeFirstResponder()
@@ -37,11 +35,9 @@
             _ touches: Set<UITouch>,
             with event: UIEvent?
         ) {
-            #if targetEnvironment(macCatalyst)
-                if handleIndirectPointerTouches(touches, phase: .moved, event: event) {
-                    return
-                }
-            #endif
+            if handleIndirectPointerTouches(touches, phase: .moved, event: event) {
+                return
+            }
             super.touchesMoved(touches, with: event)
         }
 
@@ -49,11 +45,9 @@
             _ touches: Set<UITouch>,
             with event: UIEvent?
         ) {
-            #if targetEnvironment(macCatalyst)
-                if handleIndirectPointerTouches(touches, phase: .ended, event: event) {
-                    return
-                }
-            #endif
+            if handleIndirectPointerTouches(touches, phase: .ended, event: event) {
+                return
+            }
             #if !targetEnvironment(macCatalyst)
                 if pendingKeyboardDismissOnTouchEnd, !touchDidScrollDuringCurrentTouch {
                     resignFirstResponder()
@@ -68,11 +62,9 @@
             _ touches: Set<UITouch>,
             with event: UIEvent?
         ) {
-            #if targetEnvironment(macCatalyst)
-                if handleIndirectPointerTouches(touches, phase: .cancelled, event: event) {
-                    return
-                }
-            #endif
+            if handleIndirectPointerTouches(touches, phase: .cancelled, event: event) {
+                return
+            }
             #if !targetEnvironment(macCatalyst)
                 pendingKeyboardDismissOnTouchEnd = false
                 touchDidScrollDuringCurrentTouch = false
@@ -81,11 +73,209 @@
         }
 
         func setupPlatformInput() {
+            addInteraction(selectionContextMenuInteraction)
             #if targetEnvironment(macCatalyst)
                 setupCatalystScrollWheelInput()
             #else
                 setupTouchScrollInput()
             #endif
+        }
+
+        enum IndirectPointerPhase {
+            case began
+            case moved
+            case ended
+            case cancelled
+        }
+
+        func handleIndirectPointerTouches(
+            _ touches: Set<UITouch>,
+            phase: IndirectPointerPhase,
+            event: UIEvent?
+        ) -> Bool {
+            guard let touch = touches.first(where: { $0.type == .indirectPointer }) else {
+                return false
+            }
+
+            core.setFocus(true)
+            stopMomentumScrolling()
+
+            let button = pointerButton(from: event)
+            let mods = ghostty_input_mods_e(rawValue: 0)
+            let location = touch.location(in: self)
+            surface?.sendMousePos(
+                x: location.x,
+                y: location.y,
+                mods: mods
+            )
+
+            switch phase {
+            case .began:
+                activePointerButton = button
+                switch button {
+                case GHOSTTY_MOUSE_LEFT:
+                    pointerSelectionStartPoint = location
+                    pendingSelectionMenuPoint = nil
+                    surface?.sendMouseButton(
+                        state: GHOSTTY_MOUSE_PRESS,
+                        button: button,
+                        mods: mods
+                    )
+
+                case GHOSTTY_MOUSE_RIGHT:
+                    pendingSelectionMenuPoint = selectionMenuPoint(at: location)
+
+                default:
+                    surface?.sendMouseButton(
+                        state: GHOSTTY_MOUSE_PRESS,
+                        button: button,
+                        mods: mods
+                    )
+                }
+
+            case .moved:
+                updatePointerSelectionRect(to: location)
+
+            case .ended:
+                let releasedButton = activePointerButton ?? button
+                activePointerButton = nil
+
+                if releasedButton == GHOSTTY_MOUSE_RIGHT,
+                   pendingSelectionMenuPoint != nil
+                {
+                    #if targetEnvironment(macCatalyst)
+                        showSelectionCopyMenu(at: location)
+                    #endif
+                    pendingSelectionMenuPoint = nil
+                    return true
+                }
+
+                if releasedButton == GHOSTTY_MOUSE_RIGHT {
+                    surface?.sendMouseButton(
+                        state: GHOSTTY_MOUSE_PRESS,
+                        button: releasedButton,
+                        mods: mods
+                    )
+                }
+
+                surface?.sendMouseButton(
+                    state: GHOSTTY_MOUSE_RELEASE,
+                    button: releasedButton,
+                    mods: mods
+                )
+
+                if releasedButton == GHOSTTY_MOUSE_LEFT {
+                    finishPointerSelection(at: location)
+                }
+                pendingSelectionMenuPoint = nil
+
+            case .cancelled:
+                let releasedButton = activePointerButton ?? button
+                activePointerButton = nil
+                pendingSelectionMenuPoint = nil
+                pointerSelectionStartPoint = nil
+                surface?.sendMouseButton(
+                    state: GHOSTTY_MOUSE_RELEASE,
+                    button: releasedButton,
+                    mods: mods
+                )
+            }
+
+            return true
+        }
+
+        func pointerButton(from event: UIEvent?) -> ghostty_input_mouse_button_e {
+            guard let event else { return GHOSTTY_MOUSE_LEFT }
+            if event.buttonMask.contains(.secondary) {
+                return GHOSTTY_MOUSE_RIGHT
+            }
+            if event.buttonMask.contains(.primary) {
+                return GHOSTTY_MOUSE_LEFT
+            }
+            return GHOSTTY_MOUSE_LEFT
+        }
+
+        func updatePointerSelectionRect(to point: CGPoint) {
+            guard activePointerButton == GHOSTTY_MOUSE_LEFT,
+                  let start = pointerSelectionStartPoint
+            else { return }
+
+            lastPointerSelectionRect = CGRect(
+                x: min(start.x, point.x),
+                y: min(start.y, point.y),
+                width: abs(start.x - point.x),
+                height: abs(start.y - point.y)
+            ).insetBy(dx: -2, dy: -2)
+        }
+
+        func finishPointerSelection(at point: CGPoint) {
+            defer { pointerSelectionStartPoint = nil }
+            guard let start = pointerSelectionStartPoint else { return }
+            let dragDistance = hypot(point.x - start.x, point.y - start.y)
+            if dragDistance < 2 {
+                lastPointerSelectionRect = nil
+            } else {
+                updatePointerSelectionRect(to: point)
+            }
+        }
+
+        func selectionMenuPoint(at point: CGPoint) -> CGPoint? {
+            guard surface?.hasSelection() == true,
+                  surface?.selectionContainsQuicklookWord() == true
+            else {
+                TerminalDebugLog.log(
+                    .input,
+                    "selection menu miss point=\(NSCoder.string(for: point))"
+                )
+                return nil
+            }
+
+            TerminalDebugLog.log(
+                .input,
+                "selection menu hit point=\(NSCoder.string(for: point))"
+            )
+            return point
+        }
+
+        #if targetEnvironment(macCatalyst)
+            func showSelectionCopyMenu(at point: CGPoint) {
+                guard surface?.hasSelection() == true else { return }
+                becomeFirstResponder()
+                let menu = UIMenuController.shared
+                menu.menuItems = nil
+                menu.showMenu(
+                    from: self,
+                    rect: CGRect(x: point.x, y: point.y, width: 1, height: 1)
+                )
+                menu.update()
+            }
+        #endif
+
+        @IBAction override public func copy(_: Any?) {
+            guard copySelectedTextToPasteboard() else { return }
+        }
+
+        override public func canPerformAction(
+            _ action: Selector,
+            withSender sender: Any?
+        ) -> Bool {
+            if action == #selector(copy(_:)) {
+                return surface?.hasSelection() == true
+            }
+            return super.canPerformAction(action, withSender: sender)
+        }
+
+        @discardableResult
+        func copySelectedTextToPasteboard() -> Bool {
+            guard let text = surface?.readSelection(), !text.isEmpty else {
+                return false
+            }
+            UIPasteboard.general.string = text
+            TerminalDebugLog.log(
+                .input,
+                "selection copied bytes=\(text.utf8.count) lines=\(TerminalInputText.lineCount(in: text))"
+            )
+            return true
         }
 
         #if targetEnvironment(macCatalyst)
@@ -120,76 +310,13 @@
                     mods: scrollMods.rawValue
                 )
             }
-
-            enum IndirectPointerPhase {
-                case began
-                case moved
-                case ended
-                case cancelled
-            }
-
-            func handleIndirectPointerTouches(
-                _ touches: Set<UITouch>,
-                phase: IndirectPointerPhase,
-                event: UIEvent?
-            ) -> Bool {
-                guard let touch = touches.first(where: { $0.type == .indirectPointer }) else {
-                    return false
-                }
-
-                becomeFirstResponder()
-                stopMomentumScrolling()
-
-                let button = pointerButton(from: event)
-                let mods = ghostty_input_mods_e(rawValue: 0)
-                let location = touch.location(in: self)
-                surface?.sendMousePos(
-                    x: location.x,
-                    y: location.y,
-                    mods: mods
-                )
-
-                switch phase {
-                case .began:
-                    activePointerButton = button
-                    surface?.sendMouseButton(
-                        state: GHOSTTY_MOUSE_PRESS,
-                        button: button,
-                        mods: mods
-                    )
-
-                case .moved:
-                    break
-
-                case .ended, .cancelled:
-                    let releasedButton = activePointerButton ?? button
-                    activePointerButton = nil
-                    surface?.sendMouseButton(
-                        state: GHOSTTY_MOUSE_RELEASE,
-                        button: releasedButton,
-                        mods: mods
-                    )
-                }
-
-                return true
-            }
-
-            func pointerButton(from event: UIEvent?) -> ghostty_input_mouse_button_e {
-                guard let event else { return GHOSTTY_MOUSE_LEFT }
-                if event.buttonMask.contains(.secondary) {
-                    return GHOSTTY_MOUSE_RIGHT
-                }
-                if event.buttonMask.contains(.primary) {
-                    return GHOSTTY_MOUSE_LEFT
-                }
-                return GHOSTTY_MOUSE_LEFT
-            }
         #else
             func setupTouchScrollInput() {
                 let gesture = UIPanGestureRecognizer(
                     target: self,
                     action: #selector(handleTouchScrollGesture(_:))
                 )
+                gesture.allowedTouchTypes = [NSNumber(value: UITouch.TouchType.direct.rawValue)]
                 gesture.maximumNumberOfTouches = 1
                 addGestureRecognizer(gesture)
 
@@ -201,6 +328,7 @@
                 longPress.allowableMovement = 10
                 longPress.numberOfTouchesRequired = 1
                 longPress.numberOfTapsRequired = 0
+                longPress.allowedTouchTypes = [NSNumber(value: UITouch.TouchType.direct.rawValue)]
                 longPress.cancelsTouchesInView = false
                 longPress.delegate = self
                 addGestureRecognizer(longPress)
@@ -277,6 +405,7 @@
         ) {
             switch gesture.state {
             case .began:
+                guard activePointerButton == nil else { return }
                 #if !targetEnvironment(macCatalyst)
                     touchDidScrollDuringCurrentTouch = true
                 #endif
@@ -284,6 +413,7 @@
                 stopMomentumScrolling()
 
             case .changed:
+                guard activePointerButton == nil else { return }
                 let translation = gesture.translation(in: self)
                 gesture.setTranslation(.zero, in: self)
                 TerminalDebugLog.log(
@@ -299,6 +429,7 @@
                 )
 
             case .ended:
+                guard activePointerButton == nil else { return }
                 let velocity = gesture.velocity(in: self)
                 TerminalDebugLog.log(
                     .input,
@@ -378,7 +509,7 @@
         }
     }
 
-    extension UITerminalView: UIGestureRecognizerDelegate {
+    extension UITerminalView: UIGestureRecognizerDelegate, UIContextMenuInteractionDelegate {
         /// Gate the long-press recognizer at the gesture layer when no host
         /// has opted into selection delegate. Without this, the recognizer
         /// still enters the touch arena for 0.5s and can subtly delay pan
@@ -390,6 +521,28 @@
                 return (delegate as? any TerminalSurfaceTextSelectionRequestDelegate) != nil
             }
             return true
+        }
+
+        public func contextMenuInteraction(
+            _: UIContextMenuInteraction,
+            configurationForMenuAtLocation location: CGPoint
+        ) -> UIContextMenuConfiguration? {
+            surface?.sendMousePos(
+                x: location.x,
+                y: location.y,
+                mods: ghostty_input_mods_e(rawValue: 0)
+            )
+            guard selectionMenuPoint(at: location) != nil else { return nil }
+
+            return UIContextMenuConfiguration(identifier: nil, previewProvider: nil) { [weak self] _ in
+                let copy = UIAction(
+                    title: "Copy",
+                    image: UIImage(systemName: "doc.on.doc")
+                ) { _ in
+                    self?.copySelectedTextToPasteboard()
+                }
+                return UIMenu(children: [copy])
+            }
         }
     }
 #endif

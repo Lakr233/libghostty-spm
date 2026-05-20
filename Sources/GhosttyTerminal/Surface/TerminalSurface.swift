@@ -194,6 +194,63 @@ public final class TerminalSurface {
         return metrics
     }
 
+    // MARK: - Selection
+
+    struct SelectionResult {
+        let text: String
+        let offsetStart: UInt32
+        let offsetLength: UInt32
+    }
+
+    func hasSelection() -> Bool {
+        guard let s = surface else {
+            TerminalDebugLog.log(.input, "surface selection query ignored: missing surface")
+            return false
+        }
+        let result = ghostty_surface_has_selection(s)
+        TerminalDebugLog.log(.input, "surface hasSelection=\(result)")
+        return result
+    }
+
+    func readSelection() -> String? {
+        readSelectionResult()?.text
+    }
+
+    func readSelectionResult() -> SelectionResult? {
+        guard let s = surface else {
+            TerminalDebugLog.log(.input, "surface readSelection ignored: missing surface")
+            return nil
+        }
+        var out = ghostty_text_s()
+        guard ghostty_surface_read_selection(s, &out) else {
+            TerminalDebugLog.log(.input, "surface readSelection returned false")
+            return nil
+        }
+        defer { ghostty_surface_free_text(s, &out) }
+
+        guard let textPtr = out.text, out.text_len > 0 else {
+            TerminalDebugLog.log(.input, "surface readSelection empty")
+            return SelectionResult(
+                text: "",
+                offsetStart: out.offset_start,
+                offsetLength: out.offset_len
+            )
+        }
+
+        let bytes = UnsafeBufferPointer(start: textPtr, count: Int(out.text_len))
+            .map { UInt8(bitPattern: $0) }
+        let text = String(decoding: bytes, as: UTF8.self)
+        TerminalDebugLog.log(
+            .input,
+            "surface readSelection bytes=\(text.utf8.count) lines=\(TerminalInputText.lineCount(in: text)) offset=\(out.offset_start)+\(out.offset_len)"
+        )
+        return SelectionResult(
+            text: text,
+            offsetStart: out.offset_start,
+            offsetLength: out.offset_len
+        )
+    }
+
     // MARK: - IME
 
     func imePoint() -> (x: Double, y: Double, width: Double, height: Double) {
@@ -223,6 +280,8 @@ public final class TerminalSurface {
     #if canImport(UIKit) || canImport(AppKit)
         struct QuicklookWordResult {
             let word: String
+            let offsetStart: UInt32
+            let offsetLength: UInt32
             // tl_px_x / tl_px_y are reported in host points (view coordinates),
             // not surface pixels. Ghostty's embedded API receives mouse_pos in
             // points and stores the cursor position * contentScale internally,
@@ -255,9 +314,34 @@ public final class TerminalSurface {
             }
             TerminalDebugLog.log(
                 .input,
-                "surface quicklookWord word=\(TerminalDebugLog.describe(word)) pointX=\(String(format: "%.2f", out.tl_px_x)) pointY=\(String(format: "%.2f", out.tl_px_y))"
+                "surface quicklookWord word=\(TerminalDebugLog.describe(word)) offset=\(out.offset_start)+\(out.offset_len) pointX=\(String(format: "%.2f", out.tl_px_x)) pointY=\(String(format: "%.2f", out.tl_px_y))"
             )
-            return QuicklookWordResult(word: word, pointX: out.tl_px_x, pointY: out.tl_px_y)
+            return QuicklookWordResult(
+                word: word,
+                offsetStart: out.offset_start,
+                offsetLength: out.offset_len,
+                pointX: out.tl_px_x,
+                pointY: out.tl_px_y
+            )
+        }
+
+        func selectionContainsQuicklookWord() -> Bool {
+            guard let selected = readSelectionResult(),
+                  let word = quicklookWord(),
+                  !word.word.isEmpty,
+                  word.offsetLength > 0
+            else { return false }
+
+            let selectionStart = UInt64(selected.offsetStart)
+            let selectionEnd = selectionStart + UInt64(selected.offsetLength)
+            let wordStart = UInt64(word.offsetStart)
+            let wordEnd = wordStart + UInt64(word.offsetLength)
+            let contains = wordStart >= selectionStart && wordEnd <= selectionEnd
+            TerminalDebugLog.log(
+                .input,
+                "surface selectionContainsQuicklookWord=\(contains) selection=\(selected.offsetStart)+\(selected.offsetLength) word=\(word.offsetStart)+\(word.offsetLength)"
+            )
+            return contains
         }
     #endif
 
