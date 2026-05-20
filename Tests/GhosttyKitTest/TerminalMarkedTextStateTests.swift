@@ -4,7 +4,7 @@ import Testing
 
 struct TerminalMarkedTextStateTests {
     @Test
-    func deleteBackwardRemovesSelectionBeforeCaret() {
+    func `delete backward removes selection before caret`() {
         var state = TerminalMarkedTextState()
         state.setMarkedText("shufa", selectedRange: NSRange(location: 5, length: 0))
         let deleted = state.deleteBackward()
@@ -16,7 +16,7 @@ struct TerminalMarkedTextStateTests {
     }
 
     @Test
-    func deleteBackwardClearsSingleMarkedCharacter() {
+    func `delete backward clears single marked character`() {
         var state = TerminalMarkedTextState()
         state.setMarkedText("字", selectedRange: NSRange(location: 1, length: 0))
         let deleted = state.deleteBackward()
@@ -28,7 +28,7 @@ struct TerminalMarkedTextStateTests {
     }
 
     @Test
-    func setMarkedTextClampsSelectionIntoDocument() {
+    func `set marked text clamps selection into document`() {
         var state = TerminalMarkedTextState()
         state.setMarkedText("abcd", selectedRange: NSRange(location: 99, length: 3))
 
@@ -37,7 +37,7 @@ struct TerminalMarkedTextStateTests {
     }
 
     @Test
-    func textInRangeReturnsSubstringAndEmptyCaretSlice() {
+    func `text in range returns substring and empty caret slice`() {
         var state = TerminalMarkedTextState()
         state.setMarkedText("中文abc", selectedRange: NSRange(location: 2, length: 0))
 

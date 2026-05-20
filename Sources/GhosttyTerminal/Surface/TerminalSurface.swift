@@ -221,44 +221,44 @@ public final class TerminalSurface {
     // MARK: - Quicklook Word (Apple-only)
 
     #if canImport(UIKit) || canImport(AppKit)
-    struct QuicklookWordResult {
-        let word: String
-        // tl_px_x / tl_px_y are reported in host points (view coordinates),
-        // not surface pixels. Ghostty's embedded API receives mouse_pos in
-        // points and stores the cursor position * contentScale internally,
-        // then divides by contentScale when reporting selection coordinates
-        // back. Callers must convert cell pixel dimensions to points before
-        // dividing.
-        let pointX: Double
-        let pointY: Double
-    }
+        struct QuicklookWordResult {
+            let word: String
+            // tl_px_x / tl_px_y are reported in host points (view coordinates),
+            // not surface pixels. Ghostty's embedded API receives mouse_pos in
+            // points and stores the cursor position * contentScale internally,
+            // then divides by contentScale when reporting selection coordinates
+            // back. Callers must convert cell pixel dimensions to points before
+            // dividing.
+            let pointX: Double
+            let pointY: Double
+        }
 
-    func quicklookWord() -> QuicklookWordResult? {
-        guard let s = surface else {
-            TerminalDebugLog.log(.input, "surface quicklookWord ignored: missing surface")
-            return nil
-        }
-        var out = ghostty_text_s()
-        guard ghostty_surface_quicklook_word(s, &out) else {
-            TerminalDebugLog.log(.input, "surface quicklookWord returned false")
-            return nil
-        }
-        defer { ghostty_surface_free_text(s, &out) }
+        func quicklookWord() -> QuicklookWordResult? {
+            guard let s = surface else {
+                TerminalDebugLog.log(.input, "surface quicklookWord ignored: missing surface")
+                return nil
+            }
+            var out = ghostty_text_s()
+            guard ghostty_surface_quicklook_word(s, &out) else {
+                TerminalDebugLog.log(.input, "surface quicklookWord returned false")
+                return nil
+            }
+            defer { ghostty_surface_free_text(s, &out) }
 
-        let word: String
-        if let textPtr = out.text, out.text_len > 0 {
-            let bytes = UnsafeBufferPointer(start: textPtr, count: Int(out.text_len))
-                .map { UInt8(bitPattern: $0) }
-            word = String(decoding: bytes, as: UTF8.self)
-        } else {
-            word = ""
+            let word: String
+            if let textPtr = out.text, out.text_len > 0 {
+                let bytes = UnsafeBufferPointer(start: textPtr, count: Int(out.text_len))
+                    .map { UInt8(bitPattern: $0) }
+                word = String(decoding: bytes, as: UTF8.self)
+            } else {
+                word = ""
+            }
+            TerminalDebugLog.log(
+                .input,
+                "surface quicklookWord word=\(TerminalDebugLog.describe(word)) pointX=\(String(format: "%.2f", out.tl_px_x)) pointY=\(String(format: "%.2f", out.tl_px_y))"
+            )
+            return QuicklookWordResult(word: word, pointX: out.tl_px_x, pointY: out.tl_px_y)
         }
-        TerminalDebugLog.log(
-            .input,
-            "surface quicklookWord word=\(TerminalDebugLog.describe(word)) pointX=\(String(format: "%.2f", out.tl_px_x)) pointY=\(String(format: "%.2f", out.tl_px_y))"
-        )
-        return QuicklookWordResult(word: word, pointX: out.tl_px_x, pointY: out.tl_px_y)
-    }
     #endif
 
     // MARK: - Lifecycle

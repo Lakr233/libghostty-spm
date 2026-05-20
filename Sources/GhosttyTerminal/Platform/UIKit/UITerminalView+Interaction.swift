@@ -213,7 +213,7 @@
                 _ gesture: UILongPressGestureRecognizer
             ) {
                 guard gesture.state == .began else { return }
-                guard let delegate = self.delegate as? any TerminalSurfaceTextSelectionRequestDelegate else { return }
+                guard let delegate = delegate as? any TerminalSurfaceTextSelectionRequestDelegate else { return }
                 guard let surface else { return }
                 guard case let .inMemory(session) = configuration.backend else {
                     TerminalDebugLog.log(.input, "long-press selection ignored: backend not inMemory")
@@ -379,10 +379,10 @@
     }
 
     extension UITerminalView: UIGestureRecognizerDelegate {
-        // Gate the long-press recognizer at the gesture layer when no host
-        // has opted into selection delegate. Without this, the recognizer
-        // still enters the touch arena for 0.5s and can subtly delay pan
-        // recognition for hosts that don't want the feature at all.
+        /// Gate the long-press recognizer at the gesture layer when no host
+        /// has opted into selection delegate. Without this, the recognizer
+        /// still enters the touch arena for 0.5s and can subtly delay pan
+        /// recognition for hosts that don't want the feature at all.
         override public func gestureRecognizerShouldBegin(
             _ gestureRecognizer: UIGestureRecognizer
         ) -> Bool {

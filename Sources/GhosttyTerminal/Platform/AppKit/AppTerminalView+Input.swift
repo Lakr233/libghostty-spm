@@ -34,7 +34,8 @@
 
             case "/":
                 guard event.modifierFlags.contains(.control),
-                      event.modifierFlags.isDisjoint(with: [.shift, .command, .option]) else {
+                      event.modifierFlags.isDisjoint(with: [.shift, .command, .option])
+                else {
                     return false
                 }
                 equivalent = "_"
@@ -45,13 +46,15 @@
                 }
 
                 if !event.modifierFlags.contains(.command),
-                   !event.modifierFlags.contains(.control) {
+                   !event.modifierFlags.contains(.control)
+                {
                     lastPerformKeyEvent = nil
                     return false
                 }
 
                 if let lastPerformKeyEvent,
-                   lastPerformKeyEvent == event.timestamp {
+                   lastPerformKeyEvent == event.timestamp
+                {
                     self.lastPerformKeyEvent = nil
                     equivalent = event.characters ?? ""
                     break
@@ -102,11 +105,11 @@
             }
         }
 
-        @IBAction func copy(_ sender: Any?) {
+        @IBAction func copy(_: Any?) {
             _ = surface?.performBindingAction("copy_to_clipboard")
         }
 
-        @IBAction func paste(_ sender: Any?) {
+        @IBAction func paste(_: Any?) {
             if let text = NSPasteboard.general.string(forType: .string) {
                 TerminalDebugLog.log(
                     .input,
@@ -116,7 +119,7 @@
             _ = surface?.performBindingAction("paste_from_clipboard")
         }
 
-        @IBAction override func selectAll(_ sender: Any?) {
+        @IBAction override func selectAll(_: Any?) {
             _ = surface?.performBindingAction("select_all")
         }
 

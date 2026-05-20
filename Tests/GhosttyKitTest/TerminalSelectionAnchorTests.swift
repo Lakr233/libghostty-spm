@@ -1,5 +1,5 @@
-@testable import GhosttyTerminal
 import Foundation
+@testable import GhosttyTerminal
 import Testing
 
 // All test cases use host-point units. cellWidthPoints = 10, cellHeightPoints = 20
@@ -12,7 +12,7 @@ import Testing
 
 struct TerminalSelectionAnchorTests {
     @Test
-    func singleLineASCII() {
+    func `single line ASCII`() {
         let range = TerminalSelectionAnchor.resolveRange(
             in: "hello world",
             word: "world",
@@ -23,7 +23,7 @@ struct TerminalSelectionAnchorTests {
     }
 
     @Test
-    func multiLineLocatesRow() {
+    func `multi line locates row`() {
         let range = TerminalSelectionAnchor.resolveRange(
             in: "aaa\nbbb\nworld",
             word: "world",
@@ -34,7 +34,7 @@ struct TerminalSelectionAnchorTests {
     }
 
     @Test
-    func sameWordAcrossRowsOnlyPicksTargetRow() {
+    func `same word across rows only picks target row`() {
         let range = TerminalSelectionAnchor.resolveRange(
             in: "foo\nfoo\nfoo",
             word: "foo",
@@ -45,7 +45,7 @@ struct TerminalSelectionAnchorTests {
     }
 
     @Test
-    func emptyRowsPreserved() {
+    func `empty rows preserved`() {
         let range = TerminalSelectionAnchor.resolveRange(
             in: "\n\nhello",
             word: "hello",
@@ -56,7 +56,7 @@ struct TerminalSelectionAnchorTests {
     }
 
     @Test
-    func wordNotFoundReturnsNil() {
+    func `word not found returns nil`() {
         let range = TerminalSelectionAnchor.resolveRange(
             in: "abc",
             word: "xyz",
@@ -67,7 +67,7 @@ struct TerminalSelectionAnchorTests {
     }
 
     @Test
-    func rowOutOfBoundsReturnsNil() {
+    func `row out of bounds returns nil`() {
         let range = TerminalSelectionAnchor.resolveRange(
             in: "abc",
             word: "abc",
@@ -78,7 +78,7 @@ struct TerminalSelectionAnchorTests {
     }
 
     @Test
-    func emojiSurrogatePair() {
+    func `emoji surrogate pair`() {
         let text = "hi 👋"
         let range = TerminalSelectionAnchor.resolveRange(
             in: text,
@@ -95,7 +95,7 @@ struct TerminalSelectionAnchorTests {
     }
 
     @Test
-    func cjkFullWidth() {
+    func `cjk full width`() {
         let range = TerminalSelectionAnchor.resolveRange(
             in: "你好 world",
             word: "你好",
@@ -106,7 +106,7 @@ struct TerminalSelectionAnchorTests {
     }
 
     @Test
-    func zeroCellDimensions() {
+    func `zero cell dimensions`() {
         let r1 = TerminalSelectionAnchor.resolveRange(
             in: "abc", word: "abc",
             pointX: 0, pointY: 0,
@@ -122,7 +122,7 @@ struct TerminalSelectionAnchorTests {
     }
 
     @Test
-    func emptyWord() {
+    func `empty word`() {
         let range = TerminalSelectionAnchor.resolveRange(
             in: "abc", word: "",
             pointX: 0, pointY: 0,
@@ -132,7 +132,7 @@ struct TerminalSelectionAnchorTests {
     }
 
     @Test
-    func negativeCoordinates() {
+    func `negative coordinates`() {
         let r1 = TerminalSelectionAnchor.resolveRange(
             in: "abc", word: "abc",
             pointX: -1, pointY: 0,
@@ -148,7 +148,7 @@ struct TerminalSelectionAnchorTests {
     }
 
     @Test
-    func substringDisambiguationByPointX() {
+    func `substring disambiguation by point X`() {
         // `catalog cat` long-pressed at the end `cat` (column 8) — must pick
         // the standalone `cat` at location 8, not the prefix inside `catalog`
         // at location 0. literals at {0, 8}, expectedColumn=8 → 8.
@@ -162,7 +162,7 @@ struct TerminalSelectionAnchorTests {
     }
 
     @Test
-    func tripleRepeatPickedByPointX() {
+    func `triple repeat picked by point X`() {
         // literals at {0, 4, 8}, expectedColumn=8 → 8.
         let range = TerminalSelectionAnchor.resolveRange(
             in: "cat cat cat",
@@ -174,7 +174,7 @@ struct TerminalSelectionAnchorTests {
     }
 
     @Test
-    func nonWordCharactersInToken() {
+    func `non word characters in token`() {
         // literals at {4, 15}, expectedColumn=15 → 15.
         let range = TerminalSelectionAnchor.resolveRange(
             in: "see /usr/local /usr/local",
@@ -186,7 +186,7 @@ struct TerminalSelectionAnchorTests {
     }
 
     @Test
-    func nonWordPrefixToken() {
+    func `non word prefix token`() {
         // literals at {1, 6}, expectedColumn=6 → 6.
         let range = TerminalSelectionAnchor.resolveRange(
             in: "x/foo /foo",
@@ -198,7 +198,7 @@ struct TerminalSelectionAnchorTests {
     }
 
     @Test
-    func nanAndInfinityGuarded() {
+    func `nan and infinity guarded`() {
         let r1 = TerminalSelectionAnchor.resolveRange(
             in: "abc", word: "abc",
             pointX: .nan, pointY: 0,

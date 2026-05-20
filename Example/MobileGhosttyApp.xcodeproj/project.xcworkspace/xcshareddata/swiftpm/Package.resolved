@@ -1,6 +1,15 @@
 {
-  "originHash" : "28e69cb8b7d11e27d78ba18452efd1cc52ea73d75ef31362fcaef5356fe29182",
+  "originHash" : "4f602f9ca6276d19f42dbe1ee430489c453afc69258d9da84e0f8a06eaf8d0c4",
   "pins" : [
+    {
+      "identity" : "lookinside-release",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/LookInsideApp/LookInside-Release.git",
+      "state" : {
+        "revision" : "7514cfa8bd24a78f74d8b982c429e7d61ef58134",
+        "version" : "0.2.2"
+      }
+    },
     {
       "identity" : "msdisplaylink",
       "kind" : "remoteSourceControl",

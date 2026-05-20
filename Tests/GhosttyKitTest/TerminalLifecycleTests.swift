@@ -4,7 +4,7 @@ import Testing
 @MainActor
 struct TerminalLifecycleTests {
     @Test
-    func failedSurfaceCreationDoesNotRetainBridge() {
+    func `failed surface creation does not retain bridge`() {
         let controller = TerminalController()
         let bridge = TerminalCallbackBridge()
 
@@ -18,7 +18,7 @@ struct TerminalLifecycleTests {
     }
 
     @Test
-    func switchingControllersRemovesBridgeFromOldController() {
+    func `switching controllers removes bridge from old controller`() {
         let oldController = TerminalController()
         let newController = TerminalController()
         let coordinator = TerminalSurfaceCoordinator()
@@ -40,7 +40,7 @@ struct TerminalLifecycleTests {
     }
 
     @Test
-    func freeSurfaceRemovesRetainedBridge() {
+    func `free surface removes retained bridge`() {
         let controller = TerminalController()
         let coordinator = TerminalSurfaceCoordinator()
 
@@ -56,7 +56,7 @@ struct TerminalLifecycleTests {
     }
 
     @Test
-    func suspendedWakeupDoesNotScheduleRender() {
+    func `suspended wakeup does not schedule render`() {
         let controller = TerminalController()
         var wakeups = 0
 
@@ -71,7 +71,7 @@ struct TerminalLifecycleTests {
     }
 
     @Test
-    func applicationActiveStateControlsImmediateTicks() async {
+    func `application active state controls immediate ticks`() async {
         let coordinator = TerminalSurfaceCoordinator()
         var renders = 0
 

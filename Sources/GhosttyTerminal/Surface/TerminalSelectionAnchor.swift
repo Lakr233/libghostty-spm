@@ -80,7 +80,7 @@ enum TerminalSelectionAnchor {
         }!
 
         var offset = 0
-        for i in 0..<row {
+        for i in 0 ..< row {
             offset += (lines[i] as NSString).length + 1 // +1 for "\n"
         }
 

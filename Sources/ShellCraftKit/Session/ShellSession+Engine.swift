@@ -961,7 +961,7 @@ func canIncrementallyAppendInput(
 
 private extension Character {
     var isTerminalWordWhitespace: Bool {
-        unicodeScalars.allSatisfy { $0.properties.isWhitespace }
+        unicodeScalars.allSatisfy(\.properties.isWhitespace)
     }
 
     var isTerminalWordCharacter: Bool {
@@ -974,7 +974,9 @@ private extension Character {
 private struct TerminalCSIParameters {
     let values: [Int]
 
-    var first: Int? { values.first }
+    var first: Int? {
+        values.first
+    }
 
     var hasAltModifier: Bool {
         guard let last = values.last, values.count > 1 else { return false }

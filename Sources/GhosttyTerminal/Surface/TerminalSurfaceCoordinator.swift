@@ -104,6 +104,14 @@ final class TerminalSurfaceCoordinator {
             TerminalDebugLog.log(.lifecycle, "surface rebuild skipped: view detached")
             return
         }
+        guard hasValidViewSize else {
+            let size = viewSize()
+            TerminalDebugLog.log(
+                .lifecycle,
+                "surface rebuild skipped: invalid view size=\(String(format: "%.2f", size.width))x\(String(format: "%.2f", size.height))"
+            )
+            return
+        }
 
         let scale = scaleFactor()
         TerminalDebugLog.log(
@@ -206,8 +214,14 @@ final class TerminalSurfaceCoordinator {
     }
 
     func fitToSize() {
-        synchronizeMetrics()
-        requestImmediateTick()
+        if surface == nil {
+            rebuildIfReady()
+        } else {
+            synchronizeMetrics()
+        }
+        if surface != nil {
+            requestImmediateTick()
+        }
     }
 
     func setDisplayVisible(_ visible: Bool) {
@@ -338,9 +352,9 @@ final class TerminalSurfaceCoordinator {
         TerminalDebugLog.log(.lifecycle, "tick scheduled")
         DispatchQueue.main.async { [weak self] in
             guard let self else { return }
-            self.tickScheduled = false
+            tickScheduled = false
             let timestamp = Self.monotonicTimestamp()
-            self.tick(
+            tick(
                 context: .init(
                     duration: 0,
                     timestamp: timestamp,
@@ -360,6 +374,11 @@ final class TerminalSurfaceCoordinator {
 
     private var canRenderFrame: Bool {
         effectiveSurfaceVisible && isAttached()
+    }
+
+    private var hasValidViewSize: Bool {
+        let size = viewSize()
+        return size.width > 0 && size.height > 0
     }
 
     private func renderImmediately() {

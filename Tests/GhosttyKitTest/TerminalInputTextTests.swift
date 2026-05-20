@@ -3,7 +3,7 @@ import Testing
 
 struct TerminalInputTextTests {
     @Test
-    func filtersApplePrivateUseFunctionKeysFromTextPath() {
+    func `filters apple private use function keys from text path`() {
         #expect(TerminalInputText.filteredFunctionKeyText("\u{F702}") == nil)
         #expect(TerminalInputText.filteredFunctionKeyText("\u{F703}") == nil)
         #expect(TerminalInputText.filteredFunctionKeyText("UIKeyInputLeftArrow") == nil)
@@ -13,7 +13,7 @@ struct TerminalInputTextTests {
     }
 
     @Test
-    func recognizesPrivateUseFunctionKeyScalars() {
+    func `recognizes private use function key scalars`() {
         #expect(TerminalInputText.isPrivateUseFunctionKey("\u{F702}"))
         #expect(TerminalInputText.isPrivateUseFunctionKey("\u{F703}"))
         #expect(!TerminalInputText.isPrivateUseFunctionKey("a"))
@@ -21,7 +21,7 @@ struct TerminalInputTextTests {
     }
 
     @Test
-    func recognizesUIKitNamedFunctionKeys() {
+    func `recognizes UI kit named function keys`() {
         #expect(TerminalInputText.isUIKitNamedFunctionKey("UIKeyInputLeftArrow"))
         #expect(TerminalInputText.isUIKitNamedFunctionKey("UIKeyInputDownArrow"))
         #expect(!TerminalInputText.isUIKitNamedFunctionKey("a"))
@@ -29,10 +29,9 @@ struct TerminalInputTextTests {
     }
 
     @Test
-    func countsPasteLinesForDiagnosticsOnly() {
+    func `counts paste lines for diagnostics only`() {
         #expect(TerminalInputText.lineCount(in: "") == 0)
         #expect(TerminalInputText.lineCount(in: "echo ok") == 0)
         #expect(TerminalInputText.lineCount(in: "line 1\nline 2\nline 3") == 2)
     }
-
 }

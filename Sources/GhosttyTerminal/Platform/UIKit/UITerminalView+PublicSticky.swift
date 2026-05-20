@@ -58,9 +58,9 @@
             for modifier: TerminalPublicStickyModifier
         ) -> TerminalPublicStickyActivation {
             switch modifier {
-            case .ctrl: return publicActivation(stickyModifiers.ctrl)
-            case .alt: return publicActivation(stickyModifiers.alt)
-            case .command: return publicActivation(stickyModifiers.command)
+            case .ctrl: publicActivation(stickyModifiers.ctrl)
+            case .alt: publicActivation(stickyModifiers.alt)
+            case .command: publicActivation(stickyModifiers.command)
             }
         }
 
@@ -88,9 +88,9 @@
             for modifier: TerminalPublicStickyModifier
         ) -> TerminalStickyModifierState.Modifier {
             switch modifier {
-            case .ctrl: return .ctrl
-            case .alt: return .alt
-            case .command: return .command
+            case .ctrl: .ctrl
+            case .alt: .alt
+            case .command: .command
             }
         }
 
@@ -98,9 +98,9 @@
             _ activation: TerminalStickyModifierState.Activation
         ) -> TerminalPublicStickyActivation {
             switch activation {
-            case .inactive: return .inactive
-            case .armed: return .armed
-            case .locked: return .locked
+            case .inactive: .inactive
+            case .armed: .armed
+            case .locked: .locked
             }
         }
     }

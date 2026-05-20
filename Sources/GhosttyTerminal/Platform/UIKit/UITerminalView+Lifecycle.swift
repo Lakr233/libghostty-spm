@@ -59,7 +59,7 @@
                 DispatchQueue.main.async { [weak self] in
                     guard let self, window != nil else { return }
                     updateSublayerFrames()
-                    core.synchronizeMetrics()
+                    core.fitToSize()
                 }
             } else {
                 core.stopDisplayLink()
@@ -74,7 +74,7 @@
                 "layoutSubviews bounds=\(NSCoder.string(for: bounds))"
             )
             updateSublayerFrames()
-            core.synchronizeMetrics()
+            core.fitToSize()
         }
 
         internal func resolvedDisplayScale() -> CGFloat {

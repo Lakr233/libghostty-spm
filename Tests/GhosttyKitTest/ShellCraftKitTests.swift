@@ -5,7 +5,7 @@ import Testing
 
 struct ShellCraftKitTests {
     @Test
-    func styledPromptUsesVisibleColumnWidth() {
+    func `styled prompt uses visible column width`() {
         let shell = ShellDefinition(
             prompt: "\u{1B}[38;5;110mcolor\u{1B}[0m > ",
             welcomeMessage: ""
@@ -15,7 +15,7 @@ struct ShellCraftKitTests {
     }
 
     @Test
-    func terminalDisplayWidthCountsWideCharacters() {
+    func `terminal display width counts wide characters`() {
         #expect("abc".terminalDisplayWidth == 3)
         #expect("你好".terminalDisplayWidth == 4)
         #expect("a你b好".terminalDisplayWidth == 6)
@@ -23,7 +23,7 @@ struct ShellCraftKitTests {
     }
 
     @Test
-    func cursorColumnUsesDisplayWidthInsteadOfCharacterCount() {
+    func `cursor column uses display width instead of character count`() {
         #expect(
             terminalCursorColumn(
                 promptDisplayWidth: 8,
@@ -50,7 +50,7 @@ struct ShellCraftKitTests {
     }
 
     @Test
-    func renderedInputStateTracksWrappedLinesAndCursorPlacement() {
+    func `rendered input state tracks wrapped lines and cursor placement`() {
         let state = terminalRenderedInputState(
             promptDisplayWidth: 18,
             input: "hello world",
@@ -64,7 +64,7 @@ struct ShellCraftKitTests {
     }
 
     @Test
-    func renderedInputStateHandlesPromptOnlyWrapping() {
+    func `rendered input state handles prompt only wrapping`() {
         let state = terminalRenderedInputState(
             promptDisplayWidth: 18,
             input: "",
@@ -78,13 +78,13 @@ struct ShellCraftKitTests {
     }
 
     @Test
-    func wrappedTerminalLineCountHandlesExactBoundary() {
+    func `wrapped terminal line count handles exact boundary`() {
         #expect(wrappedTerminalLineCount(displayWidth: 20, terminalColumns: 20) == 1)
         #expect(wrappedTerminalLineCount(displayWidth: 21, terminalColumns: 20) == 2)
     }
 
     @Test
-    func renderedInputStateKeepsCursorOnBoundaryWithoutTrailingContent() {
+    func `rendered input state keeps cursor on boundary without trailing content`() {
         let state = terminalRenderedInputState(
             promptDisplayWidth: 18,
             input: "ab",
@@ -98,7 +98,7 @@ struct ShellCraftKitTests {
     }
 
     @Test
-    func renderedInputStateWrapsBoundaryCursorWhenTrailingContentExists() {
+    func `rendered input state wraps boundary cursor when trailing content exists`() {
         let state = terminalRenderedInputState(
             promptDisplayWidth: 18,
             input: "abc",
@@ -112,7 +112,7 @@ struct ShellCraftKitTests {
     }
 
     @Test
-    func incrementalAppendIsAllowedForTailInsertion() {
+    func `incremental append is allowed for tail insertion`() {
         #expect(
             canIncrementallyAppendInput(
                 previousInput: "hello",
@@ -130,7 +130,7 @@ struct ShellCraftKitTests {
     }
 
     @Test
-    func incrementalAppendFallsBackForMidLineOrControlInput() {
+    func `incremental append falls back for mid line or control input`() {
         #expect(
             !canIncrementallyAppendInput(
                 previousInput: "hello",
@@ -148,7 +148,7 @@ struct ShellCraftKitTests {
     }
 
     @Test
-    func tabExpansionUsesVisibleCursorColumn() {
+    func `tab expansion uses visible cursor column`() {
         #expect(
             terminalExpandedTabText(
                 promptDisplayWidth: 2,
@@ -168,7 +168,7 @@ struct ShellCraftKitTests {
     }
 
     @Test
-    func tabExpansionRespectsWrappedCursorColumn() {
+    func `tab expansion respects wrapped cursor column`() {
         #expect(
             terminalExpandedTabText(
                 promptDisplayWidth: 18,
@@ -180,7 +180,7 @@ struct ShellCraftKitTests {
     }
 
     @Test
-    func metaEditingActionRecognizesWordSequences() {
+    func `meta editing action recognizes word sequences`() {
         #expect(terminalMetaEditingAction(for: 0x7F) == .deleteBackwardWord)
         #expect(terminalMetaEditingAction(for: 0x08) == .deleteBackwardWord)
         #expect(terminalMetaEditingAction(for: 0x62) == .moveBackwardWord)
@@ -191,7 +191,7 @@ struct ShellCraftKitTests {
     }
 
     @Test
-    func csiEditingActionRecognizesModifiedArrowWordSequences() {
+    func `csi editing action recognizes modified arrow word sequences`() {
         #expect(
             terminalCSIEditingAction(params: Data("1;3".utf8), finalByte: 0x44)
                 == .moveCursorBackwardWord
@@ -223,7 +223,7 @@ struct ShellCraftKitTests {
     }
 
     @Test
-    func csiModifierDetectionMatchesAltSuffix() {
+    func `csi modifier detection matches alt suffix`() {
         #expect(terminalCSIHasAltModifier(Data("1;3".utf8)))
         #expect(terminalCSIHasAltModifier(Data("1;4".utf8)))
         #expect(!terminalCSIHasAltModifier(Data("1;5".utf8)))
@@ -232,7 +232,7 @@ struct ShellCraftKitTests {
     }
 
     @Test
-    func wordBoundariesTreatPunctuationAsSeparatorsForMetaMotion() {
+    func `word boundaries treat punctuation as separators for meta motion`() {
         #expect(terminalPreviousWordBoundary(in: "alpha beta", from: 10) == 6)
         #expect(terminalPreviousWordBoundary(in: "alpha beta  ", from: 12) == 6)
         #expect(terminalNextWordBoundary(in: "alpha beta", from: 0) == 5)
@@ -243,14 +243,14 @@ struct ShellCraftKitTests {
     }
 
     @Test
-    func shellWordBoundariesRemainWhitespaceDelimitedForControlW() {
+    func `shell word boundaries remain whitespace delimited for control W`() {
         #expect(terminalPreviousShellWordBoundary(in: "foo-bar baz", from: 11) == 8)
         #expect(terminalPreviousShellWordBoundary(in: "alpha beta  ", from: 12) == 6)
         #expect(terminalNextShellWordBoundary(in: "alpha   beta", from: 5) == 12)
     }
 
     @Test
-    func deleteBackwardWordRemovesPreviousWordAndTrailingSpaces() {
+    func `delete backward word removes previous word and trailing spaces`() {
         let result = terminalDeleteBackwardWord(
             input: "alpha beta  ",
             cursorPosition: 12
@@ -261,7 +261,7 @@ struct ShellCraftKitTests {
     }
 
     @Test
-    func deleteForwardWordRemovesNextWordAndLeadingSpaces() {
+    func `delete forward word removes next word and leading spaces`() {
         let result = terminalDeleteForwardWord(
             input: "alpha   beta gamma",
             cursorPosition: 5
@@ -272,7 +272,7 @@ struct ShellCraftKitTests {
     }
 
     @Test
-    func deleteBackwardShellWordRemovesPreviousWhitespaceDelimitedToken() {
+    func `delete backward shell word removes previous whitespace delimited token`() {
         let result = terminalDeleteBackwardShellWord(
             input: "foo-bar baz  ",
             cursorPosition: 13
@@ -283,7 +283,7 @@ struct ShellCraftKitTests {
     }
 
     @Test
-    func sandboxShellSupportsExitAndStyledFallback() {
+    func `sandbox shell supports exit and styled fallback`() {
         let viewport = InMemoryTerminalViewport(
             columns: 80,
             rows: 24,
@@ -318,21 +318,21 @@ struct ShellCraftKitTests {
     // MARK: - decodeUTF8Incrementally
 
     @Test
-    func utf8IncrementalDecodesCompleteASCII() {
+    func `utf 8 incremental decodes complete ASCII`() {
         let (text, leftover) = decodeUTF8Incrementally(Data("hello".utf8))
         #expect(text == "hello")
         #expect(leftover.isEmpty)
     }
 
     @Test
-    func utf8IncrementalDecodesCompleteChinese() {
+    func `utf 8 incremental decodes complete chinese`() {
         let (text, leftover) = decodeUTF8Incrementally(Data("你好".utf8))
         #expect(text == "你好")
         #expect(leftover.isEmpty)
     }
 
     @Test
-    func utf8IncrementalRetainsIncompleteThreeByteSequence() {
+    func `utf 8 incremental retains incomplete three byte sequence`() {
         // "你" is E4 BD A0 — send only first 2 bytes
         let partial = Data([0xE4, 0xBD])
         let (text1, leftover1) = decodeUTF8Incrementally(partial)
@@ -347,7 +347,7 @@ struct ShellCraftKitTests {
     }
 
     @Test
-    func utf8IncrementalRetainsIncompleteFourByteSequence() {
+    func `utf 8 incremental retains incomplete four byte sequence`() {
         // 😀 is F0 9F 98 80 — send only first 3 bytes
         let partial = Data([0xF0, 0x9F, 0x98])
         let (text1, leftover1) = decodeUTF8Incrementally(partial)
@@ -361,14 +361,14 @@ struct ShellCraftKitTests {
     }
 
     @Test
-    func utf8IncrementalSkipsIllegalLeadByteFF() {
+    func `utf 8 incremental skips illegal lead byte FF`() {
         let (text, leftover) = decodeUTF8Incrementally(Data([0xFF]))
         #expect(text == "")
         #expect(leftover.isEmpty)
     }
 
     @Test
-    func utf8IncrementalSkipsOverlongLeadC0C1() {
+    func `utf 8 incremental skips overlong lead C 0 C 1`() {
         // 0xC0 and 0xC1 are overlong, should be skipped
         let input = Data([0xC0, 0x41, 0xC1, 0x42])
         let (text, leftover) = decodeUTF8Incrementally(input)
@@ -377,7 +377,7 @@ struct ShellCraftKitTests {
     }
 
     @Test
-    func utf8IncrementalSkipsLeadF5Plus() {
+    func `utf 8 incremental skips lead F 5 plus`() {
         let input = Data([0xF5, 0x41, 0xF6, 0x42, 0xF7, 0x43])
         let (text, leftover) = decodeUTF8Incrementally(input)
         #expect(text == "ABC")
@@ -385,7 +385,7 @@ struct ShellCraftKitTests {
     }
 
     @Test
-    func utf8IncrementalSkipsOnlyLeadByteOnInvalidCombination() {
+    func `utf 8 incremental skips only lead byte on invalid combination`() {
         // 0xE4 expects 2 continuation bytes, but next bytes are ASCII
         let input = Data([0xE4, 0x41, 0x42])
         let (text, leftover) = decodeUTF8Incrementally(input)
@@ -394,7 +394,7 @@ struct ShellCraftKitTests {
     }
 
     @Test
-    func utf8IncrementalPreservesValidTextAfterIllegalByte() {
+    func `utf 8 incremental preserves valid text after illegal byte`() {
         let input = Data([0xFF, 0x68, 0x65, 0x6C, 0x6C, 0x6F]) // 0xFF + "hello"
         let (text, leftover) = decodeUTF8Incrementally(input)
         #expect(text == "hello")
@@ -402,14 +402,14 @@ struct ShellCraftKitTests {
     }
 
     @Test
-    func utf8IncrementalHandlesEmptyData() {
+    func `utf 8 incremental handles empty data`() {
         let (text, leftover) = decodeUTF8Incrementally(Data())
         #expect(text == "")
         #expect(leftover.isEmpty)
     }
 
     @Test
-    func utf8IncrementalHandlesMixedValidAndIncomplete() {
+    func `utf 8 incremental handles mixed valid and incomplete`() {
         // "ab" + incomplete 3-byte lead
         let input = Data([0x61, 0x62, 0xE4, 0xBD])
         let (text, leftover) = decodeUTF8Incrementally(input)
@@ -418,7 +418,7 @@ struct ShellCraftKitTests {
     }
 
     @Test
-    func utf8IncrementalDecomposedUnicode() {
+    func `utf 8 incremental decomposed unicode`() {
         // e (0x65) + combining acute accent U+0301 (0xCC 0x81)
         let input = Data([0x65, 0xCC, 0x81])
         let (text, leftover) = decodeUTF8Incrementally(input)
@@ -427,7 +427,7 @@ struct ShellCraftKitTests {
     }
 
     @Test
-    func utf8IncrementalSkipsLeadWithNonContinuationTail() {
+    func `utf 8 incremental skips lead with non continuation tail`() {
         // 0xE4 is 3-byte lead, but 0x41 is ASCII — not a valid continuation
         let input = Data([0xE4, 0x41])
         let (text, leftover) = decodeUTF8Incrementally(input)
@@ -436,7 +436,7 @@ struct ShellCraftKitTests {
     }
 
     @Test
-    func utf8IncrementalSkipsFourByteLeadWithInvalidTail() {
+    func `utf 8 incremental skips four byte lead with invalid tail`() {
         // 0xF0 is 4-byte lead, but 0x41/0x42 are ASCII
         let input = Data([0xF0, 0x41, 0x42])
         let (text, leftover) = decodeUTF8Incrementally(input)

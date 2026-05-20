@@ -5,7 +5,7 @@ import Testing
 @MainActor
 struct TerminalThemeConfigurationTests {
     @Test
-    func commandBuilderPreservesInsertionOrder() {
+    func `command builder preserves insertion order`() {
         let configuration = TerminalConfiguration {
             $0.withFontSize(13)
             $0.withCursorStyle(.bar)
@@ -25,7 +25,7 @@ struct TerminalThemeConfigurationTests {
     }
 
     @Test
-    func renderedConfigComposesBaseBehaviorAndTheme() {
+    func `rendered config composes base behavior and theme`() {
         let state = TerminalViewState(
             configSource: .generated(
                 """
@@ -53,7 +53,7 @@ struct TerminalThemeConfigurationTests {
     }
 
     @Test
-    func validConfigurationUpdatePreservesControllerIdentity() {
+    func `valid configuration update preserves controller identity`() {
         let state = TerminalViewState(
             terminalConfiguration: TerminalConfiguration()
                 .fontSize(14)
@@ -80,7 +80,7 @@ struct TerminalThemeConfigurationTests {
     }
 
     @Test
-    func adoptingDarkModeSwitchesRenderedThemeVariant() {
+    func `adopting dark mode switches rendered theme variant`() {
         let state = TerminalViewState(
             theme: .init(
                 light: TerminalConfiguration()
@@ -103,7 +103,7 @@ struct TerminalThemeConfigurationTests {
     }
 
     @Test
-    func invalidDarkThemeRollsBackColorSchemeAndRenderedConfig() {
+    func `invalid dark theme rolls back color scheme and rendered config`() {
         let state = TerminalViewState(
             theme: .init(
                 light: TerminalConfiguration()
@@ -123,7 +123,7 @@ struct TerminalThemeConfigurationTests {
     }
 
     @Test
-    func sharedControllerAcceptsMutations() {
+    func `shared controller accepts mutations`() {
         let controller = TerminalController()
         let state = TerminalViewState(controller: controller)
 
@@ -142,7 +142,7 @@ struct TerminalThemeConfigurationTests {
     }
 
     @Test
-    func noOpThemeUpdateReturnsFalse() {
+    func `no op theme update returns false`() {
         let theme = TerminalTheme(
             light: TerminalConfiguration()
                 .backgroundOpacity(0.7)
@@ -157,7 +157,7 @@ struct TerminalThemeConfigurationTests {
     }
 
     @Test
-    func invalidConfigurationDoesNotReplaceRenderedConfig() {
+    func `invalid configuration does not replace rendered config`() {
         let state = TerminalViewState(
             terminalConfiguration: TerminalConfiguration()
                 .fontSize(14)

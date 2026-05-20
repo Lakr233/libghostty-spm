@@ -132,7 +132,7 @@ enum TerminalHardwareKeyRouter {
     /// to `.unidentified`. The pinned Ghostty keycode table uses 8-bit macOS
     /// keycodes, so `0x1_0000` stays safely outside the native range. Using
     /// plain `0` would instead collide with AppKit's keycode for the `A` key.
-    static let unidentifiedAppKitKeyCode: UInt32 = 0x1_0000
+    static let unidentifiedAppKitKeyCode: UInt32 = 0x10000
 
     /// Translate a Ghostty key enum to the macOS AppKit virtual keycode
     /// for the same physical key. This is used by synthetic UIKit key
@@ -289,9 +289,9 @@ enum TerminalHardwareKeyRouter {
         ]
     )
 
-    // JIS keyboard entries are still absent from this table:
-    //   (0x5D, GHOSTTY_KEY_INTL_YEN)   // kVK_JIS_Yen
-    //   (0x5E, GHOSTTY_KEY_INTL_RO)    // kVK_JIS_Underscore
+    /// JIS keyboard entries are still absent from this table:
+    ///   (0x5D, GHOSTTY_KEY_INTL_YEN)   // kVK_JIS_Yen
+    ///   (0x5E, GHOSTTY_KEY_INTL_RO)    // kVK_JIS_Underscore
     private static let appKitMap = buildMap(
         literalPairs: [
             (0x00, GHOSTTY_KEY_A), (0x01, GHOSTTY_KEY_S), (0x02, GHOSTTY_KEY_D),

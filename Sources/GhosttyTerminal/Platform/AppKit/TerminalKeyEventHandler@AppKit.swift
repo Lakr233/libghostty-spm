@@ -132,22 +132,21 @@
 
             var action = GHOSTTY_ACTION_RELEASE
             if mods.rawValue & mod != 0 {
-                let sidePressed: Bool
-                switch event.keyCode {
+                let sidePressed: Bool = switch event.keyCode {
                 case 0x3C:
-                    sidePressed = event.modifierFlags.rawValue
+                    event.modifierFlags.rawValue
                         & UInt(NX_DEVICERSHIFTKEYMASK) != 0
                 case 0x3E:
-                    sidePressed = event.modifierFlags.rawValue
+                    event.modifierFlags.rawValue
                         & UInt(NX_DEVICERCTLKEYMASK) != 0
                 case 0x3D:
-                    sidePressed = event.modifierFlags.rawValue
+                    event.modifierFlags.rawValue
                         & UInt(NX_DEVICERALTKEYMASK) != 0
                 case 0x36:
-                    sidePressed = event.modifierFlags.rawValue
+                    event.modifierFlags.rawValue
                         & UInt(NX_DEVICERCMDKEYMASK) != 0
                 default:
-                    sidePressed = true
+                    true
                 }
 
                 if sidePressed {
@@ -331,7 +330,7 @@
                 var flags = modifierFlags
                 flags.remove(.control)
                 return TerminalInputText.filteredFunctionKeyText(
-                    self.characters(byApplyingModifiers: flags)
+                    characters(byApplyingModifiers: flags)
                 )
             }
 

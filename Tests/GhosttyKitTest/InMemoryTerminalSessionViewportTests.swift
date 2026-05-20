@@ -8,7 +8,7 @@ struct InMemoryTerminalSessionViewportTests {
     /// state — consumers may call `readViewportText` from any thread that
     /// holds a reference, and the contract is "nil means no surface."
     @Test
-    func readViewportTextReturnsNilBeforeSurfaceAttached() {
+    func `read viewport text returns nil before surface attached`() {
         let session = InMemoryTerminalSession(write: { _ in }, resize: { _ in })
         #expect(session.readViewportText() == nil)
     }
@@ -17,7 +17,7 @@ struct InMemoryTerminalSessionViewportTests {
     /// Together with the test above this pins the surface-presence semantics
     /// of the public API.
     @Test
-    func readViewportTextReturnsNilAfterSurfaceCleared() {
+    func `read viewport text returns nil after surface cleared`() {
         let session = InMemoryTerminalSession(write: { _ in }, resize: { _ in })
         session.clearSurface(ifMatches: nil)
         #expect(session.readViewportText() == nil)

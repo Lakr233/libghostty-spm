@@ -114,9 +114,9 @@
             // layout pass and re-introduce the drift we're trying to fix.
             DispatchQueue.main.async { [weak self] in
                 guard let self else { return }
-                self.updateMetalLayerMetrics()
-                self.core.synchronizeMetrics()
-                self.core.requestImmediateTick()
+                updateMetalLayerMetrics()
+                core.synchronizeMetrics()
+                core.requestImmediateTick()
             }
         }
 
@@ -143,20 +143,20 @@
 
         override func setFrameSize(_ newSize: NSSize) {
             super.setFrameSize(newSize)
-            core.synchronizeMetrics()
+            core.fitToSize()
             core.requestImmediateTick()
         }
 
         override func layout() {
             super.layout()
-            core.synchronizeMetrics()
+            core.fitToSize()
             core.requestImmediateTick()
         }
 
         override func viewDidChangeBackingProperties() {
             super.viewDidChangeBackingProperties()
             updateMetalLayerMetrics()
-            core.synchronizeMetrics()
+            core.fitToSize()
             core.requestImmediateTick()
         }
 

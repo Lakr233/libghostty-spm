@@ -230,9 +230,9 @@ extension ViewController:
         present(nav, animated: true)
     }
 
-    // Covers the user-gesture (grabber swipe) dismiss path only —
-    // programmatic dismiss does not trigger this callback, so the Done
-    // button restores focus via `onDone` instead.
+    /// Covers the user-gesture (grabber swipe) dismiss path only —
+    /// programmatic dismiss does not trigger this callback, so the Done
+    /// button restores focus via `onDone` instead.
     func presentationControllerDidDismiss(_: UIPresentationController) {
         terminalView.becomeFirstResponder()
     }

@@ -12,7 +12,7 @@ final class TerminalSelectionViewController: UIViewController {
         view.isSelectable = true
         view.alwaysBounceVertical = true
         view.font = .monospacedSystemFont(ofSize: 14, weight: .regular)
-        view.backgroundColor = .systemBackground
+        view.backgroundColor = .clear
         view.textColor = .label
         view.textContainerInset = .init(top: 12, left: 12, bottom: 12, right: 12)
         view.translatesAutoresizingMaskIntoConstraints = false
@@ -32,17 +32,21 @@ final class TerminalSelectionViewController: UIViewController {
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        view.backgroundColor = .systemBackground
+        view.backgroundColor = .clear
 
         textView.text = pendingText
         view.addSubview(textView)
 
-        let guide = view.safeAreaLayoutGuide
+        // Pin to view edges (not safe area) so scrolled content extends
+        // under the transparent navigation bar / home indicator the way
+        // iOS sheets expect. UIKit's contentInsetAdjustmentBehavior keeps
+        // the initial scroll position below the nav bar via
+        // adjustedContentInset.
         NSLayoutConstraint.activate([
-            textView.topAnchor.constraint(equalTo: guide.topAnchor),
-            textView.leadingAnchor.constraint(equalTo: guide.leadingAnchor),
-            textView.trailingAnchor.constraint(equalTo: guide.trailingAnchor),
-            textView.bottomAnchor.constraint(equalTo: guide.bottomAnchor),
+            textView.topAnchor.constraint(equalTo: view.topAnchor),
+            textView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            textView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            textView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
         ])
 
         navigationItem.rightBarButtonItem = UIBarButtonItem(
@@ -50,6 +54,13 @@ final class TerminalSelectionViewController: UIViewController {
             target: self,
             action: #selector(handleDone)
         )
+    }
+
+    override func viewWillAppear(_ animated: Bool) {
+        super.viewWillAppear(animated)
+        navigationController?.view.backgroundColor = .clear
+        navigationController?.navigationBar.standardAppearance.configureWithTransparentBackground()
+        navigationController?.navigationBar.scrollEdgeAppearance = navigationController?.navigationBar.standardAppearance
     }
 
     override func viewDidAppear(_ animated: Bool) {
