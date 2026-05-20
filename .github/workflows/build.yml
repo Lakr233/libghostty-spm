@@ -26,7 +26,6 @@ jobs:
       build_ref: ${{ steps.ref.outputs.build_ref }}
       resolved_build_ref: ${{ steps.ref.outputs.resolved_build_ref }}
       resolved_sha: ${{ steps.ref.outputs.resolved_sha }}
-      release_suffix: ${{ steps.ref.outputs.release_suffix }}
       release_tag: ${{ steps.ref.outputs.release_tag }}
       storage_release_tag: ${{ steps.ref.outputs.storage_release_tag }}
       do_release: ${{ steps.ref.outputs.do_release }}
@@ -79,10 +78,10 @@ jobs:
             exit 1
           fi
 
-          SHORT_SHA=$(printf '%s' "$RESOLVED_SHA" | cut -c1-12)
-
-          RELEASE_SUFFIX=$(date +%s)
-          RELEASE_TAG="1.0.$RELEASE_SUFFIX"
+          RELEASE_TAG=$(
+            git tag --list |
+              python3 -c 'import re, sys; versions = [tuple(int(part) for part in tag.split(".")) for tag in (line.strip() for line in sys.stdin) if re.fullmatch(r"\d+\.\d+\.\d+", tag)]; major, minor, patch = max(versions) if versions else (1, 0, -1); print(f"{major}.{minor}.{patch + 1}", end="")'
+          )
           STORAGE_RELEASE_TAG="storage.$RELEASE_TAG"
 
           if [ "$SKIP_RELEASE" = "true" ]; then
@@ -96,7 +95,6 @@ jobs:
           echo "build_ref=$BUILD_REF" >> "$GITHUB_OUTPUT"
           echo "resolved_build_ref=$BUILD_REF" >> "$GITHUB_OUTPUT"
           echo "resolved_sha=$RESOLVED_SHA" >> "$GITHUB_OUTPUT"
-          echo "release_suffix=$RELEASE_SUFFIX" >> "$GITHUB_OUTPUT"
           echo "release_tag=$RELEASE_TAG" >> "$GITHUB_OUTPUT"
           echo "storage_release_tag=$STORAGE_RELEASE_TAG" >> "$GITHUB_OUTPUT"
           echo "do_release=$DO_RELEASE" >> "$GITHUB_OUTPUT"
