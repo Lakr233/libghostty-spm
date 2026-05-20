@@ -193,8 +193,82 @@
                 gesture.maximumNumberOfTouches = 1
                 addGestureRecognizer(gesture)
 
+                let longPress = UILongPressGestureRecognizer(
+                    target: self,
+                    action: #selector(handleLongPressForSelection(_:))
+                )
+                longPress.minimumPressDuration = 0.5
+                longPress.allowableMovement = 10
+                longPress.numberOfTouchesRequired = 1
+                longPress.numberOfTapsRequired = 0
+                longPress.cancelsTouchesInView = false
+                longPress.delegate = self
+                addGestureRecognizer(longPress)
+
                 currentFontSize = configuration.fontSize ?? 14
                 setupPinchZoomGesture()
+            }
+
+            @objc func handleLongPressForSelection(
+                _ gesture: UILongPressGestureRecognizer
+            ) {
+                guard gesture.state == .began else { return }
+                guard let delegate = self.delegate as? any TerminalSurfaceTextSelectionRequestDelegate else { return }
+                guard let surface else { return }
+                guard case let .inMemory(session) = configuration.backend else {
+                    TerminalDebugLog.log(.input, "long-press selection ignored: backend not inMemory")
+                    return
+                }
+
+                stopMomentumScrolling()
+
+                let viewPoint = gesture.location(in: self)
+                surface.sendMousePos(
+                    x: Double(viewPoint.x),
+                    y: Double(viewPoint.y),
+                    mods: ghostty_input_mods_e(rawValue: 0)
+                )
+
+                let wordResult = surface.quicklookWord()
+
+                guard let text = session.readViewportText() else {
+                    TerminalDebugLog.log(
+                        .input,
+                        "long-press selection aborted: readViewportText returned nil"
+                    )
+                    return
+                }
+
+                var anchorRange: NSRange?
+                if let w = wordResult, !text.isEmpty, let size = surface.size() {
+                    let scale = Double(resolvedDisplayScale())
+                    // cellWidth/HeightPixels are surface pixels; ghostty's
+                    // tl_px_x/y are host points. Convert to points before
+                    // dividing so units match inside resolveRange.
+                    let cellWidthPoints = scale > 0 ? Double(size.cellWidthPixels) / scale : 0
+                    let cellHeightPoints = scale > 0 ? Double(size.cellHeightPixels) / scale : 0
+                    anchorRange = TerminalSelectionAnchor.resolveRange(
+                        in: text,
+                        word: w.word,
+                        pointX: w.pointX,
+                        pointY: w.pointY,
+                        cellWidthPoints: cellWidthPoints,
+                        cellHeightPoints: cellHeightPoints
+                    )
+                }
+
+                TerminalDebugLog.log(
+                    .input,
+                    "long-press selection dispatch viewPoint=\(NSCoder.string(for: viewPoint)) word=\(TerminalDebugLog.describe(wordResult?.word ?? "nil")) anchor=\(anchorRange.map { NSStringFromRange($0) } ?? "nil")"
+                )
+
+                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+
+                delegate.terminalDidRequestTextSelection(.init(
+                    text: text,
+                    anchorRange: anchorRange,
+                    sourcePoint: viewPoint
+                ))
             }
         #endif
 
@@ -301,6 +375,21 @@
             momentumDisplayLink?.invalidate()
             momentumDisplayLink = nil
             momentumVelocity = .zero
+        }
+    }
+
+    extension UITerminalView: UIGestureRecognizerDelegate {
+        // Gate the long-press recognizer at the gesture layer when no host
+        // has opted into selection delegate. Without this, the recognizer
+        // still enters the touch arena for 0.5s and can subtly delay pan
+        // recognition for hosts that don't want the feature at all.
+        override public func gestureRecognizerShouldBegin(
+            _ gestureRecognizer: UIGestureRecognizer
+        ) -> Bool {
+            if gestureRecognizer is UILongPressGestureRecognizer {
+                return (delegate as? any TerminalSurfaceTextSelectionRequestDelegate) != nil
+            }
+            return true
         }
     }
 #endif

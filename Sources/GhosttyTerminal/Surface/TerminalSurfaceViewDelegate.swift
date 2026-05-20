@@ -5,6 +5,8 @@
 //  Created by Lakr233 on 2026/3/16.
 //
 
+import CoreGraphics
+import Foundation
 import GhosttyKit
 
 @MainActor
@@ -113,4 +115,24 @@ public protocol TerminalSurfaceHoverLinkDelegate: TerminalSurfaceViewDelegate {
 @MainActor
 public protocol TerminalSurfacePwdDelegate: TerminalSurfaceViewDelegate {
     func terminalDidChangeWorkingDirectory(_ path: String)
+}
+
+/// User long-pressed to request a selection-page presentation.
+public struct TerminalTextSelectionRequest: Sendable {
+    /// Viewport text snapshot. Lines separated by `\n`.
+    public let text: String
+
+    /// Recommended pre-selection range in UTF-16 units, suitable for direct
+    /// assignment to `UITextView.selectedRange`. `nil` means the host should
+    /// `selectAll` instead.
+    public let anchorRange: NSRange?
+
+    /// Long-press point in the terminal view's coordinate space (points).
+    /// Hosts may use this as a popover anchor.
+    public let sourcePoint: CGPoint
+}
+
+@MainActor
+public protocol TerminalSurfaceTextSelectionRequestDelegate: TerminalSurfaceViewDelegate {
+    func terminalDidRequestTextSelection(_ request: TerminalTextSelectionRequest)
 }
