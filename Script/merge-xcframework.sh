@@ -24,6 +24,80 @@ fi
 
 XCFRAMEWORK_COMMAND=()
 FOUND_VARIANTS=0
+FRAMEWORK_NAME="libghostty"
+FRAMEWORK_STAGE_DIR="$ARTIFACTS_DIR/.framework-staging"
+
+plist_platform_for_variant() {
+    case "$1" in
+        macosx) echo "MacOSX" ;;
+        maccatalyst) echo "iPhoneOS" ;;
+        iphoneos) echo "iPhoneOS" ;;
+        iphonesimulator) echo "iPhoneSimulator" ;;
+        *)
+            echo "[!] unknown variant: $1" >&2
+            exit 1
+            ;;
+    esac
+}
+
+stage_framework() {
+    local variant_dir="$1"
+    local variant
+    local library_path
+    local header_dir
+    local framework_path
+    local modules_dir
+    local headers_dir
+    local platform
+
+    variant=$(basename "$variant_dir")
+    library_path="$variant_dir/lib/libghostty.a"
+    header_dir="$variant_dir/include"
+    framework_path="$FRAMEWORK_STAGE_DIR/$variant/$FRAMEWORK_NAME.framework"
+    modules_dir="$framework_path/Modules"
+    headers_dir="$framework_path/Headers"
+    platform=$(plist_platform_for_variant "$variant")
+
+    rm -rf "$framework_path"
+    mkdir -p "$headers_dir" "$modules_dir"
+    cp "$library_path" "$framework_path/$FRAMEWORK_NAME"
+    cp -R "$header_dir/." "$headers_dir/"
+    mv "$headers_dir/module.modulemap" "$modules_dir/module.modulemap"
+    sed -i '' "1s/^module $FRAMEWORK_NAME/framework module $FRAMEWORK_NAME/" "$modules_dir/module.modulemap"
+
+    cat >"$framework_path/Info.plist" <<EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleDevelopmentRegion</key>
+    <string>en</string>
+    <key>CFBundleExecutable</key>
+    <string>$FRAMEWORK_NAME</string>
+    <key>CFBundleIdentifier</key>
+    <string>com.lakr233.libghostty-spm.$FRAMEWORK_NAME</string>
+    <key>CFBundleInfoDictionaryVersion</key>
+    <string>6.0</string>
+    <key>CFBundleName</key>
+    <string>$FRAMEWORK_NAME</string>
+    <key>CFBundlePackageType</key>
+    <string>FMWK</string>
+    <key>CFBundleShortVersionString</key>
+    <string>1.0</string>
+    <key>CFBundleSupportedPlatforms</key>
+    <array>
+        <string>$platform</string>
+    </array>
+    <key>CFBundleVersion</key>
+    <string>1</string>
+</dict>
+</plist>
+EOF
+
+    XCFRAMEWORK_COMMAND+=("-framework" "$framework_path")
+}
+
+rm -rf "$FRAMEWORK_STAGE_DIR"
 
 add_library() {
     local variant_dir="$1"
@@ -40,7 +114,7 @@ add_library() {
         exit 1
     fi
 
-    XCFRAMEWORK_COMMAND+=("-library" "$library_path" "-headers" "$header_dir")
+    stage_framework "$variant_dir"
     FOUND_VARIANTS=$((FOUND_VARIANTS + 1))
 }
 
