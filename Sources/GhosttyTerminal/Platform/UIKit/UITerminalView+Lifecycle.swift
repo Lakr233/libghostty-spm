@@ -150,6 +150,7 @@
         override func becomeFirstResponder() -> Bool {
             let result = super.becomeFirstResponder()
             core.setFocus(true)
+            onFocusChange?(true)
             return result
         }
 
@@ -157,6 +158,7 @@
         override func resignFirstResponder() -> Bool {
             let result = super.resignFirstResponder()
             core.setFocus(false)
+            onFocusChange?(false)
             return result
         }
     }

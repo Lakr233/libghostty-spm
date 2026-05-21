@@ -31,6 +31,7 @@
         #endif
         lazy var inputHandler = TerminalTextInputHandler(view: self)
         weak var _inputDelegate: (any UITextInputDelegate)?
+        var onFocusChange: ((Bool) -> Void)?
 
         #if !targetEnvironment(macCatalyst)
             lazy var terminalInputAccessory = TerminalInputAccessoryView(terminalView: self)

@@ -18,6 +18,7 @@
         var pointerSelectionStartPoint: CGPoint?
         var lastPointerSelectionRect: CGRect?
         var pendingSelectionMenuPoint: CGPoint?
+        var onFocusChange: ((Bool) -> Void)?
 
         public weak var delegate: (any TerminalSurfaceViewDelegate)? {
             get { core.delegate }

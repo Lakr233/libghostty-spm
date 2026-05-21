@@ -38,12 +38,14 @@
         override func becomeFirstResponder() -> Bool {
             let result = super.becomeFirstResponder()
             core.setFocus(true)
+            onFocusChange?(true)
             return result
         }
 
         override func resignFirstResponder() -> Bool {
             let result = super.resignFirstResponder()
             core.setFocus(false)
+            onFocusChange?(false)
             return result
         }
 
@@ -101,10 +103,12 @@
             let focused = window?.isKeyWindow == true
                 && window?.firstResponder === self
             core.setFocus(focused)
+            onFocusChange?(focused)
         }
 
         @objc internal func windowDidResignKey(_: Notification) {
             core.setFocus(false)
+            onFocusChange?(false)
         }
 
         @objc internal func windowDidChangeScreen(_: Notification) {

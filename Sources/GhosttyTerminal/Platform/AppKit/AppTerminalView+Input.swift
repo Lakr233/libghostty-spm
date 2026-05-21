@@ -132,6 +132,7 @@
         }
 
         override func mouseDown(with event: NSEvent) {
+            window?.makeFirstResponder(self)
             let (x, y) = mousePoint(from: event)
             let mods = TerminalInputModifiers(from: event.modifierFlags)
             pointerSelectionStartPoint = CGPoint(x: x, y: y)
@@ -157,6 +158,7 @@
         }
 
         override func rightMouseDown(with event: NSEvent) {
+            window?.makeFirstResponder(self)
             let (x, y) = mousePoint(from: event)
             let mods = TerminalInputModifiers(from: event.modifierFlags)
             surface?.sendMousePos(x: x, y: y, mods: mods.ghosttyMods)
@@ -188,6 +190,7 @@
         }
 
         override func otherMouseDown(with event: NSEvent) {
+            window?.makeFirstResponder(self)
             let (x, y) = mousePoint(from: event)
             let mods = TerminalInputModifiers(from: event.modifierFlags)
             surface?.sendMousePos(x: x, y: y, mods: mods.ghosttyMods)
