@@ -56,6 +56,14 @@
             inputHandler.unmarkText(applyingStickyModifiers: false)
         }
 
+        func handleReturnTextInput(_ text: String) -> Bool {
+            guard text == "\n" || text == "\r" else { return false }
+
+            let mods = stickyModifiers.consumeForNextKey()
+            sendSyntheticKey(usage: 0x28, additionalMods: mods)
+            return true
+        }
+
         func sendSyntheticKey(
             usage: UInt16,
             additionalMods: TerminalInputModifiers = []

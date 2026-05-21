@@ -63,6 +63,10 @@
                     return
                 }
 
+                if handleReturnTextInput(text) {
+                    return
+                }
+
                 if stickyModifiers.hasActiveModifiers {
                     _ = handleStickyTextInput(text)
                     return
@@ -225,6 +229,10 @@
             #if !targetEnvironment(macCatalyst)
                 if inputHandler.hasMarkedText {
                     inputHandler.insertText(text)
+                    return
+                }
+
+                if handleReturnTextInput(text) {
                     return
                 }
 
