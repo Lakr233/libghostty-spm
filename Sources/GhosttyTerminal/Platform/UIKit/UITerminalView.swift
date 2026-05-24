@@ -47,8 +47,9 @@
                 set { terminalInputAccessory.style = newValue }
             }
 
-            public var disableBundledInputAccessory = false {
+            public var inputAccessoryItems: [TerminalInputAccessoryItem] = TerminalInputAccessoryItem.defaultItems {
                 didSet {
+                    terminalInputAccessory.rebuildContent()
                     reloadInputViews()
                 }
             }

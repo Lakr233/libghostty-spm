@@ -9,7 +9,7 @@
 
     extension UITerminalView {
         override public var inputAccessoryView: UIView? {
-            disableBundledInputAccessory ? nil : terminalInputAccessory
+            inputAccessoryItems.isEmpty ? nil : terminalInputAccessory
         }
 
         func handleInputBarKey(_ key: TerminalInputBarKey) {

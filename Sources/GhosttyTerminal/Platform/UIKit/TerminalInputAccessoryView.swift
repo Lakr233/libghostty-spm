@@ -26,67 +26,8 @@
         private var blurTrailingConstraint: NSLayoutConstraint?
         private var blurTopConstraint: NSLayoutConstraint?
         private var blurBottomConstraint: NSLayoutConstraint?
-
-        private lazy var escapeButton = makeKeyButton(
-            title: "Escape",
-            systemImage: "escape",
-            key: .esc
-        )
-        private lazy var ctrlButton = makeModifierButton(
-            title: "Control",
-            systemImage: "control",
-            modifier: .ctrl
-        )
-        private lazy var altButton = makeModifierButton(
-            title: "Option",
-            systemImage: "option",
-            modifier: .alt
-        )
-        private lazy var commandButton = makeModifierButton(
-            title: "Command",
-            systemImage: "command",
-            modifier: .command
-        )
-        private lazy var tabButton = makeKeyButton(
-            title: "Tab",
-            systemImage: "arrow.right.to.line",
-            key: .tab
-        )
-        private lazy var leftButton = makeKeyButton(
-            title: "Left",
-            systemImage: "arrowshape.left",
-            key: .arrowLeft
-        )
-        private lazy var upButton = makeKeyButton(
-            title: "Up",
-            systemImage: "arrowshape.up",
-            key: .arrowUp
-        )
-        private lazy var downButton = makeKeyButton(
-            title: "Down",
-            systemImage: "arrowshape.down",
-            key: .arrowDown
-        )
-        private lazy var rightButton = makeKeyButton(
-            title: "Right",
-            systemImage: "arrowshape.right",
-            key: .arrowRight
-        )
-        private lazy var pasteButton = makeKeyButton(
-            title: "Paste",
-            systemImage: "doc.on.clipboard",
-            key: .paste
-        )
-
-        private lazy var symbolButtons: [AccessoryButton] = Self.symbols.map { symbol in
-            makeKeyButton(title: symbol, key: .symbol(symbol))
-        }
-
-        private lazy var modifierButtons: [(TerminalStickyModifierState.Modifier, AccessoryButton)] = [
-            (.ctrl, ctrlButton),
-            (.alt, altButton),
-            (.command, commandButton),
-        ]
+        private var keyButtons: [AccessoryButton] = []
+        private var modifierButtons: [(TerminalStickyModifierState.Modifier, AccessoryButton)] = []
 
         init(terminalView: UITerminalView) {
             self.terminalView = terminalView
@@ -122,18 +63,29 @@
             let altActivation = terminalView?.stickyModifiers.alt ?? .inactive
             let commandActivation = terminalView?.stickyModifiers.command ?? .inactive
 
-            escapeButton.applyRegularStyle(style)
-            tabButton.applyRegularStyle(style)
-            leftButton.applyRegularStyle(style)
-            upButton.applyRegularStyle(style)
-            downButton.applyRegularStyle(style)
-            rightButton.applyRegularStyle(style)
-            pasteButton.applyRegularStyle(style)
-            symbolButtons.forEach { $0.applyRegularStyle(style) }
+            keyButtons.forEach { $0.applyRegularStyle(style) }
 
-            ctrlButton.applyModifierStyle(ctrlActivation, isDisabled: hasMarkedText, style: style)
-            altButton.applyModifierStyle(altActivation, isDisabled: hasMarkedText, style: style)
-            commandButton.applyModifierStyle(commandActivation, isDisabled: hasMarkedText, style: style)
+            for (modifier, button) in modifierButtons {
+                let activation = switch modifier {
+                case .ctrl: ctrlActivation
+                case .alt: altActivation
+                case .command: commandActivation
+                }
+                button.applyModifierStyle(activation, isDisabled: hasMarkedText, style: style)
+            }
+        }
+
+        func rebuildContent() {
+            stackView.arrangedSubviews.forEach { view in
+                stackView.removeArrangedSubview(view)
+                view.removeFromSuperview()
+            }
+            keyButtons.removeAll()
+            modifierButtons.removeAll()
+
+            let items = terminalView?.inputAccessoryItems ?? TerminalInputAccessoryItem.defaultItems
+            addArrangedViews(items.map(makeView(for:)))
+            refreshContent()
         }
 
         private func setupViews() {
@@ -188,21 +140,7 @@
                 stackView.heightAnchor.constraint(equalTo: scrollView.frameLayoutGuide.heightAnchor),
             ])
 
-            addArrangedViews([
-                escapeButton,
-                ctrlButton,
-                altButton,
-                commandButton,
-                makeDivider(),
-                tabButton,
-                leftButton,
-                upButton,
-                downButton,
-                rightButton,
-                makeDivider(),
-            ] + symbolButtons + [
-                pasteButton,
-            ])
+            rebuildContent()
         }
 
         private func addArrangedViews(_ views: [UIView]) {
@@ -219,6 +157,70 @@
                 view.heightAnchor.constraint(equalToConstant: 6),
             ])
             return view
+        }
+
+        private func makeView(for item: TerminalInputAccessoryItem) -> UIView {
+            switch item {
+            case .esc:
+                makeTrackedKeyButton(title: "Escape", systemImage: "escape", key: .esc)
+
+            case .ctrl:
+                makeTrackedModifierButton(title: "Control", systemImage: "control", modifier: .ctrl)
+
+            case .alt:
+                makeTrackedModifierButton(title: "Option", systemImage: "option", modifier: .alt)
+
+            case .command:
+                makeTrackedModifierButton(title: "Command", systemImage: "command", modifier: .command)
+
+            case .tab:
+                makeTrackedKeyButton(title: "Tab", systemImage: "arrow.right.to.line", key: .tab)
+
+            case .arrowLeft:
+                makeTrackedKeyButton(title: "Left", systemImage: "arrowshape.left", key: .arrowLeft)
+
+            case .arrowUp:
+                makeTrackedKeyButton(title: "Up", systemImage: "arrowshape.up", key: .arrowUp)
+
+            case .arrowDown:
+                makeTrackedKeyButton(title: "Down", systemImage: "arrowshape.down", key: .arrowDown)
+
+            case .arrowRight:
+                makeTrackedKeyButton(title: "Right", systemImage: "arrowshape.right", key: .arrowRight)
+
+            case let .symbol(symbol):
+                makeTrackedKeyButton(title: symbol, key: .symbol(symbol))
+
+            case .paste:
+                makeTrackedKeyButton(title: "Paste", systemImage: "doc.on.clipboard", key: .paste)
+
+            case .divider:
+                makeDivider()
+            }
+        }
+
+        private func makeTrackedModifierButton(
+            title: String,
+            systemImage: String,
+            modifier: TerminalStickyModifierState.Modifier
+        ) -> AccessoryButton {
+            let button = makeModifierButton(
+                title: title,
+                systemImage: systemImage,
+                modifier: modifier
+            )
+            modifierButtons.append((modifier, button))
+            return button
+        }
+
+        private func makeTrackedKeyButton(
+            title: String,
+            systemImage: String? = nil,
+            key: TerminalInputBarKey
+        ) -> AccessoryButton {
+            let button = makeKeyButton(title: title, systemImage: systemImage, key: key)
+            keyButtons.append(button)
+            return button
         }
 
         private func makeModifierButton(
@@ -318,8 +320,6 @@
                 barHeight
             }
         }
-
-        private static let symbols = ["|", "/", "~", "-", "_", "`", "'", "\""]
     }
 
     private final class AccessoryButton: UIButton {

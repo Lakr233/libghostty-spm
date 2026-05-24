@@ -83,8 +83,22 @@ terminalView.inputAccessoryStyle = .init(
 </code></pre>
 <p>Hosts with a custom keyboard bar can hide the bundled accessory and drive sticky modifiers through the public sticky APIs.</p>
 <pre><code class="language-swift">#if canImport(UIKit)
-terminalView.disableBundledInputAccessory = true
-terminalView.toggleStickyModifier(.ctrl)
+terminalView.inputAccessoryItems = []
+#endif
+</code></pre>
+<p>The default button list is available as <code>TerminalInputAccessoryItem.defaultItems</code>. Hosts can provide a smaller list while keeping the bundled bar styling and key dispatch behavior.</p>
+<pre><code class="language-swift">#if canImport(UIKit)
+terminalView.inputAccessoryItems = [
+    .esc,
+    .ctrl,
+    .alt,
+    .command,
+    .divider,
+    .tab,
+    .arrowLeft,
+    .arrowRight,
+    .paste,
+]
 #endif
 </code></pre>
 
