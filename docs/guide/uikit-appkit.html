@@ -81,6 +81,12 @@ terminalView.inputAccessoryStyle = .init(
 )
 #endif
 </code></pre>
+<p>Hosts with a custom keyboard bar can hide the bundled accessory and drive sticky modifiers through the public sticky APIs.</p>
+<pre><code class="language-swift">#if canImport(UIKit)
+terminalView.disableBundledInputAccessory = true
+terminalView.toggleStickyModifier(.ctrl)
+#endif
+</code></pre>
 
 <nav class="pager" aria-label="Sibling pages">
   <a class="prev" href="swiftui.html">SwiftUI</a>

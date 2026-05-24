@@ -46,6 +46,12 @@
                 get { terminalInputAccessory.style }
                 set { terminalInputAccessory.style = newValue }
             }
+
+            public var disableBundledInputAccessory = false {
+                didSet {
+                    reloadInputViews()
+                }
+            }
         #endif
 
         public weak var delegate: (any TerminalSurfaceViewDelegate)? {
