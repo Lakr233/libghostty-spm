@@ -8,34 +8,29 @@
 import Foundation
 import SwiftUI
 
-@available(macOS 14.0, iOS 17.0, macCatalyst 17.0, *)
-@MainActor @Observable
-public final class TerminalViewState {
-    public internal(set) var title: String = ""
-    public internal(set) var surfaceSize: TerminalGridMetrics?
-    public internal(set) var isFocused: Bool = false
+@MainActor
+public final class TerminalViewState: ObservableObject {
+    @Published public internal(set) var title: String = ""
+    @Published public internal(set) var surfaceSize: TerminalGridMetrics?
+    @Published public internal(set) var isFocused: Bool = false
 
-    public internal(set) var bellCount: Int = 0
-    public internal(set) var lastBellAt: Date?
+    @Published public internal(set) var bellCount: Int = 0
+    @Published public internal(set) var lastBellAt: Date?
 
-    public internal(set) var lastDesktopNotificationTitle: String?
-    public internal(set) var lastDesktopNotificationBody: String?
-    public internal(set) var lastDesktopNotificationAt: Date?
+    @Published public internal(set) var lastDesktopNotificationTitle: String?
+    @Published public internal(set) var lastDesktopNotificationBody: String?
+    @Published public internal(set) var lastDesktopNotificationAt: Date?
 
-    public internal(set) var workingDirectory: String?
+    @Published public internal(set) var workingDirectory: String?
 
-    public internal(set) var lastCommandExitCode: Int?
-    public internal(set) var lastCommandDurationNanos: UInt64?
+    @Published public internal(set) var lastCommandExitCode: Int?
+    @Published public internal(set) var lastCommandDurationNanos: UInt64?
 
-    /// The surface currently attached to a platform view, or `nil` when no
-    /// view is attached. Set by ``TerminalSurfaceLifecycleDelegate`` callbacks.
-    /// `weak` because the underlying coordinator owns the surface.
-    @ObservationIgnored
     public internal(set) weak var surface: TerminalSurface?
 
-    public var configuration: TerminalSurfaceOptions = .init()
+    @Published public var configuration: TerminalSurfaceOptions = .init()
     public var onClose: ((Bool) -> Void)?
-    public internal(set) var controller: TerminalController
+    @Published public internal(set) var controller: TerminalController
 
     /// Sends text to the attached surface.
     @discardableResult

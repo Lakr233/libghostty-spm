@@ -12,7 +12,6 @@ import SwiftUI
     import AppKit
 #endif
 
-@available(macOS 14.0, iOS 17.0, macCatalyst 17.0, *)
 @MainActor
 struct TerminalViewRepresentable {
     let context: TerminalViewState
@@ -61,7 +60,6 @@ struct TerminalViewRepresentable {
     }
 }
 
-@available(macOS 14.0, iOS 17.0, macCatalyst 17.0, *)
 @MainActor
 struct TerminalFocusBinding {
     private let read: () -> Bool
@@ -95,7 +93,6 @@ struct TerminalFocusBinding {
     }
 }
 
-@available(macOS 14.0, iOS 17.0, macCatalyst 17.0, *)
 @MainActor
 extension TerminalFocusBinding? {
     func setFocused(_ focused: Bool) {

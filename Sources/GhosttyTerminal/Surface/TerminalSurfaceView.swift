@@ -7,11 +7,10 @@
 
 import SwiftUI
 
-@available(macOS 14.0, iOS 17.0, macCatalyst 17.0, *)
 public struct TerminalSurfaceView: View {
     @Environment(\.colorScheme) private var colorScheme
 
-    let context: TerminalViewState
+    @ObservedObject var context: TerminalViewState
     let focusBinding: TerminalFocusBinding?
 
     public init(context: TerminalViewState) {
@@ -35,7 +34,10 @@ public struct TerminalSurfaceView: View {
             focusBinding: focusBinding
         )
         .background(.clear)
-        .onChange(of: colorScheme, initial: true) {
+        .onChange(of: colorScheme) { newScheme in
+            context.adopt(colorScheme: newScheme)
+        }
+        .onAppear {
             context.adopt(colorScheme: colorScheme)
         }
     }

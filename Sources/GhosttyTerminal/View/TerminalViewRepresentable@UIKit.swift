@@ -9,7 +9,6 @@
     import SwiftUI
     import UIKit
 
-    @available(macOS 14.0, iOS 17.0, macCatalyst 17.0, *)
     extension TerminalViewRepresentable: UIViewRepresentable {
         func makeCoordinator() -> Coordinator {
             Coordinator()
