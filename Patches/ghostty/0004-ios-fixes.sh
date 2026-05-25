@@ -83,12 +83,12 @@ if [ -f "$BUILD_ZIG" ]; then
     fi
 fi
 
-# Patch 4: Lower iOS deployment target to 16.0
+# Patch 4: Lower iOS deployment target to 15.0
 CONFIG_ZIG="${SOURCE_DIR}/src/build/Config.zig"
 if [ -f "$CONFIG_ZIG" ]; then
     if grep -q '\.ios => \.{ \.semver = \.{' "$CONFIG_ZIG"; then
-        perl -0pi -e 's/\.ios => \.{ \.semver = \.{\n\s*\.major = \d+,\n\s*\.minor = \d+,\n\s*\.patch = \d+,/.ios => .{ .semver = .{\n            .major = 16,\n            .minor = 0,\n            .patch = 0,/s' "$CONFIG_ZIG"
-        echo "[+] patched: iOS deployment target -> 16.0"
+        perl -0pi -e 's/\.ios => \.{ \.semver = \.{\n\s*\.major = \d+,\n\s*\.minor = \d+,\n\s*\.patch = \d+,/.ios => .{ .semver = .{\n            .major = 15,\n            .minor = 0,\n            .patch = 0,/s' "$CONFIG_ZIG"
+        echo "[+] patched: iOS deployment target -> 15.0"
     else
         echo "[+] iOS deployment target already patched"
     fi

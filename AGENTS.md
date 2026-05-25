@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-SPM package wrapping Ghostty terminal emulator C library for Apple platforms (macOS 13+, iOS 16+, Mac Catalyst 16+). Four library products:
+SPM package wrapping Ghostty terminal emulator C library for Apple platforms (macOS 13+, iOS 15+, Mac Catalyst 15+). Four library products:
 
 - **GhosttyKit** — minimal re-export of the libghostty C API (`@_exported import libghostty`)
 - **GhosttyTerminal** — Swift wrapper: native views, SwiftUI integration, input handling, display link, host-managed I/O
