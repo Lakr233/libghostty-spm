@@ -50,7 +50,10 @@ jobs:
             -project Example/MobileGhosttyApp.xcodeproj \
             -scheme MobileGhosttyApp \
             -destination "id=$UDID" \
-            -resultBundlePath "$RUNNER_TEMP/libghostty-ui-ios.xcresult"
+            -resultBundlePath "$RUNNER_TEMP/libghostty-ui-ios.xcresult" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY=""
 
       - name: Upload iPhone Result Bundle
         if: always()
@@ -100,7 +103,10 @@ jobs:
             -project Example/MobileGhosttyApp.xcodeproj \
             -scheme MobileGhosttyApp \
             -destination "id=$UDID" \
-            -resultBundlePath "$RUNNER_TEMP/libghostty-ui-ipad.xcresult"
+            -resultBundlePath "$RUNNER_TEMP/libghostty-ui-ipad.xcresult" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY=""
 
       - name: Upload iPad Result Bundle
         if: always()
@@ -131,7 +137,10 @@ jobs:
             -project Example/MobileGhosttyApp.xcodeproj \
             -scheme MobileGhosttyApp \
             -destination 'platform=macOS,variant=Mac Catalyst' \
-            -resultBundlePath "$RUNNER_TEMP/libghostty-ui-maccatalyst.xcresult"
+            -resultBundlePath "$RUNNER_TEMP/libghostty-ui-maccatalyst.xcresult" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY=""
 
       - name: Upload Mac Catalyst Result Bundle
         if: always()
@@ -162,7 +171,10 @@ jobs:
             -project Example/GhosttyTerminalApp.xcodeproj \
             -scheme GhosttyTerminalApp \
             -destination 'platform=macOS' \
-            -resultBundlePath "$RUNNER_TEMP/libghostty-ui-macos.xcresult"
+            -resultBundlePath "$RUNNER_TEMP/libghostty-ui-macos.xcresult" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY=""
 
       - name: Upload macOS AppKit Result Bundle
         if: always()
