@@ -54,18 +54,30 @@ stage_framework() {
     library_path="$variant_dir/lib/libghostty.a"
     header_dir="$variant_dir/include"
     framework_path="$FRAMEWORK_STAGE_DIR/$variant/$FRAMEWORK_NAME.framework"
-    modules_dir="$framework_path/Modules"
-    headers_dir="$framework_path/Headers"
     platform=$(plist_platform_for_variant "$variant")
 
     rm -rf "$framework_path"
-    mkdir -p "$headers_dir" "$modules_dir"
-    cp "$library_path" "$framework_path/$FRAMEWORK_NAME"
-    cp -R "$header_dir/." "$headers_dir/"
-    mv "$headers_dir/module.modulemap" "$modules_dir/module.modulemap"
-    sed -i '' "1s/^module $FRAMEWORK_NAME/framework module $FRAMEWORK_NAME/" "$modules_dir/module.modulemap"
 
-    cat >"$framework_path/Info.plist" <<EOF
+    # macOS requires the versioned bundle layout (Versions/A/…) — shallow bundles
+    # are rejected by Xcode's embed-frameworks validation with:
+    #   "Framework contains Info.plist, expected Versions/Current/Resources/Info.plist
+    #    since the platform does not use shallow bundles"
+    # iOS, Catalyst, and simulator slices use the shallow layout and are unaffected.
+    if [ "$variant" = "macosx" ]; then
+        modules_dir="$framework_path/Versions/A/Modules"
+        headers_dir="$framework_path/Versions/A/Headers"
+        mkdir -p "$headers_dir" "$modules_dir" "$framework_path/Versions/A/Resources"
+        cp "$library_path" "$framework_path/Versions/A/$FRAMEWORK_NAME"
+        cp -R "$header_dir/." "$headers_dir/"
+        mv "$headers_dir/module.modulemap" "$modules_dir/module.modulemap"
+        sed -i '' "1s/^module $FRAMEWORK_NAME/framework module $FRAMEWORK_NAME/" "$modules_dir/module.modulemap"
+        (cd "$framework_path/Versions" && ln -s A Current)
+        ln -s "Versions/Current/$FRAMEWORK_NAME" "$framework_path/$FRAMEWORK_NAME"
+        ln -s "Versions/Current/Headers"          "$framework_path/Headers"
+        ln -s "Versions/Current/Modules"          "$framework_path/Modules"
+        ln -s "Versions/Current/Resources"        "$framework_path/Resources"
+
+        cat >"$framework_path/Versions/A/Resources/Info.plist" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -93,6 +105,44 @@ stage_framework() {
 </dict>
 </plist>
 EOF
+    else
+        modules_dir="$framework_path/Modules"
+        headers_dir="$framework_path/Headers"
+        mkdir -p "$headers_dir" "$modules_dir"
+        cp "$library_path" "$framework_path/$FRAMEWORK_NAME"
+        cp -R "$header_dir/." "$headers_dir/"
+        mv "$headers_dir/module.modulemap" "$modules_dir/module.modulemap"
+        sed -i '' "1s/^module $FRAMEWORK_NAME/framework module $FRAMEWORK_NAME/" "$modules_dir/module.modulemap"
+
+        cat >"$framework_path/Info.plist" <<EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleDevelopmentRegion</key>
+    <string>en</string>
+    <key>CFBundleExecutable</key>
+    <string>$FRAMEWORK_NAME</string>
+    <key>CFBundleIdentifier</key>
+    <string>com.lakr233.libghostty-spm.$FRAMEWORK_NAME</string>
+    <key>CFBundleInfoDictionaryVersion</key>
+    <string>6.0</string>
+    <key>CFBundleName</key>
+    <string>$FRAMEWORK_NAME</string>
+    <key>CFBundlePackageType</key>
+    <string>FMWK</string>
+    <key>CFBundleShortVersionString</key>
+    <string>1.0</string>
+    <key>CFBundleSupportedPlatforms</key>
+    <array>
+        <string>$platform</string>
+    </array>
+    <key>CFBundleVersion</key>
+    <string>1</string>
+</dict>
+</plist>
+EOF
+    fi
 
     XCFRAMEWORK_COMMAND+=("-framework" "$framework_path")
 }
