@@ -8,7 +8,7 @@
     import UIKit
 
     extension UITerminalView {
-        override public var inputAccessoryView: UIView? {
+        override open var inputAccessoryView: UIView? {
             inputAccessoryItems.isEmpty ? nil : terminalInputAccessory
         }
 

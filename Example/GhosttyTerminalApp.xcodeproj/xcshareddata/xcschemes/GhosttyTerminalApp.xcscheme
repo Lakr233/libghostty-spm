@@ -21,6 +21,20 @@
                ReferencedContainer = "container:GhosttyTerminalApp.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
+         <BuildActionEntry
+            buildForTesting = "YES"
+            buildForRunning = "NO"
+            buildForProfiling = "NO"
+            buildForArchiving = "NO"
+            buildForAnalyzing = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "13A0100C6602670D16FB8620"
+               BuildableName = "GhosttyTerminalAppUITests.xctest"
+               BlueprintName = "GhosttyTerminalAppUITests"
+               ReferencedContainer = "container:GhosttyTerminalApp.xcodeproj">
+            </BuildableReference>
+         </BuildActionEntry>
       </BuildActionEntries>
    </BuildAction>
    <TestAction
@@ -29,6 +43,27 @@
       selectedLauncherIdentifier = "Xcode.DebuggerFoundation.Launcher.LLDB"
       shouldUseLaunchSchemeArgsEnv = "YES"
       shouldAutocreateTestPlan = "YES">
+      <MacroExpansion>
+         <BuildableReference
+            BuildableIdentifier = "primary"
+            BlueprintIdentifier = "509321CC2F645FC30004661A"
+            BuildableName = "GhosttyTerminalApp.app"
+            BlueprintName = "GhosttyTerminalApp"
+            ReferencedContainer = "container:GhosttyTerminalApp.xcodeproj">
+         </BuildableReference>
+      </MacroExpansion>
+      <Testables>
+         <TestableReference
+            skipped = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "13A0100C6602670D16FB8620"
+               BuildableName = "GhosttyTerminalAppUITests.xctest"
+               BlueprintName = "GhosttyTerminalAppUITests"
+               ReferencedContainer = "container:GhosttyTerminalApp.xcodeproj">
+            </BuildableReference>
+         </TestableReference>
+      </Testables>
    </TestAction>
    <LaunchAction
       buildConfiguration = "Debug"

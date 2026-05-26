@@ -164,23 +164,36 @@ public final class TerminalController {
     /// the only method views need to call — the controller handles all
     /// config resolution internally.
     public func setColorScheme(_ scheme: TerminalColorScheme) {
+        setColorScheme(scheme, willChange: nil)
+    }
+
+    @discardableResult
+    func setColorScheme(
+        _ scheme: TerminalColorScheme,
+        willChange: (() -> Void)?
+    ) -> Bool {
         let previous = effectiveColorScheme
         guard scheme != previous else {
             if let app {
                 ghostty_app_set_color_scheme(app, scheme.ghosttyValue)
             }
-            return
+            return false
         }
 
-        effectiveColorScheme = scheme
-        guard reconfigure() else {
-            effectiveColorScheme = previous
-            return
+        let resolved = resolveEffectiveConfig(colorScheme: scheme)
+        guard applyResolvedConfig(
+            resolved,
+            willChange: willChange,
+            applyState: { effectiveColorScheme = scheme }
+        ) else {
+            return false
         }
 
         if let app {
             ghostty_app_set_color_scheme(app, scheme.ghosttyValue)
         }
+
+        return true
     }
 
     // MARK: - Theme
@@ -188,14 +201,21 @@ public final class TerminalController {
     /// Updates the theme and reconfigures the terminal.
     @discardableResult
     public func setTheme(_ theme: TerminalTheme) -> Bool {
+        setTheme(theme, willChange: nil)
+    }
+
+    @discardableResult
+    func setTheme(
+        _ theme: TerminalTheme,
+        willChange: (() -> Void)?
+    ) -> Bool {
         guard theme != self.theme else { return false }
-        let previous = self.theme
-        self.theme = theme
-        guard reconfigure() else {
-            self.theme = previous
-            return false
-        }
-        return true
+        let resolved = resolveEffectiveConfig(theme: theme)
+        return applyResolvedConfig(
+            resolved,
+            willChange: willChange,
+            applyState: { self.theme = theme }
+        )
     }
 
     // MARK: - Terminal Configuration
@@ -205,39 +225,56 @@ public final class TerminalController {
     public func setTerminalConfiguration(
         _ terminalConfiguration: TerminalConfiguration
     ) -> Bool {
+        setTerminalConfiguration(terminalConfiguration, willChange: nil)
+    }
+
+    @discardableResult
+    func setTerminalConfiguration(
+        _ terminalConfiguration: TerminalConfiguration,
+        willChange: (() -> Void)?
+    ) -> Bool {
         guard terminalConfiguration != self.terminalConfiguration else { return false }
-        let previous = self.terminalConfiguration
-        self.terminalConfiguration = terminalConfiguration
-        guard reconfigure() else {
-            self.terminalConfiguration = previous
-            return false
-        }
-        return true
+        let resolved = resolveEffectiveConfig(terminalConfiguration: terminalConfiguration)
+        return applyResolvedConfig(
+            resolved,
+            willChange: willChange,
+            applyState: { self.terminalConfiguration = terminalConfiguration }
+        )
     }
 
     // MARK: - Config Resolution
 
     @discardableResult
     private func reconfigure() -> Bool {
-        let resolved = resolveEffectiveConfig()
-        guard resolved.source != configSource else {
-            renderedConfigContents = resolved.contents
-            return true
-        }
-        return updateConfigSource(resolved.source)
+        applyResolvedConfig(resolveEffectiveConfig(), willChange: nil)
     }
 
     private func resolveEffectiveConfig() -> (
         source: ConfigSource, contents: String
     ) {
-        let themeConfig = theme.configuration(for: effectiveColorScheme)
-        if terminalConfiguration.isEmpty, themeConfig.isEmpty {
+        resolveEffectiveConfig(
+            theme: theme,
+            terminalConfiguration: terminalConfiguration,
+            colorScheme: effectiveColorScheme
+        )
+    }
+
+    private func resolveEffectiveConfig(
+        theme: TerminalTheme? = nil,
+        terminalConfiguration: TerminalConfiguration? = nil,
+        colorScheme: TerminalColorScheme? = nil
+    ) -> (source: ConfigSource, contents: String) {
+        let nextTheme = theme ?? self.theme
+        let nextTerminalConfiguration = terminalConfiguration ?? self.terminalConfiguration
+        let nextColorScheme = colorScheme ?? effectiveColorScheme
+        let themeConfig = nextTheme.configuration(for: nextColorScheme)
+        if nextTerminalConfiguration.isEmpty, themeConfig.isEmpty {
             return (baseConfigSource, baseConfigTemplate)
         }
 
         let contents = GhosttyConfigRenderer.render(
             baseContents: baseConfigTemplate,
-            configuration: terminalConfiguration,
+            configuration: nextTerminalConfiguration,
             theme: themeConfig
         )
         return (.generated(contents), contents)

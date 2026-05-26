@@ -10,6 +10,7 @@ final class TerminalSelectionViewController: UIViewController {
         let view = UITextView()
         view.isEditable = false
         view.isSelectable = true
+        view.accessibilityIdentifier = "terminal.selectionTextView"
         view.alwaysBounceVertical = true
         view.font = .monospacedSystemFont(ofSize: 14, weight: .regular)
         view.backgroundColor = .clear
@@ -54,6 +55,7 @@ final class TerminalSelectionViewController: UIViewController {
             target: self,
             action: #selector(handleDone)
         )
+        navigationItem.rightBarButtonItem?.accessibilityIdentifier = "terminal.selectionDoneButton"
     }
 
     override func viewWillAppear(_ animated: Bool) {

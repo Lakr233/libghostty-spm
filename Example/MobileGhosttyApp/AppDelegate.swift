@@ -8,6 +8,9 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
         didFinishLaunchingWithOptions _: [UIApplication.LaunchOptionsKey: Any]? = nil
     ) -> Bool {
         TerminalDebugLog.enable(.standard)
+        TerminalDebugLog.sink = { message in
+            NSLog("%@", message)
+        }
         return true
     }
 

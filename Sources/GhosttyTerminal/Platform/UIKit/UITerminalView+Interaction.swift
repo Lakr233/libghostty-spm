@@ -10,7 +10,7 @@
     import UIKit
 
     extension UITerminalView {
-        override public func touchesBegan(
+        override open func touchesBegan(
             _ touches: Set<UITouch>,
             with event: UIEvent?
         ) {
@@ -31,7 +31,7 @@
             #endif
         }
 
-        override public func touchesMoved(
+        override open func touchesMoved(
             _ touches: Set<UITouch>,
             with event: UIEvent?
         ) {
@@ -41,7 +41,7 @@
             super.touchesMoved(touches, with: event)
         }
 
-        override public func touchesEnded(
+        override open func touchesEnded(
             _ touches: Set<UITouch>,
             with event: UIEvent?
         ) {
@@ -58,7 +58,7 @@
             super.touchesEnded(touches, with: event)
         }
 
-        override public func touchesCancelled(
+        override open func touchesCancelled(
             _ touches: Set<UITouch>,
             with event: UIEvent?
         ) {
@@ -93,21 +93,57 @@
             phase: IndirectPointerPhase,
             event: UIEvent?
         ) -> Bool {
-            guard let touch = touches.first(where: { $0.type == .indirectPointer }) else {
+            let hasIndirectPointerTouch = touches.contains { $0.type == .indirectPointer }
+
+            #if !targetEnvironment(macCatalyst)
+                if suppressNextIndirectPointerTouchEnd, hasIndirectPointerTouch {
+                    if phase == .ended || phase == .cancelled {
+                        suppressNextIndirectPointerTouchEnd = false
+                        return true
+                    }
+                    suppressNextIndirectPointerTouchEnd = false
+                }
+
+                if indirectPointerPanOwnsTouchSequence, hasIndirectPointerTouch {
+                    if phase == .began {
+                        indirectPointerPanOwnsTouchSequence = false
+                    } else {
+                        return true
+                    }
+                }
+            #endif
+
+            guard hasIndirectPointerTouch,
+                  let touch = touches.first(where: { $0.type == .indirectPointer })
+            else {
                 return false
             }
 
             core.setFocus(true)
+            #if targetEnvironment(macCatalyst)
+                if phase == .began {
+                    becomeFirstResponder()
+                }
+            #endif
             stopMomentumScrolling()
 
             let button = pointerButton(from: event)
             let mods = ghostty_input_mods_e(rawValue: 0)
             let location = touch.location(in: self)
-            surface?.sendMousePos(
-                x: location.x,
-                y: location.y,
-                mods: mods
+            let suppressSurfacePositionForSelectionMenu =
+                button == GHOSTTY_MOUSE_RIGHT &&
+                (pendingSelectionMenuPoint != nil || pointIsInsidePointerSelection(location))
+            TerminalDebugLog.log(
+                .input,
+                "pointer touch phase=\(phase) type=\(touch.type.rawValue) button=\(button.rawValue) location=\(NSCoder.string(for: location)) mask=\(event?.buttonMask.rawValue ?? 0)"
             )
+            if !suppressSurfacePositionForSelectionMenu {
+                surface?.sendMousePos(
+                    x: location.x,
+                    y: location.y,
+                    mods: mods
+                )
+            }
 
             switch phase {
             case .began:
@@ -123,7 +159,11 @@
                     )
 
                 case GHOSTTY_MOUSE_RIGHT:
-                    pendingSelectionMenuPoint = selectionMenuPoint(at: location)
+                    if pointIsInsidePointerSelection(location) {
+                        pendingSelectionMenuPoint = location
+                    } else {
+                        pendingSelectionMenuPoint = selectionMenuPoint(at: location)
+                    }
 
                 default:
                     surface?.sendMouseButton(
@@ -143,9 +183,9 @@
                 if releasedButton == GHOSTTY_MOUSE_RIGHT,
                    pendingSelectionMenuPoint != nil
                 {
-                    #if targetEnvironment(macCatalyst)
+                    if selectionMenuPoint(at: location) != nil {
                         showSelectionCopyMenu(at: location)
-                    #endif
+                    }
                     pendingSelectionMenuPoint = nil
                     return true
                 }
@@ -206,6 +246,10 @@
                 width: abs(start.x - point.x),
                 height: abs(start.y - point.y)
             ).insetBy(dx: -2, dy: -2)
+            logPointerSelectionDiagnostics(
+                context: "updatePointerSelectionRect",
+                point: point
+            )
         }
 
         func finishPointerSelection(at point: CGPoint) {
@@ -217,45 +261,40 @@
             } else {
                 updatePointerSelectionRect(to: point)
             }
+            logPointerSelectionDiagnostics(
+                context: "finishPointerSelection",
+                point: point
+            )
         }
 
-        func selectionMenuPoint(at point: CGPoint) -> CGPoint? {
-            guard surface?.hasSelection() == true,
-                  surface?.selectionContainsQuicklookWord() == true
-            else {
-                TerminalDebugLog.log(
-                    .input,
-                    "selection menu miss point=\(NSCoder.string(for: point))"
-                )
-                return nil
-            }
+        func logPointerSelectionDiagnostics(context: String, point: CGPoint) {
+            guard TerminalDebugLog.isEnabled,
+                  TerminalDebugLog.categories.contains(.input)
+            else { return }
 
+            let rectDescription = lastPointerSelectionRect.map {
+                NSCoder.string(for: $0)
+            } ?? "nil"
+            let metricsDescription = surface?.size().map(\.debugSummary) ?? "nil"
+            let selection = surface?.readSelectionResult()
+            let selectionDescription = selection.map {
+                "text=\(TerminalDebugLog.describe($0.text)) offset=\($0.offsetStart)+\($0.offsetLength)"
+            } ?? "nil"
+            let word = surface?.quicklookWord()
+            let wordDescription = word.map {
+                "word=\(TerminalDebugLog.describe($0.word)) offset=\($0.offsetStart)+\($0.offsetLength) point=\(String(format: "%.2f", $0.pointX))x\(String(format: "%.2f", $0.pointY))"
+            } ?? "nil"
             TerminalDebugLog.log(
                 .input,
-                "selection menu hit point=\(NSCoder.string(for: point))"
+                "pointer selection \(context) viewBounds=\(NSCoder.string(for: bounds)) point=\(NSCoder.string(for: point)) rect=\(rectDescription) metrics=\(metricsDescription) selection=\(selectionDescription) quicklook=\(wordDescription)"
             )
-            return point
         }
 
-        #if targetEnvironment(macCatalyst)
-            func showSelectionCopyMenu(at point: CGPoint) {
-                guard surface?.hasSelection() == true else { return }
-                becomeFirstResponder()
-                let menu = UIMenuController.shared
-                menu.menuItems = nil
-                menu.showMenu(
-                    from: self,
-                    rect: CGRect(x: point.x, y: point.y, width: 1, height: 1)
-                )
-                menu.update()
-            }
-        #endif
-
-        @IBAction override public func copy(_: Any?) {
+        @IBAction override open func copy(_: Any?) {
             guard copySelectedTextToPasteboard() else { return }
         }
 
-        override public func canPerformAction(
+        override open func canPerformAction(
             _ action: Selector,
             withSender sender: Any?
         ) -> Bool {
@@ -265,17 +304,10 @@
             return super.canPerformAction(action, withSender: sender)
         }
 
-        @discardableResult
-        func copySelectedTextToPasteboard() -> Bool {
-            guard let text = surface?.readSelection(), !text.isEmpty else {
-                return false
-            }
-            UIPasteboard.general.string = text
-            TerminalDebugLog.log(
-                .input,
-                "selection copied bytes=\(text.utf8.count) lines=\(TerminalInputText.lineCount(in: text))"
-            )
-            return true
+        func pointIsInsidePointerSelection(_ point: CGPoint) -> Bool {
+            lastPointerSelectionRect.map {
+                $0.insetBy(dx: -4, dy: -4).contains(point)
+            } ?? false
         }
 
         #if targetEnvironment(macCatalyst)
@@ -333,8 +365,87 @@
                 longPress.delegate = self
                 addGestureRecognizer(longPress)
 
+                setupIndirectPointerSelectionGesture()
                 currentFontSize = configuration.fontSize ?? 14
                 setupPinchZoomGesture()
+            }
+
+            func setupIndirectPointerSelectionGesture() {
+                let gesture = UIPanGestureRecognizer(
+                    target: self,
+                    action: #selector(handleIndirectPointerSelectionGesture(_:))
+                )
+                gesture.allowedTouchTypes = [NSNumber(value: UITouch.TouchType.indirectPointer.rawValue)]
+                gesture.minimumNumberOfTouches = 1
+                gesture.maximumNumberOfTouches = 1
+                gesture.cancelsTouchesInView = false
+                gesture.delaysTouchesBegan = false
+                gesture.delaysTouchesEnded = false
+                addGestureRecognizer(gesture)
+            }
+
+            @objc func handleIndirectPointerSelectionGesture(
+                _ gesture: UIPanGestureRecognizer
+            ) {
+                let location = gesture.location(in: self)
+                let mods = ghostty_input_mods_e(rawValue: 0)
+                TerminalDebugLog.log(
+                    .input,
+                    "indirect pointer gesture state=\(gesture.state.rawValue) location=\(NSCoder.string(for: location)) translation=\(NSCoder.string(for: gesture.translation(in: self)))"
+                )
+
+                switch gesture.state {
+                case .began:
+                    core.setFocus(true)
+                    stopMomentumScrolling()
+                    indirectPointerPanOwnsTouchSequence = true
+                    if activePointerButton != GHOSTTY_MOUSE_LEFT {
+                        activePointerButton = GHOSTTY_MOUSE_LEFT
+                        surface?.sendMouseButton(
+                            state: GHOSTTY_MOUSE_PRESS,
+                            button: GHOSTTY_MOUSE_LEFT,
+                            mods: mods
+                        )
+                    }
+                    if pointerSelectionStartPoint == nil {
+                        pointerSelectionStartPoint = location
+                    }
+                    pendingSelectionMenuPoint = nil
+                    surface?.sendMousePos(x: location.x, y: location.y, mods: mods)
+
+                case .changed:
+                    updatePointerSelectionRect(to: location)
+                    surface?.sendMousePos(x: location.x, y: location.y, mods: mods)
+
+                case .ended:
+                    activePointerButton = nil
+                    updatePointerSelectionRect(to: location)
+                    surface?.sendMousePos(x: location.x, y: location.y, mods: mods)
+                    surface?.sendMouseButton(
+                        state: GHOSTTY_MOUSE_RELEASE,
+                        button: GHOSTTY_MOUSE_LEFT,
+                        mods: mods
+                    )
+                    finishPointerSelection(at: location)
+                    indirectPointerPanOwnsTouchSequence = false
+                    suppressNextIndirectPointerTouchEnd = true
+
+                case .cancelled, .failed:
+                    activePointerButton = nil
+                    indirectPointerPanOwnsTouchSequence = false
+                    suppressNextIndirectPointerTouchEnd = true
+                    pointerSelectionStartPoint = nil
+                    pendingSelectionMenuPoint = nil
+                    lastPointerSelectionRect = nil
+                    surface?.sendMouseButton(
+                        state: GHOSTTY_MOUSE_RELEASE,
+                        button: GHOSTTY_MOUSE_LEFT,
+                        mods: mods
+                    )
+
+                default:
+                    break
+                }
             }
 
             @objc func handleLongPressForSelection(
@@ -514,7 +625,7 @@
         /// has opted into selection delegate. Without this, the recognizer
         /// still enters the touch arena for 0.5s and can subtly delay pan
         /// recognition for hosts that don't want the feature at all.
-        override public func gestureRecognizerShouldBegin(
+        override open func gestureRecognizerShouldBegin(
             _ gestureRecognizer: UIGestureRecognizer
         ) -> Bool {
             if gestureRecognizer is UILongPressGestureRecognizer {
@@ -523,7 +634,7 @@
             return true
         }
 
-        public func contextMenuInteraction(
+        open func contextMenuInteraction(
             _: UIContextMenuInteraction,
             configurationForMenuAtLocation location: CGPoint
         ) -> UIContextMenuConfiguration? {
@@ -534,15 +645,8 @@
             )
             guard selectionMenuPoint(at: location) != nil else { return nil }
 
-            return UIContextMenuConfiguration(identifier: nil, previewProvider: nil) { [weak self] _ in
-                let copy = UIAction(
-                    title: "Copy",
-                    image: UIImage(systemName: "doc.on.doc")
-                ) { _ in
-                    self?.copySelectedTextToPasteboard()
-                }
-                return UIMenu(children: [copy])
-            }
+            return selectionContextMenuConfiguration(at: location)
         }
+
     }
 #endif

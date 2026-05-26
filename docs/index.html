@@ -34,7 +34,7 @@
 <h2 id="capabilities">Capabilities</h2>
 <ul>
 <li>Terminal rendering: Ghostty&rsquo;s VT parser, grid, CoreText font backend, and Metal renderer.</li>
-<li>SwiftUI: <code>TerminalSurfaceView</code> with an <code>@Observable</code> <code>TerminalViewState</code>.</li>
+<li>SwiftUI: <code>TerminalSurfaceView</code> with an <code>ObservableObject</code> <code>TerminalViewState</code>.</li>
 <li>UIKit and AppKit: platform terminal views through the shared <code>TerminalView</code> typealias.</li>
 <li>Input: hardware keyboard, software keyboard, IME, mouse, touch scrolling, iOS accessory keys, sticky modifiers.</li>
 <li>Host-managed I/O: sandbox-friendly byte transport through <code>InMemoryTerminalSession</code>.</li>
@@ -80,7 +80,7 @@ targets: [
 import GhosttyTerminal
 
 struct ContentView: View {
-    @State private var terminal = TerminalViewState()
+    @StateObject private var terminal = TerminalViewState()
 
     private let session = InMemoryTerminalSession(
         write: { data in

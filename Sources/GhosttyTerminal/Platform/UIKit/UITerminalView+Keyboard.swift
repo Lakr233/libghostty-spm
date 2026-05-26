@@ -9,8 +9,8 @@
     import GhosttyKit
     import UIKit
 
-    public extension UITerminalView {
-        override func pressesBegan(
+    extension UITerminalView {
+        override open func pressesBegan(
             _ presses: Set<UIPress>,
             with _: UIPressesEvent?
         ) {
@@ -20,7 +20,7 @@
             }
         }
 
-        override func pressesEnded(
+        override open func pressesEnded(
             _ presses: Set<UIPress>,
             with _: UIPressesEvent?
         ) {
@@ -31,7 +31,7 @@
             hardwareKeyHandled = false
         }
 
-        override func pressesCancelled(
+        override open func pressesCancelled(
             _ presses: Set<UIPress>,
             with event: UIPressesEvent?
         ) {
@@ -39,7 +39,7 @@
             super.pressesCancelled(presses, with: event)
         }
 
-        internal func handleKeyPress(
+        func handleKeyPress(
             _ key: UIKey,
             action: ghostty_input_action_e
         ) {
@@ -142,7 +142,7 @@
             }
         }
 
-        internal func shouldSuppressUIKeyInput(
+        func shouldSuppressUIKeyInput(
             for key: UIKey,
             isCommandModified: Bool
         ) -> Bool {

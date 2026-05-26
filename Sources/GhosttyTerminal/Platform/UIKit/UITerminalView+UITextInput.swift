@@ -10,44 +10,44 @@
     extension UITerminalView: UITextInput, UITextInputTraits {
         // MARK: - UITextInputTraits
 
-        public var autocorrectionType: UITextAutocorrectionType {
+        open var autocorrectionType: UITextAutocorrectionType {
             get { .no }
             set {}
         }
 
-        public var autocapitalizationType: UITextAutocapitalizationType {
+        open var autocapitalizationType: UITextAutocapitalizationType {
             get { .none }
             set {}
         }
 
-        public var smartQuotesType: UITextSmartQuotesType {
+        open var smartQuotesType: UITextSmartQuotesType {
             get { .no }
             set {}
         }
 
-        public var smartDashesType: UITextSmartDashesType {
+        open var smartDashesType: UITextSmartDashesType {
             get { .no }
             set {}
         }
 
-        public var smartInsertDeleteType: UITextSmartInsertDeleteType {
+        open var smartInsertDeleteType: UITextSmartInsertDeleteType {
             get { .no }
             set {}
         }
 
-        public var spellCheckingType: UITextSpellCheckingType {
+        open var spellCheckingType: UITextSpellCheckingType {
             get { .no }
             set {}
         }
 
-        public var keyboardType: UIKeyboardType {
+        open var keyboardType: UIKeyboardType {
             get { .default }
             set {}
         }
 
         // MARK: - UIKeyInput
 
-        public func insertText(_ text: String) {
+        open func insertText(_ text: String) {
             guard !hardwareKeyHandled else {
                 TerminalDebugLog.log(
                     .input,
@@ -72,7 +72,7 @@
             inputHandler.insertText(text)
         }
 
-        public func deleteBackward() {
+        open func deleteBackward() {
             if inputHandler.deleteBackwardInMarkedText() {
                 TerminalDebugLog.log(.input, "deleteBackward handled by marked text")
                 hardwareKeyHandled = false
@@ -123,44 +123,44 @@
 
         // MARK: - UITextInput Marked Text
 
-        public func setMarkedText(
+        open func setMarkedText(
             _ markedText: String?,
             selectedRange: NSRange
         ) {
             inputHandler.setMarkedText(markedText, selectedRange: selectedRange)
         }
 
-        public func unmarkText() {
+        open func unmarkText() {
             inputHandler.unmarkText(applyingStickyModifiers: false)
         }
 
-        public var markedTextRange: UITextRange? {
+        open var markedTextRange: UITextRange? {
             inputHandler.markedTextRange()
         }
 
-        public var markedTextStyle: [NSAttributedString.Key: Any]? {
+        open var markedTextStyle: [NSAttributedString.Key: Any]? {
             get { nil }
             set {}
         }
 
         // MARK: - UITextInput Selection
 
-        public var selectedTextRange: UITextRange? {
+        open var selectedTextRange: UITextRange? {
             get { inputHandler.selectedTextRange() }
             set { inputHandler.setSelectedTextRange(newValue) }
         }
 
         // MARK: - UITextInput Positions
 
-        public var beginningOfDocument: UITextPosition {
+        open var beginningOfDocument: UITextPosition {
             TerminalTextPosition(0)
         }
 
-        public var endOfDocument: UITextPosition {
+        open var endOfDocument: UITextPosition {
             TerminalTextPosition(inputHandler.documentLength)
         }
 
-        public func textRange(
+        open func textRange(
             from fromPosition: UITextPosition,
             to toPosition: UITextPosition
         ) -> UITextRange? {
@@ -171,7 +171,7 @@
             return TerminalTextRange(start: from, end: to)
         }
 
-        public func position(
+        open func position(
             from position: UITextPosition,
             offset: Int
         ) -> UITextPosition? {
@@ -181,7 +181,7 @@
             return TerminalTextPosition(newIndex)
         }
 
-        public func position(
+        open func position(
             from position: UITextPosition,
             in _: UITextLayoutDirection,
             offset: Int
@@ -189,7 +189,7 @@
             self.position(from: position, offset: offset)
         }
 
-        public func compare(
+        open func compare(
             _ position: UITextPosition,
             to other: UITextPosition
         ) -> ComparisonResult {
@@ -203,7 +203,7 @@
             return .orderedSame
         }
 
-        public func offset(
+        open func offset(
             from: UITextPosition,
             to toPosition: UITextPosition
         ) -> Int {
@@ -216,12 +216,12 @@
 
         // MARK: - UITextInput Text
 
-        public func text(in range: UITextRange) -> String? {
+        open func text(in range: UITextRange) -> String? {
             guard let range = range as? TerminalTextRange else { return nil }
             return inputHandler.text(in: range)
         }
 
-        public func replace(_: UITextRange, withText text: String) {
+        open func replace(_: UITextRange, withText text: String) {
             #if !targetEnvironment(macCatalyst)
                 if inputHandler.hasMarkedText {
                     inputHandler.insertText(text)
@@ -239,57 +239,57 @@
 
         // MARK: - UITextInput Delegate
 
-        public var inputDelegate: (any UITextInputDelegate)? {
+        open var inputDelegate: (any UITextInputDelegate)? {
             get { _inputDelegate }
             set { _inputDelegate = newValue }
         }
 
         // MARK: - UITextInput Tokenizer
 
-        public var tokenizer: any UITextInputTokenizer {
+        open var tokenizer: any UITextInputTokenizer {
             UITextInputStringTokenizer(textInput: self)
         }
 
-        public var textInputView: UIView {
+        open var textInputView: UIView {
             self
         }
 
         // MARK: - UITextInput Geometry
 
-        public func firstRect(for range: UITextRange) -> CGRect {
+        open func firstRect(for range: UITextRange) -> CGRect {
             if let range = range as? TerminalTextRange {
                 return rectForRange(range)
             }
             return markedTextRect()
         }
 
-        public func caretRect(for position: UITextPosition) -> CGRect {
+        open func caretRect(for position: UITextPosition) -> CGRect {
             caretRectForPosition(position)
         }
 
-        public func selectionRects(
+        open func selectionRects(
             for _: UITextRange
         ) -> [UITextSelectionRect] {
             []
         }
 
-        public func closestPosition(to point: CGPoint) -> UITextPosition? {
+        open func closestPosition(to point: CGPoint) -> UITextPosition? {
             TerminalTextPosition(textIndex(for: point))
         }
 
-        public func closestPosition(
+        open func closestPosition(
             to point: CGPoint,
             within _: UITextRange
         ) -> UITextPosition? {
             closestPosition(to: point)
         }
 
-        public func characterRange(at point: CGPoint) -> UITextRange? {
+        open func characterRange(at point: CGPoint) -> UITextRange? {
             let index = textIndex(for: point)
             return TerminalTextRange(location: index, length: 0)
         }
 
-        public func position(
+        open func position(
             within range: UITextRange,
             farthestIn direction: UITextLayoutDirection
         ) -> UITextPosition? {
@@ -300,7 +300,7 @@
             }
         }
 
-        public func characterRange(
+        open func characterRange(
             byExtending position: UITextPosition,
             in _: UITextLayoutDirection
         ) -> UITextRange? {
@@ -314,14 +314,14 @@
             return TerminalTextRange(location: location, length: 1)
         }
 
-        public func baseWritingDirection(
+        open func baseWritingDirection(
             for _: UITextPosition,
             in _: UITextStorageDirection
         ) -> NSWritingDirection {
             .leftToRight
         }
 
-        public func setBaseWritingDirection(
+        open func setBaseWritingDirection(
             _: NSWritingDirection,
             for _: UITextRange
         ) {}

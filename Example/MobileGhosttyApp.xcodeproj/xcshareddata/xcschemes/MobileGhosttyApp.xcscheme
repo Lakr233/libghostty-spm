@@ -21,6 +21,20 @@
                ReferencedContainer = "container:MobileGhosttyApp.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
+         <BuildActionEntry
+            buildForTesting = "YES"
+            buildForRunning = "NO"
+            buildForProfiling = "NO"
+            buildForArchiving = "NO"
+            buildForAnalyzing = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "786CF1937AD2C0B4FD6675B4"
+               BuildableName = "MobileGhosttyAppUITests.xctest"
+               BlueprintName = "MobileGhosttyAppUITests"
+               ReferencedContainer = "container:MobileGhosttyApp.xcodeproj">
+            </BuildableReference>
+         </BuildActionEntry>
       </BuildActionEntries>
    </BuildAction>
    <TestAction
@@ -29,6 +43,27 @@
       selectedLauncherIdentifier = "Xcode.DebuggerFoundation.Launcher.LLDB"
       shouldUseLaunchSchemeArgsEnv = "YES"
       shouldAutocreateTestPlan = "YES">
+      <MacroExpansion>
+         <BuildableReference
+            BuildableIdentifier = "primary"
+            BlueprintIdentifier = "500702F02F6515250016FBBB"
+            BuildableName = "MobileGhosttyApp.app"
+            BlueprintName = "MobileGhosttyApp"
+            ReferencedContainer = "container:MobileGhosttyApp.xcodeproj">
+         </BuildableReference>
+      </MacroExpansion>
+      <Testables>
+         <TestableReference
+            skipped = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "786CF1937AD2C0B4FD6675B4"
+               BuildableName = "MobileGhosttyAppUITests.xctest"
+               BlueprintName = "MobileGhosttyAppUITests"
+               ReferencedContainer = "container:MobileGhosttyApp.xcodeproj">
+            </BuildableReference>
+         </TestableReference>
+      </Testables>
    </TestAction>
    <LaunchAction
       buildConfiguration = "Debug"

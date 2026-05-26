@@ -46,6 +46,9 @@ final class ViewController: UIViewController {
 
     private func configureTerminalView() {
         terminalView.delegate = self
+        terminalView.isAccessibilityElement = true
+        terminalView.accessibilityIdentifier = "terminal.surface"
+        terminalView.accessibilityLabel = "Terminal Surface"
         terminalView.configuration = TerminalSurfaceOptions(
             backend: .inMemory(shellSession.terminalSession)
         )
@@ -111,6 +114,7 @@ final class ViewController: UIViewController {
             image: UIImage(systemName: "paintpalette"),
             menu: buildThemeMenu()
         )
+        navigationItem.rightBarButtonItem?.accessibilityIdentifier = "terminal.themeButton"
     }
 
     private func buildThemeMenu() -> UIMenu {

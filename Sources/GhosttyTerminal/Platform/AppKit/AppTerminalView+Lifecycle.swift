@@ -8,8 +8,8 @@
 #if canImport(AppKit) && !canImport(UIKit)
     import AppKit
 
-    public extension AppTerminalView {
-        internal func setupTrackingArea() {
+    extension AppTerminalView {
+        func setupTrackingArea() {
             let options: NSTrackingArea.Options = [
                 .mouseEnteredAndExited,
                 .mouseMoved,
@@ -25,31 +25,31 @@
             addTrackingArea(area)
         }
 
-        override func updateTrackingAreas() {
+        override open func updateTrackingAreas() {
             super.updateTrackingAreas()
             trackingAreas.forEach { removeTrackingArea($0) }
             setupTrackingArea()
         }
 
-        override var acceptsFirstResponder: Bool {
+        override open var acceptsFirstResponder: Bool {
             true
         }
 
-        override func becomeFirstResponder() -> Bool {
+        override open func becomeFirstResponder() -> Bool {
             let result = super.becomeFirstResponder()
             core.setFocus(true)
             onFocusChange?(true)
             return result
         }
 
-        override func resignFirstResponder() -> Bool {
+        override open func resignFirstResponder() -> Bool {
             let result = super.resignFirstResponder()
             core.setFocus(false)
             onFocusChange?(false)
             return result
         }
 
-        override func viewDidMoveToWindow() {
+        override open func viewDidMoveToWindow() {
             super.viewDidMoveToWindow()
             removeWindowObservers()
             if window != nil {
@@ -99,19 +99,19 @@
             }
         }
 
-        @objc internal func windowDidBecomeKey(_: Notification) {
+        @objc func windowDidBecomeKey(_: Notification) {
             let focused = window?.isKeyWindow == true
                 && window?.firstResponder === self
             core.setFocus(focused)
             onFocusChange?(focused)
         }
 
-        @objc internal func windowDidResignKey(_: Notification) {
+        @objc func windowDidResignKey(_: Notification) {
             core.setFocus(false)
             onFocusChange?(false)
         }
 
-        @objc internal func windowDidChangeScreen(_: Notification) {
+        @objc func windowDidChangeScreen(_: Notification) {
             // Defer one runloop tick so AppKit's layout pass and the
             // window's new backingScaleFactor have both settled before we
             // re-derive metrics. Calling synchronously can race with the
@@ -145,30 +145,30 @@
             )
         }
 
-        override func setFrameSize(_ newSize: NSSize) {
+        override open func setFrameSize(_ newSize: NSSize) {
             super.setFrameSize(newSize)
             core.fitToSize()
             core.requestImmediateTick()
         }
 
-        override func layout() {
+        override open func layout() {
             super.layout()
             core.fitToSize()
             core.requestImmediateTick()
         }
 
-        override func viewDidChangeBackingProperties() {
+        override open func viewDidChangeBackingProperties() {
             super.viewDidChangeBackingProperties()
             updateMetalLayerMetrics()
             core.fitToSize()
             core.requestImmediateTick()
         }
 
-        func fitToSize() {
+        public func fitToSize() {
             core.fitToSize()
         }
 
-        internal func updateMetalLayerMetrics() {
+        func updateMetalLayerMetrics() {
             guard bounds.width > 0, bounds.height > 0 else { return }
             let scale = core.scaleFactor()
             // Write to the actually-attached backing layer (not just the
@@ -196,7 +196,7 @@
             )
         }
 
-        internal func enforceMetalLayerScale() {
+        func enforceMetalLayerScale() {
             let scale = core.scaleFactor()
             if let layer, layer.contentsScale != scale {
                 layer.contentsScale = scale
@@ -206,18 +206,25 @@
             }
         }
 
-        override func viewDidChangeEffectiveAppearance() {
+        override open func viewDidChangeEffectiveAppearance() {
             super.viewDidChangeEffectiveAppearance()
             updateColorScheme()
         }
 
-        internal func updateColorScheme() {
+        func updateColorScheme() {
             let scheme: TerminalColorScheme = switch effectiveAppearance.bestMatch(from: [.aqua, .darkAqua]) {
             case .darkAqua: .dark
             default: .light
             }
             surface?.setColorScheme(scheme.ghosttyValue)
-            controller?.setColorScheme(scheme)
+            if let controller,
+               let viewState = delegate as? TerminalViewState,
+               viewState.controller === controller
+            {
+                viewState.adopt(terminalColorScheme: scheme)
+            } else {
+                controller?.setColorScheme(scheme)
+            }
         }
     }
 #endif

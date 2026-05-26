@@ -9,20 +9,29 @@ import SwiftUI
 
 public extension TerminalViewState {
     func adopt(colorScheme: ColorScheme) {
-        let nextColorScheme = TerminalColorScheme(colorScheme)
-        guard nextColorScheme != controller.effectiveColorScheme else { return }
-        controller.setColorScheme(nextColorScheme)
+        adopt(terminalColorScheme: TerminalColorScheme(colorScheme))
+    }
+
+    func adopt(terminalColorScheme colorScheme: TerminalColorScheme) {
+        guard colorScheme != controller.effectiveColorScheme else { return }
+        controller.setColorScheme(colorScheme) {
+            self.objectWillChange.send()
+        }
     }
 
     @discardableResult
     func setTheme(_ theme: TerminalTheme) -> Bool {
-        controller.setTheme(theme)
+        return controller.setTheme(theme) {
+            self.objectWillChange.send()
+        }
     }
 
     @discardableResult
     func setTerminalConfiguration(
         _ terminalConfiguration: TerminalConfiguration
     ) -> Bool {
-        controller.setTerminalConfiguration(terminalConfiguration)
+        return controller.setTerminalConfiguration(terminalConfiguration) {
+            self.objectWillChange.send()
+        }
     }
 }

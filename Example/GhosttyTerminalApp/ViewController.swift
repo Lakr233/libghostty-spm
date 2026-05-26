@@ -65,6 +65,9 @@ final class ViewController: NSViewController {
 
     private func configureTerminalView() {
         terminalView.delegate = self
+        terminalView.setAccessibilityElement(true)
+        terminalView.setAccessibilityIdentifier("terminal.surface")
+        terminalView.setAccessibilityLabel("Terminal Surface")
         terminalView.configuration = TerminalSurfaceOptions(
             backend: .inMemory(shellSession.terminalSession)
         )

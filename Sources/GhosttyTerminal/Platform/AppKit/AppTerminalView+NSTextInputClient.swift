@@ -9,11 +9,11 @@
     import AppKit
 
     extension AppTerminalView: @preconcurrency NSTextInputClient {
-        public func insertText(_ string: Any, replacementRange _: NSRange) {
+        open func insertText(_ string: Any, replacementRange _: NSRange) {
             inputHandler?.inputMethodHandler?.insertText(string)
         }
 
-        public func setMarkedText(
+        open func setMarkedText(
             _ string: Any,
             selectedRange: NSRange,
             replacementRange _: NSRange
@@ -24,25 +24,25 @@
             )
         }
 
-        public func unmarkText() {
+        open func unmarkText() {
             inputHandler?.inputMethodHandler?.unmarkText()
         }
 
-        public func selectedRange() -> NSRange {
+        open func selectedRange() -> NSRange {
             inputHandler?.inputMethodHandler?.currentSelectedRange()
                 ?? NSRange(location: NSNotFound, length: 0)
         }
 
-        public func markedRange() -> NSRange {
+        open func markedRange() -> NSRange {
             inputHandler?.inputMethodHandler?.markedRange()
                 ?? NSRange(location: NSNotFound, length: 0)
         }
 
-        public func hasMarkedText() -> Bool {
+        open func hasMarkedText() -> Bool {
             inputHandler?.inputMethodHandler?.hasMarkedText ?? false
         }
 
-        public func attributedSubstring(
+        open func attributedSubstring(
             forProposedRange range: NSRange,
             actualRange: NSRangePointer?
         ) -> NSAttributedString? {
@@ -52,11 +52,11 @@
             )
         }
 
-        public func validAttributesForMarkedText() -> [NSAttributedString.Key] {
+        open func validAttributesForMarkedText() -> [NSAttributedString.Key] {
             []
         }
 
-        public func firstRect(
+        open func firstRect(
             forCharacterRange _: NSRange,
             actualRange _: NSRangePointer?
         ) -> NSRect {
@@ -75,7 +75,7 @@
             return window.convertToScreen(windowRect)
         }
 
-        public func characterIndex(for _: NSPoint) -> Int {
+        open func characterIndex(for _: NSPoint) -> Int {
             NSNotFound
         }
     }

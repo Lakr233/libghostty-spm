@@ -42,19 +42,19 @@
     }
 
     @MainActor
-    public extension UITerminalView {
+    extension UITerminalView {
         /// Toggle the sticky activation for `modifier`. Tap-to-arm,
         /// double-tap-to-lock semantics match the bundled accessory.
         /// Safe to call regardless of whether `inputAccessoryView` is
         /// currently shown — only mutates the internal state machine,
         /// which `insertText` consults on every keystroke.
-        func toggleStickyModifier(_ modifier: TerminalPublicStickyModifier) {
+        public func toggleStickyModifier(_ modifier: TerminalPublicStickyModifier) {
             stickyModifiers.toggle(internalModifier(for: modifier))
         }
 
         /// Read current activation for inspection / sync (e.g. host UI
         /// reflecting state changes triggered by the bundled accessory).
-        func stickyActivation(
+        public func stickyActivation(
             for modifier: TerminalPublicStickyModifier
         ) -> TerminalPublicStickyActivation {
             switch modifier {
@@ -65,12 +65,12 @@
         }
 
         /// True iff any modifier is `.armed` or `.locked`.
-        var hasActiveStickyModifiers: Bool {
+        public var hasActiveStickyModifiers: Bool {
             stickyModifiers.hasActiveModifiers
         }
 
         /// Clear all sticky activation. No-op when nothing is active.
-        func resetStickyModifiers() {
+        public func resetStickyModifiers() {
             stickyModifiers.reset()
         }
 
@@ -78,7 +78,7 @@
         /// (toggle / consume / reset). Replaces any prior closure — pass
         /// `nil` to detach. Useful for host UIs that mirror the activation
         /// in their own chip pill.
-        func setStickyModifierChangeHandler(_ handler: (() -> Void)?) {
+        public func setStickyModifierChangeHandler(_ handler: (() -> Void)?) {
             stickyModifiers.onChange = handler
         }
 

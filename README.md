@@ -47,14 +47,14 @@ The example apps are the best starting point for real integration:
 - `Example/GhosttyTerminalApp/` — macOS AppKit demo with delegate callbacks
 - `Example/MobileGhosttyApp/` — iOS UIKit demo with keyboard, safe area, themes, and text selection
 
-### SwiftUI (iOS 17+ / macOS 14+)
+### SwiftUI (iOS 15+ / macOS 13+ / Mac Catalyst 15+)
 
 ```swift
 import SwiftUI
 import GhosttyTerminal
 
 struct ContentView: View {
-    @State private var terminal = TerminalViewState()
+    @StateObject private var terminal = TerminalViewState()
     private let session = InMemoryTerminalSession(
         write: { data in
             // Handle bytes produced by the terminal.

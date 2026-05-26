@@ -44,7 +44,7 @@
 import GhosttyTerminal
 
 struct TerminalScreen: View {
-    @State private var terminal = TerminalViewState()
+    @StateObject private var terminal = TerminalViewState()
 
     var body: some View {
         TerminalSurfaceView(context: terminal)
@@ -53,10 +53,10 @@ struct TerminalScreen: View {
 }
 </code></pre>
 
-<p>Observable properties include <code>title</code>, <code>surfaceSize</code>, <code>isFocused</code>, <code>bellCount</code>, <code>workingDirectory</code>, and command-finished metadata.</p>
+<p>Observable properties include <code>title</code>, <code>surfaceSize</code>, <code>isFocused</code>, <code>bellCount</code>, <code>lastBellAt</code>, desktop notification metadata, <code>workingDirectory</code>, and command-finished metadata.</p>
 
 <h2 id="view">View</h2>
-<p><code>TerminalSurfaceView</code> embeds the platform terminal view and adopts the current SwiftUI color scheme. iOS 17, macOS 14, and Mac Catalyst 17 are the SwiftUI floor for this wrapper.</p>
+<p><code>TerminalSurfaceView</code> embeds the platform terminal view and adopts the current SwiftUI color scheme. iOS 15, macOS 13, and Mac Catalyst 15 are the SwiftUI floor for this wrapper.</p>
 <pre><code class="language-swift">TerminalSurfaceView(context: terminal)
     .onAppear {
         terminal.configuration = TerminalSurfaceOptions(

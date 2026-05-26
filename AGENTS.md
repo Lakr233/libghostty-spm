@@ -49,7 +49,7 @@ GhosttyTerminal (Swift wrapper, ~40 files)
   ├─ Metrics/          Grid size, viewport dimensions, input/scroll modifiers
   ├─ Platform/AppKit/  macOS NSView: input, IME, key events
   ├─ Platform/UIKit/   iOS UIView: UITextInput, keyboard, touch/gesture, IME, input accessory bar
-  ├─ State/            @Observable TerminalViewState (SwiftUI state container)
+  ├─ State/            ObservableObject TerminalViewState (SwiftUI state container)
   ├─ Surface/          Metal rendering bridge, display link, surface lifecycle
   └─ View/             SwiftUI TerminalSurfaceView + platform representables
 
@@ -64,7 +64,7 @@ ShellCraftKit (~5 files)
   └─ Session/          ShellSession + Bridge + Engine
 ```
 
-Key types: `TerminalViewState` (@Observable, SwiftUI entry point), `TerminalSurfaceView` (SwiftUI view), `TerminalView` (platform typealias: UITerminalView / AppTerminalView), `TerminalController`, `InMemoryTerminalSession`, `GhosttyThemeDefinition`, `GhosttyThemeCatalog`.
+Key types: `TerminalViewState` (ObservableObject, SwiftUI entry point), `TerminalSurfaceView` (SwiftUI view), `TerminalView` (platform typealias: UITerminalView / AppTerminalView), `TerminalController`, `InMemoryTerminalSession`, `GhosttyThemeDefinition`, `GhosttyThemeCatalog`.
 
 ### Platform Branching
 
@@ -118,7 +118,7 @@ When changing SwiftPM products, targets, or test dependencies, update all three 
 - **4-space indentation**, opening brace on same line
 - PascalCase types, camelCase properties/methods
 - PascalCase files for types, `+` for extensions (e.g., `AppTerminalView+Input.swift`)
-- **@Observable macro** over ObservableObject/@Published
+- **ObservableObject/@Published** for SwiftUI state that must support iOS 15 / Mac Catalyst 15
 - **Swift concurrency**: async/await, Task, actor, @MainActor
 - Early returns, guard statements, single responsibility per type/extension
 - Value types over reference types, composition over inheritance

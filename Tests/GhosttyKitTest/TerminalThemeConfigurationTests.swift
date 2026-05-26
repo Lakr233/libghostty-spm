@@ -1,4 +1,5 @@
 @testable import GhosttyTerminal
+import Combine
 import SwiftUI
 import Testing
 
@@ -89,6 +90,13 @@ struct TerminalThemeConfigurationTests {
                     .backgroundOpacity(0.47)
             )
         )
+        var notificationCount = 0
+        var colorSchemeAtNotification: TerminalColorScheme?
+        let cancellable = state.objectWillChange.sink {
+            notificationCount += 1
+            colorSchemeAtNotification = state.effectiveColorScheme
+        }
+        defer { cancellable.cancel() }
         let controller = state.controller
 
         #expect(state.effectiveColorScheme == .light)
@@ -96,6 +104,8 @@ struct TerminalThemeConfigurationTests {
 
         state.adopt(colorScheme: .dark)
 
+        #expect(notificationCount == 1)
+        #expect(colorSchemeAtNotification == .light)
         #expect(state.effectiveColorScheme == .dark)
         #expect(state.renderedConfig.contains("background-opacity = 0.47"))
         #expect(!state.renderedConfig.contains("background-opacity = 0.91"))
@@ -112,14 +122,36 @@ struct TerminalThemeConfigurationTests {
                     .custom("not-a-real-ghostty-option", "true")
             )
         )
+        var notificationCount = 0
+        let cancellable = state.objectWillChange.sink {
+            notificationCount += 1
+        }
+        defer { cancellable.cancel() }
         let previousRenderedConfig = state.renderedConfig
 
         state.adopt(colorScheme: .dark)
 
         // Controller rolls back on config failure, so color scheme stays light
+        #expect(notificationCount == 0)
         #expect(state.effectiveColorScheme == .light)
         #expect(state.renderedConfig == previousRenderedConfig)
         #expect(state.renderedConfig.contains("background-opacity = 0.91"))
+    }
+
+    @Test
+    func `adopting current color scheme does not notify`() {
+        let state = TerminalViewState()
+        var notificationCount = 0
+        let cancellable = state.objectWillChange.sink {
+            notificationCount += 1
+        }
+        defer { cancellable.cancel() }
+
+        #expect(state.effectiveColorScheme == .light)
+        state.adopt(colorScheme: .light)
+
+        #expect(notificationCount == 0)
+        #expect(state.effectiveColorScheme == .light)
     }
 
     @Test
@@ -148,11 +180,17 @@ struct TerminalThemeConfigurationTests {
                 .backgroundOpacity(0.7)
         )
         let state = TerminalViewState(theme: theme)
+        var notificationCount = 0
+        let cancellable = state.objectWillChange.sink {
+            notificationCount += 1
+        }
+        defer { cancellable.cancel() }
         let previousRenderedConfig = state.renderedConfig
 
         let didApply = state.setTheme(theme)
 
         #expect(!didApply)
+        #expect(notificationCount == 0)
         #expect(state.renderedConfig == previousRenderedConfig)
     }
 
@@ -162,6 +200,11 @@ struct TerminalThemeConfigurationTests {
             terminalConfiguration: TerminalConfiguration()
                 .fontSize(14)
         )
+        var notificationCount = 0
+        let cancellable = state.objectWillChange.sink {
+            notificationCount += 1
+        }
+        defer { cancellable.cancel() }
         let previousRenderedConfig = state.renderedConfig
 
         let didApply = state.setTerminalConfiguration(
@@ -170,6 +213,7 @@ struct TerminalThemeConfigurationTests {
         )
 
         #expect(!didApply)
+        #expect(notificationCount == 0)
         #expect(state.renderedConfig == previousRenderedConfig)
         #expect(state.terminalConfiguration == TerminalConfiguration().fontSize(14))
     }

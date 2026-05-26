@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		04B2CCFF68C824384C9DA6A8 /* GhosttyTerminalAppUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C95B98FC12A728F3E3328115 /* GhosttyTerminalAppUITests.swift */; };
 		503AA0B32F685D3300D5C113 /* ShellCraftKit in Frameworks */ = {isa = PBXBuildFile; productRef = 503AA0B22F685D3300D5C113 /* ShellCraftKit */; };
 		509321E02F646FC40004661A /* GhosttyTerminal in Frameworks */ = {isa = PBXBuildFile; productRef = 509321DF2F646FC40004661A /* GhosttyTerminal */; };
 		50ED30062F705A9A00E2694B /* GhosttyTheme in Frameworks */ = {isa = PBXBuildFile; productRef = 50ED30052F705A9A00E2694B /* GhosttyTheme */; };
@@ -14,13 +15,27 @@
 		9490B3D2513E2F168996B2CC /* LookInsideServer in Frameworks */ = {isa = PBXBuildFile; productRef = CDD6B0252BE1175EBA159634 /* LookInsideServer */; };
 /* End PBXBuildFile section */
 
+/* Begin PBXContainerItemProxy section */
+		444A6D9A917603FCFD1D4E89 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 509321C52F645FC30004661A /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 509321CC2F645FC30004661A;
+			remoteInfo = GhosttyTerminalApp;
+		};
+/* End PBXContainerItemProxy section */
+
 /* Begin PBXFileReference section */
+		290965418EC9C28CABEF8C43 /* GhosttyTerminalAppUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = GhosttyTerminalAppUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		509321CD2F645FC30004661A /* GhosttyTerminalApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = GhosttyTerminalApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		C95B98FC12A728F3E3328115 /* GhosttyTerminalAppUITests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = GhosttyTerminalAppUITests.swift; path = GhosttyTerminalAppUITests/GhosttyTerminalAppUITests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		509321CF2F645FC30004661A /* GhosttyTerminalApp */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+			);
 			path = GhosttyTerminalApp;
 			sourceTree = "<group>";
 		};
@@ -39,12 +54,28 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		6A55EF78EB1073FBB25A635B /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		34C64EDFEB4DDB60330DA0FE /* GhosttyTerminalAppUITests */ = {
+			isa = PBXGroup;
+			children = (
+				C95B98FC12A728F3E3328115 /* GhosttyTerminalAppUITests.swift */,
+			);
+			name = GhosttyTerminalAppUITests;
+			sourceTree = "<group>";
+		};
 		503AA0B12F685D3300D5C113 /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
+				9EDFEA7973A110EB3BF1F08A /* OS X */,
 			);
 			name = Frameworks;
 			sourceTree = "<group>";
@@ -55,6 +86,7 @@
 				509321CF2F645FC30004661A /* GhosttyTerminalApp */,
 				509321CE2F645FC30004661A /* Products */,
 				503AA0B12F685D3300D5C113 /* Frameworks */,
+				34C64EDFEB4DDB60330DA0FE /* GhosttyTerminalAppUITests */,
 			);
 			sourceTree = "<group>";
 		};
@@ -62,13 +94,39 @@
 			isa = PBXGroup;
 			children = (
 				509321CD2F645FC30004661A /* GhosttyTerminalApp.app */,
+				290965418EC9C28CABEF8C43 /* GhosttyTerminalAppUITests.xctest */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		9EDFEA7973A110EB3BF1F08A /* OS X */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			name = "OS X";
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		13A0100C6602670D16FB8620 /* GhosttyTerminalAppUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 827B8D5DEDB1FBF036177CB3 /* Build configuration list for PBXNativeTarget "GhosttyTerminalAppUITests" */;
+			buildPhases = (
+				24D9E97BC2A9DB2373C2CBAD /* Sources */,
+				6A55EF78EB1073FBB25A635B /* Frameworks */,
+				5277A461285A385AA6CE23ED /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				D4C50FCC8326731D9C9D4D9F /* PBXTargetDependency */,
+			);
+			name = GhosttyTerminalAppUITests;
+			productName = GhosttyTerminalAppUITests;
+			productReference = 290965418EC9C28CABEF8C43 /* GhosttyTerminalAppUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
 		509321CC2F645FC30004661A /* GhosttyTerminalApp */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 509321DB2F645FC40004661A /* Build configuration list for PBXNativeTarget "GhosttyTerminalApp" */;
@@ -76,6 +134,7 @@
 				509321C92F645FC30004661A /* Sources */,
 				509321CA2F645FC30004661A /* Frameworks */,
 				509321CB2F645FC30004661A /* Resources */,
+				C0DE00202F810001C0DEC0DE /* Normalize libghostty Framework */,
 			);
 			buildRules = (
 			);
@@ -130,6 +189,7 @@
 			projectRoot = "";
 			targets = (
 				509321CC2F645FC30004661A /* GhosttyTerminalApp */,
+				13A0100C6602670D16FB8620 /* GhosttyTerminalAppUITests */,
 			);
 		};
 /* End PBXProject section */
@@ -142,9 +202,46 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		5277A461285A385AA6CE23ED /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXResourcesBuildPhase section */
 
+/* Begin PBXShellScriptBuildPhase section */
+		C0DE00202F810001C0DEC0DE /* Normalize libghostty Framework */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Normalize libghostty Framework";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "if [ \"$CONFIGURATION\" = \"Debug\" ]; then\n  framework=\"$TARGET_BUILD_DIR/$WRAPPER_NAME/Contents/Frameworks/libghostty.framework\"\n  if [ -f \"$framework/Info.plist\" ] && [ ! -d \"$framework/Versions\" ]; then\n    mkdir -p \"$framework/Versions/A/Resources\"\n    mv \"$framework/Info.plist\" \"$framework/Versions/A/Resources/Info.plist\"\n    mv \"$framework/libghostty\" \"$framework/Versions/A/libghostty\"\n    rm -rf \"$framework/_CodeSignature\"\n    ln -sfn A \"$framework/Versions/Current\"\n    ln -sfn Versions/Current/Resources \"$framework/Resources\"\n    ln -sfn Versions/Current/libghostty \"$framework/libghostty\"\n    identity=\"${EXPANDED_CODE_SIGN_IDENTITY:--}\"\n    /usr/bin/codesign --force --sign \"$identity\" --timestamp=none \"$framework\"\n  fi\nfi\n";
+		};
+/* End PBXShellScriptBuildPhase section */
+
 /* Begin PBXSourcesBuildPhase section */
+		24D9E97BC2A9DB2373C2CBAD /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				04B2CCFF68C824384C9DA6A8 /* GhosttyTerminalAppUITests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		509321C92F645FC30004661A /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -154,7 +251,37 @@
 		};
 /* End PBXSourcesBuildPhase section */
 
+/* Begin PBXTargetDependency section */
+		D4C50FCC8326731D9C9D4D9F /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			name = GhosttyTerminalApp;
+			target = 509321CC2F645FC30004661A /* GhosttyTerminalApp */;
+			targetProxy = 444A6D9A917603FCFD1D4E89 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
 /* Begin XCBuildConfiguration section */
+		1F9D30E84DB2D994C2E03276 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = 964G86XT2P;
+				ENABLE_TESTABILITY = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				PRODUCT_BUNDLE_IDENTIFIER = wiki.qaq.GhosttyTerminalAppUITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_VERSION = 5.0;
+				TEST_TARGET_NAME = GhosttyTerminalApp;
+			};
+			name = Release;
+		};
 		509321D92F645FC40004661A /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -296,6 +423,7 @@
 				ENABLE_RESOURCE_ACCESS_LOCATION = NO;
 				ENABLE_RESOURCE_ACCESS_PRINTING = NO;
 				ENABLE_RESOURCE_ACCESS_USB = NO;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
@@ -361,6 +489,27 @@
 			};
 			name = Release;
 		};
+		77BE09965F2484B5FE4CEB52 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = 964G86XT2P;
+				ENABLE_TESTABILITY = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				PRODUCT_BUNDLE_IDENTIFIER = wiki.qaq.GhosttyTerminalAppUITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_VERSION = 5.0;
+				TEST_TARGET_NAME = GhosttyTerminalApp;
+			};
+			name = Debug;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -378,6 +527,15 @@
 			buildConfigurations = (
 				509321DC2F645FC40004661A /* Debug */,
 				509321DD2F645FC40004661A /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		827B8D5DEDB1FBF036177CB3 /* Build configuration list for PBXNativeTarget "GhosttyTerminalAppUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				1F9D30E84DB2D994C2E03276 /* Release */,
+				77BE09965F2484B5FE4CEB52 /* Debug */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

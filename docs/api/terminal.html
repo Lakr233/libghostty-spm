@@ -40,25 +40,39 @@
 </nav>
 
 <h2 id="TerminalViewState">TerminalViewState</h2>
-<p>Main SwiftUI state container. Available on iOS 17, macOS 14, and Mac Catalyst 17.</p>
-<pre><code class="language-swift">@MainActor @Observable
-public final class TerminalViewState {
-    public internal(set) var title: String { get }
-    public internal(set) var surfaceSize: TerminalGridMetrics? { get }
-    public internal(set) var isFocused: Bool { get }
-    public internal(set) var bellCount: Int { get }
-    public internal(set) var workingDirectory: String? { get }
+<p>Main SwiftUI state container. Available on iOS 15, macOS 13, and Mac Catalyst 15.</p>
+<pre><code class="language-swift">@MainActor
+public final class TerminalViewState: ObservableObject {
+    @Published public internal(set) var title: String { get }
+    @Published public internal(set) var surfaceSize: TerminalGridMetrics? { get }
+    @Published public internal(set) var isFocused: Bool { get }
+    @Published public internal(set) var bellCount: Int { get }
+    @Published public internal(set) var lastBellAt: Date? { get }
+    @Published public internal(set) var lastDesktopNotificationTitle: String? { get }
+    @Published public internal(set) var lastDesktopNotificationBody: String? { get }
+    @Published public internal(set) var lastDesktopNotificationAt: Date? { get }
+    @Published public internal(set) var workingDirectory: String? { get }
+    @Published public internal(set) var lastCommandExitCode: Int? { get }
+    @Published public internal(set) var lastCommandDurationNanos: UInt64? { get }
     public internal(set) weak var surface: TerminalSurface? { get }
 
-    public var configuration: TerminalSurfaceOptions
+    @Published public var configuration: TerminalSurfaceOptions
     public var onClose: ((Bool) -&gt; Void)?
-    public internal(set) var controller: TerminalController { get }
+    @Published public internal(set) var controller: TerminalController { get }
+
+    public var renderedConfig: String { get }
+    public var effectiveColorScheme: TerminalColorScheme { get }
+    public var theme: TerminalTheme { get }
+    public var terminalConfiguration: TerminalConfiguration { get }
 
     public func send(_ text: String) -&gt; Bool
+    public func adopt(colorScheme: ColorScheme)
+    public func adopt(terminalColorScheme colorScheme: TerminalColorScheme)
     public func setTheme(_ theme: TerminalTheme) -&gt; Bool
     public func setTerminalConfiguration(_ configuration: TerminalConfiguration) -&gt; Bool
 }
 </code></pre>
+<p class="muted"><code>controller</code> exposes a projected publisher for source compatibility, but controller-owned configuration changes are observable through <code>TerminalViewState</code> mutation methods. SwiftUI integrations should mutate through the view state rather than the controller directly.</p>
 
 <h2 id="TerminalSurfaceView">TerminalSurfaceView</h2>
 <pre><code class="language-swift">public struct TerminalSurfaceView: View {
