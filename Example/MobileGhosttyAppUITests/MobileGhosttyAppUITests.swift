@@ -76,9 +76,14 @@ final class MobileGhosttyAppUITests: XCTestCase {
         typeTerminalText("clear\n", in: terminal)
         capture("14-clear-command")
 
-        let pointerSelectionCommand = isIPad
-            ? "echo \(iPadPointerSelectionPrefix)\(expectedPointerSelection)\n"
-            : "echo \(expectedPointerSelection)\n"
+        let pointerSelectionCommand: String
+        #if targetEnvironment(macCatalyst)
+            pointerSelectionCommand = "echo \(catalystPointerSelectionPrefix)\(expectedPointerSelection)\n"
+        #else
+            pointerSelectionCommand = isIPad
+                ? "echo \(iPadPointerSelectionPrefix)\(expectedPointerSelection)\n"
+                : "echo \(expectedPointerSelection)\n"
+        #endif
         typeTerminalText(pointerSelectionCommand, in: terminal)
         #if targetEnvironment(macCatalyst)
             dragPointerSelection(in: terminal)
@@ -195,8 +200,8 @@ final class MobileGhosttyAppUITests: XCTestCase {
 
     #if targetEnvironment(macCatalyst)
         private func dragPointerSelection(in element: XCUIElement) {
-            log("pointer-selection-coordinates", "start=(0.0, 0.045), end=(0.42, 0.045), rightClick=(0.20, 0.045)")
-            let start = element.coordinate(withNormalizedOffset: CGVector(dx: 0.0, dy: 0.045))
+            log("pointer-selection-coordinates", "start=(0.008, 0.045), end=(0.42, 0.045), rightClick=(0.20, 0.045)")
+            let start = element.coordinate(withNormalizedOffset: CGVector(dx: 0.008, dy: 0.045))
             let end = element.coordinate(withNormalizedOffset: CGVector(dx: 0.42, dy: 0.045))
             start.press(forDuration: 0.1, thenDragTo: end)
         }
@@ -386,4 +391,13 @@ final class MobileGhosttyAppUITests: XCTestCase {
         // selecting the same expected terminal text without retries.
         "xx"
     }
+
+    #if targetEnvironment(macCatalyst)
+        private var catalystPointerSelectionPrefix: String {
+            // Mac Catalyst clamps the left-edge pointer drag inside the first
+            // text cell on GitHub runners. The prefix keeps the copied text
+            // anchored to the same expected selection.
+            "x"
+        }
+    #endif
 }
