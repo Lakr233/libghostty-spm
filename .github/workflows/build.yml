@@ -8,6 +8,11 @@ on:
         required: false
         type: string
         default: ""
+      release_tag:
+        description: "Release version to publish, for example 1.2.0. Leave empty to increment the latest patch tag."
+        required: false
+        type: string
+        default: ""
   schedule:
     - cron: "23 6 * * 1"
 
@@ -40,6 +45,7 @@ jobs:
         id: ref
         run: |
           INPUT_REF="${{ github.event.inputs.ghostty_ref }}"
+          INPUT_RELEASE_TAG="${{ github.event.inputs.release_tag }}"
           SKIP_RELEASE="${{ github.event.inputs.skip_release || 'false' }}"
           EVENT="${{ github.event_name }}"
 
@@ -78,10 +84,18 @@ jobs:
             exit 1
           fi
 
-          RELEASE_TAG=$(
-            git tag --list |
-              python3 -c 'import re, sys; versions = [tuple(int(part) for part in tag.split(".")) for tag in (line.strip() for line in sys.stdin) if re.fullmatch(r"\d+\.\d+\.\d+", tag)]; major, minor, patch = max(versions) if versions else (1, 0, -1); print(f"{major}.{minor}.{patch + 1}", end="")'
-          )
+          if [ -n "$INPUT_RELEASE_TAG" ]; then
+            if ! echo "$INPUT_RELEASE_TAG" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+              echo "[!] release_tag must be a semantic version like 1.2.0: $INPUT_RELEASE_TAG"
+              exit 1
+            fi
+            RELEASE_TAG="$INPUT_RELEASE_TAG"
+          else
+            RELEASE_TAG=$(
+              git tag --list |
+                python3 -c 'import re, sys; versions = [tuple(int(part) for part in tag.split(".")) for tag in (line.strip() for line in sys.stdin) if re.fullmatch(r"\d+\.\d+\.\d+", tag)]; major, minor, patch = max(versions) if versions else (1, 0, -1); print(f"{major}.{minor}.{patch + 1}", end="")'
+            )
+          fi
           STORAGE_RELEASE_TAG="storage.$RELEASE_TAG"
 
           if [ "$SKIP_RELEASE" = "true" ]; then
