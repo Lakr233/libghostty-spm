@@ -7,8 +7,8 @@ Swift Package wrapping [Ghostty](https://ghostty.org)'s terminal emulator librar
 ## Platforms
 
 - macOS 13+
-- iOS 16+
-- Mac Catalyst 16+
+- iOS 15+
+- Mac Catalyst 15+
 
 ## Products
 

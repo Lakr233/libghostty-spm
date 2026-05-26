@@ -4,9 +4,9 @@ import PackageDescription
 let package = Package(
     name: "GhosttyKit",
     platforms: [
-        .iOS(.v16),
+        .iOS(.v15),
         .macOS(.v13),
-        .macCatalyst(.v16),
+        .macCatalyst(.v15),
     ],
     products: [
         .library(name: "GhosttyKit", targets: ["GhosttyKit"]),

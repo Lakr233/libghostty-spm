@@ -8,7 +8,6 @@
 import Foundation
 import GhosttyKit
 
-@available(macOS 14.0, iOS 17.0, macCatalyst 17.0, *)
 extension TerminalViewState:
     TerminalSurfaceTitleDelegate,
     TerminalSurfaceGridResizeDelegate,

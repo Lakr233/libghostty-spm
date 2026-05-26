@@ -20,11 +20,11 @@
 
         public static let defaultItems: [TerminalInputAccessoryItem] = [
             .esc,
+            .tab,
             .ctrl,
             .alt,
             .command,
             .divider,
-            .tab,
             .arrowLeft,
             .arrowUp,
             .arrowDown,

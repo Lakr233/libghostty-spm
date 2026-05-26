@@ -177,16 +177,16 @@
                 makeTrackedKeyButton(title: "Tab", systemImage: "arrow.right.to.line", key: .tab)
 
             case .arrowLeft:
-                makeTrackedKeyButton(title: "Left", systemImage: "arrowshape.left", key: .arrowLeft)
+                makeTrackedKeyButton(title: "Left", systemImage: "arrowtriangle.left.fill", key: .arrowLeft)
 
             case .arrowUp:
-                makeTrackedKeyButton(title: "Up", systemImage: "arrowshape.up", key: .arrowUp)
+                makeTrackedKeyButton(title: "Up", systemImage: "arrowtriangle.up.fill", key: .arrowUp)
 
             case .arrowDown:
-                makeTrackedKeyButton(title: "Down", systemImage: "arrowshape.down", key: .arrowDown)
+                makeTrackedKeyButton(title: "Down", systemImage: "arrowtriangle.down.fill", key: .arrowDown)
 
             case .arrowRight:
-                makeTrackedKeyButton(title: "Right", systemImage: "arrowshape.right", key: .arrowRight)
+                makeTrackedKeyButton(title: "Right", systemImage: "arrowtriangle.right.fill", key: .arrowRight)
 
             case let .symbol(symbol):
                 makeTrackedKeyButton(title: symbol, key: .symbol(symbol))
