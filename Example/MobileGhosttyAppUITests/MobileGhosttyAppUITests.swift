@@ -102,24 +102,29 @@ final class MobileGhosttyAppUITests: XCTestCase {
                     screenshotName: "18-ipad-pointer-copy-menu",
                     rightClickOffset: CGVector(dx: 0.10, dy: 0.035)
                 )
+            } else {
+                longPressTerminal(in: terminal, offset: CGVector(dx: 0.35, dy: 0.18))
+                XCTAssertTrue(selectionTextView().waitForExistence(timeout: 4))
+                capture("15-long-press-selection")
             }
         #endif
 
         #if !targetEnvironment(macCatalyst)
-            tapTerminal(in: terminal)
-            tapAccessoryButton("Tab", screenshotName: "16-accessory-tab")
-            tapAccessoryButton("Esc", screenshotName: "17-accessory-esc")
-            tapAccessoryButton("Right", screenshotName: "18-accessory-right")
+            if isIPad {
+                tapTerminal(in: terminal)
+                tapAccessoryButton("Tab", screenshotName: "16-accessory-tab")
+                tapAccessoryButton("Esc", screenshotName: "17-accessory-esc")
+                tapAccessoryButton("Right", screenshotName: "18-accessory-right")
+            }
         #endif
 
-        openThemeMenuAndSelectPopularTheme()
-        capture("19-theme-menu-selection")
-
-        #if !targetEnvironment(macCatalyst)
-            if !isIPad {
-                longPressTerminal(in: terminal, offset: CGVector(dx: 0.35, dy: 0.18))
-                XCTAssertTrue(selectionTextView().waitForExistence(timeout: 4))
-                capture("20-long-press-selection")
+        #if targetEnvironment(macCatalyst)
+            openThemeMenuAndSelectPopularTheme()
+            capture("19-theme-menu-selection")
+        #else
+            if isIPad {
+                openThemeMenuAndSelectPopularTheme()
+                capture("19-theme-menu-selection")
             }
         #endif
     }
@@ -190,8 +195,8 @@ final class MobileGhosttyAppUITests: XCTestCase {
 
     #if targetEnvironment(macCatalyst)
         private func dragPointerSelection(in element: XCUIElement) {
-            log("pointer-selection-coordinates", "start=(0.008, 0.045), end=(0.42, 0.045), rightClick=(0.20, 0.045)")
-            let start = element.coordinate(withNormalizedOffset: CGVector(dx: 0.008, dy: 0.045))
+            log("pointer-selection-coordinates", "start=(0.0, 0.045), end=(0.42, 0.045), rightClick=(0.20, 0.045)")
+            let start = element.coordinate(withNormalizedOffset: CGVector(dx: 0.0, dy: 0.045))
             let end = element.coordinate(withNormalizedOffset: CGVector(dx: 0.42, dy: 0.045))
             start.press(forDuration: 0.1, thenDragTo: end)
         }
