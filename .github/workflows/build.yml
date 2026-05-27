@@ -263,6 +263,9 @@ jobs:
             "$PWD/BinaryTarget/GhosttyKit.xcframework" \
             "$PWD/build/GhosttyKit.xcframework.zip"
 
+      - name: Test XCFramework Consumer
+        run: ./Script/test-xcframework-consumer.sh "$PWD/BinaryTarget/GhosttyKit.xcframework"
+
       - name: Use Local Binary Target
         run: cp Package.local.swift Package.swift
 
