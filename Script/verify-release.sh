@@ -36,7 +36,7 @@ if [ "$release_commit" != "$storage_commit" ]; then
 fi
 
 manifest=$(git show "$RELEASE_TAG:Package.swift")
-download_url=$(printf '%s\n' "$manifest" | python3 -c 'import re, sys; text=sys.stdin.read(); match=re.search(r"url:\s*\"([^\"]+)\"", text); print(match.group(1) if match else "", end="")')
+download_url=$(printf '%s\n' "$manifest" | python3 -c 'import re, sys; text=sys.stdin.read(); urls=re.findall(r"url:\s*\"([^\"]+)\"", text); matches=[url for url in urls if "/releases/download/" in url and url.endswith("/GhosttyKit.xcframework.zip")]; print(matches[0] if matches else "", end="")')
 checksum=$(printf '%s\n' "$manifest" | python3 -c 'import re, sys; text=sys.stdin.read(); match=re.search(r"checksum:\s*\"([0-9a-f]{64})\"", text); print(match.group(1) if match else "", end="")')
 
 if [ -z "$download_url" ] || [ -z "$checksum" ]; then
