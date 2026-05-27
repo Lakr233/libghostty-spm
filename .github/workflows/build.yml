@@ -330,3 +330,9 @@ jobs:
             Built from ghostty sha: ${{ needs.prepare.outputs.resolved_sha }}
           draft: false
           prerelease: false
+
+      - name: Verify Release Consistency
+        if: needs.prepare.outputs.do_release == 'true'
+        run: ./Script/verify-release.sh "${{ needs.prepare.outputs.release_tag }}" "${{ needs.prepare.outputs.storage_release_tag }}"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
