@@ -101,7 +101,7 @@ extension TerminalController {
 
         var runtimeConfig = ghostty_runtime_config_s()
         runtimeConfig.userdata = userdata
-        runtimeConfig.supports_selection_clipboard = false
+        runtimeConfig.supports_selection_clipboard = true
         runtimeConfig.wakeup_cb = terminalControllerWakeupCallback
         runtimeConfig.action_cb = terminalControllerActionCallback
         runtimeConfig.close_surface_cb = terminalControllerCloseSurfaceCallback

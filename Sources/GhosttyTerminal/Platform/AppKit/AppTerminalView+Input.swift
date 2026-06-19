@@ -106,10 +106,7 @@
         }
 
         @IBAction open func copy(_: Any?) {
-            if copySelectedTextToPasteboard() {
-                return
-            }
-            _ = surface?.performBindingAction("copy_to_clipboard")
+            _ = copySelectedTextToPasteboard()
         }
 
         @IBAction func paste(_: Any?) {

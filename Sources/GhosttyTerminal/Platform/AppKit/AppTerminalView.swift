@@ -152,15 +152,15 @@
 
         @discardableResult
         open func copySelectedTextToPasteboard() -> Bool {
-            guard let text = surface?.readSelection(), !text.isEmpty else {
+            guard surface?.hasSelection() == true else {
                 return false
             }
-            let pasteboard = NSPasteboard.general
-            pasteboard.clearContents()
-            pasteboard.setString(text, forType: .string)
+            guard surface?.performBindingAction("copy_to_clipboard") == true else {
+                return false
+            }
             TerminalDebugLog.log(
                 .input,
-                "selection copied bytes=\(text.utf8.count) lines=\(TerminalInputText.lineCount(in: text))"
+                "selection copied to clipboard"
             )
             return true
         }
