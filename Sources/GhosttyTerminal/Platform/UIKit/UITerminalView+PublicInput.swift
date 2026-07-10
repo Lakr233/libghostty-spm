@@ -1,23 +1,14 @@
 //
-//  AppTerminalView+PublicInput.swift
+//  UITerminalView+PublicInput.swift
 //  libghostty-spm
 //
-//  Public wrappers around `TerminalSurface` write paths so hosts can
-//  inject bytes into the pty without reaching for internal API.
+//  Public wrappers around TerminalSurface input and navigation actions.
 //
 
-#if canImport(AppKit) && !canImport(UIKit)
-    import AppKit
+#if canImport(UIKit)
+    import UIKit
 
-    extension AppTerminalView {
-        /// Send raw UTF-8 text directly to the underlying pty (bypassing
-        /// key translation). Use this for synthetic input like `\x1b[Z`
-        /// (Shift+Tab / CSI Z) or multi-line paste-style injections.
-        /// No-op when the surface has not been created yet.
-        public func sendText(_ text: String) {
-            surface?.sendText(text)
-        }
-
+    extension UITerminalView {
         /// Invoke a named Ghostty binding action (e.g. "copy_to_clipboard",
         /// "clear_screen"). Returns true when the action dispatched.
         @discardableResult

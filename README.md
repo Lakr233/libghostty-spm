@@ -91,6 +91,22 @@ terminalView.configuration = TerminalSurfaceOptions(
 
 `TerminalView` is a type alias that resolves to `UITerminalView` (iOS/Catalyst) or `AppTerminalView` (macOS).
 
+### Prompt and scrollback navigation
+
+`TerminalViewState`, `TerminalView`, and `TerminalSurface` expose the same
+programmatic navigation APIs:
+
+```swift
+terminal.jumpToPrompt(by: -1) // Previous prompt.
+terminal.jumpToPrompt(by: 1)  // Next prompt.
+terminal.scrollToRow(0)        // First absolute scrollback row.
+```
+
+Prompt navigation requires [Ghostty shell integration](https://ghostty.org/docs/features/shell-integration),
+which records prompt boundaries. A host-managed backend must preserve or emit
+equivalent OSC 133 prompt markers. Arbitrary Ghostty actions remain available
+through `performBindingAction(_:)`.
+
 ## Notes
 
 - `TerminalViewState` is the SwiftUI state container.

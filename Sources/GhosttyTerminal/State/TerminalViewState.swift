@@ -42,6 +42,27 @@ public final class TerminalViewState: ObservableObject {
         return surface.sendText(text)
     }
 
+    /// Invoke a named Ghostty binding action on the attached surface.
+    @discardableResult
+    public func performBindingAction(_ action: String) -> Bool {
+        surface?.performBindingAction(action) ?? false
+    }
+
+    /// Jump the viewport by a number of shell prompts.
+    ///
+    /// Negative offsets move toward older prompts and positive offsets move
+    /// toward newer prompts. Prompt navigation requires shell integration.
+    @discardableResult
+    public func jumpToPrompt(by offset: Int16) -> Bool {
+        surface?.jumpToPrompt(by: offset) ?? false
+    }
+
+    /// Reveal an absolute scrollback row, where zero is the first row.
+    @discardableResult
+    public func scrollToRow(_ row: UInt) -> Bool {
+        surface?.scrollToRow(row) ?? false
+    }
+
     public convenience init() {
         self.init(configSource: .none)
     }
