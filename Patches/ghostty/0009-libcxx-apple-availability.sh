@@ -57,7 +57,10 @@ if [ ! -f "$SHARED_DEPS" ]; then
     echo "[-] missing: $SHARED_DEPS; upstream changed, update this patch"
     exit 1
 fi
-if ! grep -q '_LIBCPP_HAS_VENDOR_AVAILABILITY_ANNOTATIONS' "$SHARED_DEPS"; then
+if grep -q 'HWY_NO_LIBCXX' "$SHARED_DEPS" &&
+    grep -q 'SIMDUTF_NO_LIBCXX' "$SHARED_DEPS"; then
+    echo "[+] src/simd already builds without libc++"
+elif ! grep -q '_LIBCPP_HAS_VENDOR_AVAILABILITY_ANNOTATIONS' "$SHARED_DEPS"; then
     python3 - "$SHARED_DEPS" <<'PY'
 from pathlib import Path
 import sys
