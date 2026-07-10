@@ -10,6 +10,10 @@ the `libghostty-spm` build pipeline.
   stable.
 - Use executable patch scripts (`.sh`) only when upstream context is too
   unstable for a reliable diff.
+- Keep version-specific variants beside the original patch and select them in
+  `Script/apply-patches.sh` using an upstream API marker.
+- Preserve newer Ghostty's renamed internal-library outputs when extending its
+  Darwin static-library build path.
 - Every patch in this directory must be safe to re-run.
 - Patches here are applied automatically by `Script/build-ghostty.sh`, so they
   affect macOS, iOS, and Mac Catalyst builds equally.

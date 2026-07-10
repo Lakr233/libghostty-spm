@@ -138,6 +138,7 @@ jobs:
             -scheme MobileGhosttyApp \
             -destination 'platform=macOS,variant=Mac Catalyst' \
             -resultBundlePath "$RUNNER_TEMP/libghostty-ui-maccatalyst.xcresult" \
+            MACOSX_DEPLOYMENT_TARGET=15.0 \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY=""

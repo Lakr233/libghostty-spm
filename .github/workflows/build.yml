@@ -311,6 +311,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ needs.prepare.outputs.storage_release_tag }}
+          target_commitish: ${{ github.ref_name }}
           body: |
             GhosttyKit XCFramework
 
@@ -326,6 +327,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ needs.prepare.outputs.release_tag }}
+          target_commitish: ${{ github.ref_name }}
           body: |
             GhosttyKit ${{ needs.prepare.outputs.release_tag }}
 

@@ -60,10 +60,37 @@ apply_unified_patch() {
     echo "[+] applied patch: $(basename "$patch_file")"
 }
 
+modern_host_io=false
+if grep -q "ghostty_surface_foreground_pid" "$SOURCE_DIR/include/ghostty.h"; then
+    modern_host_io=true
+fi
+
+host_io_applied=false
+if grep -q "GHOSTTY_SURFACE_IO_BACKEND_HOST_MANAGED" "$SOURCE_DIR/include/ghostty.h"; then
+    host_io_applied=true
+fi
+
 for patch_file in "$PATCH_DIR"/*; do
     [ -e "$patch_file" ] || continue
 
-    case "$patch_file" in
+    patch_name=$(basename "$patch_file")
+    case "$patch_name" in
+        0002-host-managed-io.patch)
+            [ "$modern_host_io" = false ] || continue
+            if [ "$host_io_applied" = true ]; then
+                echo "[+] patch already applied: $patch_name"
+                continue
+            fi
+            apply_unified_patch "$patch_file"
+            ;;
+        0002-host-managed-io-modern.patch)
+            [ "$modern_host_io" = true ] || continue
+            if [ "$host_io_applied" = true ]; then
+                echo "[+] patch already applied: $patch_name"
+                continue
+            fi
+            apply_unified_patch "$patch_file"
+            ;;
         *.md) ;;
         *.patch)
             apply_unified_patch "$patch_file"
