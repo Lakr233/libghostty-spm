@@ -186,7 +186,11 @@ final class MobileGhosttyAppUITests: XCTestCase {
         #if targetEnvironment(macCatalyst)
             coordinate.click()
         #else
-            coordinate.press(forDuration: 0.01)
+            if isIPad {
+                coordinate.tap()
+            } else {
+                coordinate.press(forDuration: 0.01)
+            }
         #endif
     }
 
@@ -195,7 +199,9 @@ final class MobileGhosttyAppUITests: XCTestCase {
             element.coordinate(withNormalizedOffset: terminalInteractionOffset).click()
             app.typeText(text)
         #else
-            guard prepareTerminalForTyping(element) else { return }
+            if !isIPad, !prepareTerminalForTyping(element) {
+                return
+            }
             element.typeText(text)
         #endif
     }
