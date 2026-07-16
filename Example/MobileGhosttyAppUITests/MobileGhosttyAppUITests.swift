@@ -182,7 +182,12 @@ final class MobileGhosttyAppUITests: XCTestCase {
     }
 
     private func tapTerminal(in element: XCUIElement) {
-        element.coordinate(withNormalizedOffset: terminalInteractionOffset).tap()
+        let coordinate = element.coordinate(withNormalizedOffset: terminalInteractionOffset)
+        #if targetEnvironment(macCatalyst)
+            coordinate.click()
+        #else
+            coordinate.press(forDuration: 0.01)
+        #endif
     }
 
     private func typeTerminalText(_ text: String, in element: XCUIElement) {
@@ -190,9 +195,44 @@ final class MobileGhosttyAppUITests: XCTestCase {
             element.coordinate(withNormalizedOffset: terminalInteractionOffset).click()
             app.typeText(text)
         #else
+            guard prepareTerminalForTyping(element) else { return }
             element.typeText(text)
         #endif
     }
+
+    #if !targetEnvironment(macCatalyst)
+        private func prepareTerminalForTyping(_ element: XCUIElement) -> Bool {
+            if selectionTextView().exists {
+                dismissSelectionSheet()
+            }
+            if waitForKeyboardFocus(in: element, timeout: 0.5) {
+                return true
+            }
+
+            for _ in 0 ..< 2 {
+                tapTerminal(in: element)
+                if selectionTextView().waitForExistence(timeout: 0.25) {
+                    dismissSelectionSheet()
+                }
+                if waitForKeyboardFocus(in: element, timeout: 2) {
+                    return true
+                }
+            }
+            XCTFail("Terminal did not acquire keyboard focus before typing")
+            return false
+        }
+
+        private func waitForKeyboardFocus(
+            in element: XCUIElement,
+            timeout: TimeInterval
+        ) -> Bool {
+            let expectation = XCTNSPredicateExpectation(
+                predicate: NSPredicate(format: "hasKeyboardFocus == true"),
+                object: element
+            )
+            return XCTWaiter.wait(for: [expectation], timeout: timeout) == .completed
+        }
+    #endif
 
     private func longPressTerminal(in element: XCUIElement, offset: CGVector? = nil) {
         element.coordinate(withNormalizedOffset: offset ?? terminalInteractionOffset).press(forDuration: 0.7)
