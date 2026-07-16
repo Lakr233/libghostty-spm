@@ -28,14 +28,41 @@ extension TerminalController {
             surfaceConfig.font_size = fontSize
         }
 
-        return finalizeSurface(
-            app: app,
-            bridge: bridge,
-            configuration: configuration,
-            config: &surfaceConfig,
-            workingDirectory: configuration.workingDirectory,
-            platformSetup: platformSetup
-        )
+        // Like `working_directory` below, the pointers only need to outlive
+        // `ghostty_surface_new`, which copies the values during surface init.
+        return withEnvVarEntries(configuration.envVars) { entries, count in
+            surfaceConfig.env_vars = entries
+            surfaceConfig.env_var_count = count
+            return finalizeSurface(
+                app: app,
+                bridge: bridge,
+                configuration: configuration,
+                config: &surfaceConfig,
+                workingDirectory: configuration.workingDirectory,
+                platformSetup: platformSetup
+            )
+        }
+    }
+
+    /// Runs `body` with a C representation of `envVars` (`ghostty_env_var_s`
+    /// entries) that stays valid for the duration of the call.
+    private func withEnvVarEntries<T>(
+        _ envVars: [String: String],
+        _ body: (UnsafeMutablePointer<ghostty_env_var_s>?, Int) -> T
+    ) -> T {
+        guard !envVars.isEmpty else { return body(nil, 0) }
+        let strings: [(key: UnsafeMutablePointer<CChar>, value: UnsafeMutablePointer<CChar>)] =
+            envVars.map { (strdup($0.key), strdup($0.value)) }
+        defer {
+            for entry in strings {
+                free(entry.key)
+                free(entry.value)
+            }
+        }
+        var entries = strings.map { ghostty_env_var_s(key: $0.key, value: $0.value) }
+        return entries.withUnsafeMutableBufferPointer { buffer in
+            body(buffer.baseAddress, buffer.count)
+        }
     }
 
     func retain(_ bridge: TerminalCallbackBridge) {
