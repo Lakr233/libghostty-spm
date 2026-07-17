@@ -115,6 +115,12 @@ When changing SwiftPM products, targets, or test dependencies, update all three 
 - `Package.local.swift` — local development (path-based binary target)
 - `Package.swift.template` — CI template with `__DOWNLOAD_URL__` / `__CHECKSUM__` placeholders
 
+### Release Versioning
+
+- Bare semantic-version tags are GhosttyKit Swift package versions, independent of Ghostty upstream versions.
+- `Ghostty.ref` pins release builds to one immutable upstream commit; update it in a reviewed change instead of inferring an upstream ref from the package version.
+- `storage.<package-version>` owns the XCFramework asset referenced by the matching package tag.
+
 ## Swift Code Style
 
 - **4-space indentation**, opening brace on same line

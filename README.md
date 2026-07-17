@@ -126,6 +126,19 @@ The package includes a pre-built XCFramework. To rebuild libghostty from the Gho
 
 This applies patches from `Patches/ghostty/`, builds for all target architectures, and assembles the XCFramework.
 
+## Release Versioning
+
+Bare semantic-version tags such as `1.3.1` are GhosttyKit Swift package
+versions. They are independent from Ghostty's upstream tags. The matching
+`storage.1.3.1` release stores the XCFramework consumed by that package tag.
+
+Release builds use the immutable upstream Ghostty commit recorded in
+`Ghostty.ref`. Updating Ghostty requires a reviewed change to that file, so a
+package release cannot silently switch to a different upstream tag or commit.
+Manual releases require an explicit package version; scheduled releases only
+increment the package patch version when `main` is newer than the latest
+package tag.
+
 ## Trimmed Build
 
 The bundled `libghostty` is a trimmed build optimized for sandboxed, embedded use on Apple platforms.

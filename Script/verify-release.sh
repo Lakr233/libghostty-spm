@@ -9,12 +9,12 @@ if [ ! -f .root ]; then
     exit 1
 fi
 
-RELEASE_TAG=${1:-}
-STORAGE_RELEASE_TAG=${2:-}
+PACKAGE_TAG=${1:-}
+STORAGE_TAG=${2:-}
 ASSET_NAME=${3:-GhosttyKit.xcframework.zip}
 
-if [ -z "$RELEASE_TAG" ] || [ -z "$STORAGE_RELEASE_TAG" ]; then
-    echo "Usage: $0 <release_tag> <storage_release_tag> [asset_name]"
+if [ -z "$PACKAGE_TAG" ] || [ -z "$STORAGE_TAG" ]; then
+    echo "Usage: $0 <package_tag> <storage_tag> [asset_name]"
     exit 1
 fi
 
@@ -25,26 +25,26 @@ fi
 
 git fetch --tags origin
 
-release_commit=$(git rev-parse "refs/tags/$RELEASE_TAG")
-storage_commit=$(git rev-parse "refs/tags/$STORAGE_RELEASE_TAG")
+package_commit=$(git rev-parse "refs/tags/$PACKAGE_TAG")
+storage_commit=$(git rev-parse "refs/tags/$STORAGE_TAG")
 
-if [ "$release_commit" != "$storage_commit" ]; then
-    echo "[!] release tag and storage tag point at different commits"
-    echo "    $RELEASE_TAG: $release_commit"
-    echo "    $STORAGE_RELEASE_TAG: $storage_commit"
+if [ "$package_commit" != "$storage_commit" ]; then
+    echo "[!] package tag and storage tag point at different commits"
+    echo "    $PACKAGE_TAG: $package_commit"
+    echo "    $STORAGE_TAG: $storage_commit"
     exit 1
 fi
 
-manifest=$(git show "$RELEASE_TAG:Package.swift")
+manifest=$(git show "$PACKAGE_TAG:Package.swift")
 download_url=$(printf '%s\n' "$manifest" | python3 -c 'import re, sys; text=sys.stdin.read(); urls=re.findall(r"url:\s*\"([^\"]+)\"", text); matches=[url for url in urls if "/releases/download/" in url and url.endswith("/GhosttyKit.xcframework.zip")]; print(matches[0] if matches else "", end="")')
 checksum=$(printf '%s\n' "$manifest" | python3 -c 'import re, sys; text=sys.stdin.read(); match=re.search(r"checksum:\s*\"([0-9a-f]{64})\"", text); print(match.group(1) if match else "", end="")')
 
 if [ -z "$download_url" ] || [ -z "$checksum" ]; then
-    echo "[!] failed to read binary target URL/checksum from Package.swift at $RELEASE_TAG"
+    echo "[!] failed to read binary target URL/checksum from Package.swift at $PACKAGE_TAG"
     exit 1
 fi
 
-expected_url="https://github.com/Lakr233/libghostty-spm/releases/download/$STORAGE_RELEASE_TAG/$ASSET_NAME"
+expected_url="https://github.com/Lakr233/libghostty-spm/releases/download/$STORAGE_TAG/$ASSET_NAME"
 if [ "$download_url" != "$expected_url" ]; then
     echo "[!] Package.swift download URL does not match storage release"
     echo "    expected: $expected_url"
@@ -53,13 +53,13 @@ if [ "$download_url" != "$expected_url" ]; then
 fi
 
 asset_digest=$(
-    gh release view "$STORAGE_RELEASE_TAG" \
+    gh release view "$STORAGE_TAG" \
         --json assets \
         --jq ".assets[] | select(.name == \"$ASSET_NAME\") | .digest"
 )
 
 if [ -z "$asset_digest" ]; then
-    echo "[!] release asset not found: $STORAGE_RELEASE_TAG/$ASSET_NAME"
+    echo "[!] release asset not found: $STORAGE_TAG/$ASSET_NAME"
     exit 1
 fi
 
@@ -70,4 +70,4 @@ if [ "$asset_digest" != "sha256:$checksum" ]; then
     exit 1
 fi
 
-echo "[*] release verified: $RELEASE_TAG -> $STORAGE_RELEASE_TAG/$ASSET_NAME"
+echo "[*] release verified: $PACKAGE_TAG -> $STORAGE_TAG/$ASSET_NAME"
