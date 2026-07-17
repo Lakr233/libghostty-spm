@@ -3,16 +3,10 @@ name: Build GhosttyKit
 on:
   workflow_dispatch:
     inputs:
-      ghostty_ref:
-        description: "Ghostty tag or commit. Leave empty to auto-detect latest."
-        required: false
+      package_version:
+        description: "GhosttyKit package version to publish, for example 1.3.1."
+        required: true
         type: string
-        default: ""
-      release_tag:
-        description: "Release version to publish, for example 1.2.0. Leave empty to increment the latest patch tag."
-        required: false
-        type: string
-        default: ""
   schedule:
     - cron: "23 6 * * 1"
 
@@ -27,13 +21,11 @@ jobs:
   prepare:
     runs-on: macos-15
     outputs:
-      build_needed: ${{ steps.check.outputs.build_needed }}
-      build_ref: ${{ steps.ref.outputs.build_ref }}
-      resolved_build_ref: ${{ steps.ref.outputs.resolved_build_ref }}
-      resolved_sha: ${{ steps.ref.outputs.resolved_sha }}
-      release_tag: ${{ steps.ref.outputs.release_tag }}
-      storage_release_tag: ${{ steps.ref.outputs.storage_release_tag }}
-      do_release: ${{ steps.ref.outputs.do_release }}
+      build_needed: ${{ steps.release.outputs.build_needed }}
+      ghostty_ref: ${{ steps.release.outputs.ghostty_ref }}
+      resolved_sha: ${{ steps.release.outputs.resolved_sha }}
+      package_version: ${{ steps.release.outputs.package_version }}
+      storage_tag: ${{ steps.release.outputs.storage_tag }}
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -41,103 +33,79 @@ jobs:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Determine Ghostty Ref
-        id: ref
+      - name: Resolve Release
+        id: release
         run: |
-          INPUT_REF="${{ github.event.inputs.ghostty_ref }}"
-          INPUT_RELEASE_TAG="${{ github.event.inputs.release_tag }}"
-          SKIP_RELEASE="${{ github.event.inputs.skip_release || 'false' }}"
           EVENT="${{ github.event_name }}"
+          INPUT_PACKAGE_VERSION="${{ github.event.inputs.package_version }}"
+          GHOSTTY_REF=$(tr -d '[:space:]' < Ghostty.ref)
 
-          if [ "$EVENT" = "schedule" ]; then
-            SKIP_RELEASE="false"
-          elif [ "$EVENT" != "workflow_dispatch" ]; then
-            SKIP_RELEASE="true"
-          fi
-
-          if [ -n "$INPUT_REF" ]; then
-            BUILD_REF="$INPUT_REF"
-            echo "[*] using provided ghostty ref: $BUILD_REF"
-          else
-            BUILD_REF=$(
-              gh api "repos/ghostty-org/ghostty/tags?per_page=100" --paginate --jq '.[].name' |
-                python3 -c 'import re, sys; tags = [line.strip() for line in sys.stdin if re.fullmatch(r"v?\d+\.\d+\.\d+", line.strip())]; print(max(tags, key=lambda tag: tuple(int(part) for part in (tag[1:] if tag.startswith("v") else tag).split("."))), end="")'
-            )
-            echo "[*] upstream ghostty ref: $BUILD_REF"
-          fi
-
-          if [ -z "$BUILD_REF" ]; then
-            echo "[!] failed to determine ghostty ref"
-            echo "build_ref=" >> "$GITHUB_OUTPUT"
-            echo "do_release=false" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          if [[ "$BUILD_REF" == http://* || "$BUILD_REF" == https://* ]]; then
-            echo "[!] build_ref looks like a URL, not a git ref: $BUILD_REF"
+          if ! echo "$GHOSTTY_REF" | grep -Eq '^[0-9a-f]{40}$'; then
+            echo "[!] Ghostty.ref must contain one full lowercase commit sha"
             exit 1
           fi
 
-          RESOLVED_SHA=$(gh api "repos/ghostty-org/ghostty/commits/$BUILD_REF" --jq '.sha')
-          if [ -z "$RESOLVED_SHA" ]; then
-            echo "[!] failed to resolve commit sha for $BUILD_REF"
-            exit 1
-          fi
+          git fetch --tags origin
+          LATEST_PACKAGE_VERSION=$(
+            git tag --list |
+              python3 -c 'import re, sys; versions = [tuple(int(part) for part in tag.split(".")) for tag in (line.strip() for line in sys.stdin) if re.fullmatch(r"\d+\.\d+\.\d+", tag)]; print(".".join(map(str, max(versions))), end="") if versions else None'
+          )
 
-          if [ -n "$INPUT_RELEASE_TAG" ]; then
-            if ! echo "$INPUT_RELEASE_TAG" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
-              echo "[!] release_tag must be a semantic version like 1.2.0: $INPUT_RELEASE_TAG"
+          case "$EVENT" in
+            workflow_dispatch)
+              PACKAGE_VERSION="$INPUT_PACKAGE_VERSION"
+              ;;
+            schedule)
+              PACKAGE_VERSION=$(
+                python3 -c 'import sys; version = sys.argv[1]; major, minor, patch = map(int, version.split(".")) if version else (1, 0, -1); print(f"{major}.{minor}.{patch + 1}", end="")' "$LATEST_PACKAGE_VERSION"
+              )
+              ;;
+            *)
+              echo "[!] unsupported event: $EVENT"
               exit 1
-            fi
-            RELEASE_TAG="$INPUT_RELEASE_TAG"
-          else
-            RELEASE_TAG=$(
-              git tag --list |
-                python3 -c 'import re, sys; versions = [tuple(int(part) for part in tag.split(".")) for tag in (line.strip() for line in sys.stdin) if re.fullmatch(r"\d+\.\d+\.\d+", tag)]; major, minor, patch = max(versions) if versions else (1, 0, -1); print(f"{major}.{minor}.{patch + 1}", end="")'
-            )
-          fi
-          STORAGE_RELEASE_TAG="storage.$RELEASE_TAG"
+              ;;
+          esac
 
-          if [ "$SKIP_RELEASE" = "true" ]; then
-            DO_RELEASE="false"
-          else
-            DO_RELEASE="true"
+          if ! echo "$PACKAGE_VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "[!] package_version must be semantic, for example 1.3.1: $PACKAGE_VERSION"
+            exit 1
           fi
 
-          echo "[*] build_ref=$BUILD_REF resolved_sha=$RESOLVED_SHA release_tag=$RELEASE_TAG do_release=$DO_RELEASE"
+          if [ -n "$LATEST_PACKAGE_VERSION" ] && ! python3 -c 'import sys; latest = tuple(map(int, sys.argv[1].split("."))); requested = tuple(map(int, sys.argv[2].split("."))); raise SystemExit(0 if requested > latest else 1)' "$LATEST_PACKAGE_VERSION" "$PACKAGE_VERSION"; then
+            echo "[!] package_version must be newer than $LATEST_PACKAGE_VERSION: $PACKAGE_VERSION"
+            exit 1
+          fi
 
-          echo "build_ref=$BUILD_REF" >> "$GITHUB_OUTPUT"
-          echo "resolved_build_ref=$BUILD_REF" >> "$GITHUB_OUTPUT"
-          echo "resolved_sha=$RESOLVED_SHA" >> "$GITHUB_OUTPUT"
-          echo "release_tag=$RELEASE_TAG" >> "$GITHUB_OUTPUT"
-          echo "storage_release_tag=$STORAGE_RELEASE_TAG" >> "$GITHUB_OUTPUT"
-          echo "do_release=$DO_RELEASE" >> "$GITHUB_OUTPUT"
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          STORAGE_TAG="storage.$PACKAGE_VERSION"
+          if git rev-parse "refs/tags/$PACKAGE_VERSION" >/dev/null 2>&1; then
+            echo "[!] package tag already exists: $PACKAGE_VERSION"
+            exit 1
+          fi
+          if git rev-parse "refs/tags/$STORAGE_TAG" >/dev/null 2>&1; then
+            echo "[!] storage tag already exists: $STORAGE_TAG"
+            exit 1
+          fi
 
-      - name: Check If Build Needed
-        id: check
-        run: |
-          BUILD_REF="${{ steps.ref.outputs.build_ref }}"
-          DO_RELEASE="${{ steps.ref.outputs.do_release }}"
-          STORAGE_RELEASE_TAG="${{ steps.ref.outputs.storage_release_tag }}"
-
-          if [ -z "$BUILD_REF" ]; then
-            echo "[*] no valid ghostty ref, skipping"
+          if [ "$EVENT" = "schedule" ] && [ -n "$LATEST_PACKAGE_VERSION" ] && [ "$(git rev-list -n 1 "$LATEST_PACKAGE_VERSION")" = "$(git rev-parse HEAD)" ]; then
+            echo "[*] main matches package tag $LATEST_PACKAGE_VERSION, skipping scheduled release"
             echo "build_needed=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
-          if [ "$DO_RELEASE" = "true" ] && [ -n "$STORAGE_RELEASE_TAG" ]; then
-            git fetch --tags origin
-            if git rev-parse "$STORAGE_RELEASE_TAG" >/dev/null 2>&1; then
-              echo "[*] release $STORAGE_RELEASE_TAG already exists, skipping"
-              echo "build_needed=false" >> "$GITHUB_OUTPUT"
-              exit 0
-            fi
+          RESOLVED_SHA=$(gh api "repos/ghostty-org/ghostty/commits/$GHOSTTY_REF" --jq '.sha')
+          if [ "$RESOLVED_SHA" != "$GHOSTTY_REF" ]; then
+            echo "[!] pinned Ghostty commit did not resolve exactly: $GHOSTTY_REF"
+            exit 1
           fi
 
+          echo "[*] package_version=$PACKAGE_VERSION ghostty_ref=$GHOSTTY_REF"
           echo "build_needed=true" >> "$GITHUB_OUTPUT"
+          echo "ghostty_ref=$GHOSTTY_REF" >> "$GITHUB_OUTPUT"
+          echo "resolved_sha=$RESOLVED_SHA" >> "$GITHUB_OUTPUT"
+          echo "package_version=$PACKAGE_VERSION" >> "$GITHUB_OUTPUT"
+          echo "storage_tag=$STORAGE_TAG" >> "$GITHUB_OUTPUT"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   build-target:
     needs: prepare
@@ -176,7 +144,7 @@ jobs:
       - name: Clone Ghostty
         run: |
           git clone https://github.com/ghostty-org/ghostty ./References/ghostty-upstream
-          git -C ./References/ghostty-upstream checkout "${{ needs.prepare.outputs.build_ref }}"
+          git -C ./References/ghostty-upstream checkout "${{ needs.prepare.outputs.ghostty_ref }}"
 
       - name: Build Target
         run: |
@@ -275,20 +243,10 @@ jobs:
       - name: Run Swift Tests
         run: swift test
 
-      - name: Upload Build Artifact
-        if: needs.prepare.outputs.do_release != 'true'
-        uses: actions/upload-artifact@v4
-        with:
-          name: GhosttyKit-xcframework
-          path: ./build/GhosttyKit.xcframework.zip
-          compression-level: 0
-          retention-days: 7
-
       - name: Prepare Release
-        if: needs.prepare.outputs.do_release == 'true'
         run: |
-          STORAGE_RELEASE_TAG="${{ needs.prepare.outputs.storage_release_tag }}"
-          DOWNLOAD_URL="https://github.com/${{ github.repository }}/releases/download/$STORAGE_RELEASE_TAG/GhosttyKit.xcframework.zip"
+          STORAGE_TAG="${{ needs.prepare.outputs.storage_tag }}"
+          DOWNLOAD_URL="https://github.com/${{ github.repository }}/releases/download/$STORAGE_TAG/GhosttyKit.xcframework.zip"
           echo "[*] predicted download url: $DOWNLOAD_URL"
 
           mv ./build/GhosttyKit.xcframework.zip /tmp/GhosttyKit.xcframework.zip
@@ -298,7 +256,6 @@ jobs:
           ./Script/build-manifest.sh GhosttyKit.xcframework.zip "$DOWNLOAD_URL"
 
       - name: Commit & Push
-        if: needs.prepare.outputs.do_release == 'true'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
@@ -307,37 +264,34 @@ jobs:
           git push
 
       - name: Create Storage Release
-        if: needs.prepare.outputs.do_release == 'true'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ needs.prepare.outputs.storage_release_tag }}
+          tag_name: ${{ needs.prepare.outputs.storage_tag }}
           target_commitish: ${{ github.ref_name }}
           body: |
             GhosttyKit XCFramework
 
-            Built from ghostty ref: ${{ needs.prepare.outputs.build_ref }}
-            Built from ghostty sha: ${{ needs.prepare.outputs.resolved_sha }}
+            Package version: ${{ needs.prepare.outputs.package_version }}
+            Ghostty commit: ${{ needs.prepare.outputs.resolved_sha }}
           draft: false
           prerelease: false
           files: |
             GhosttyKit.xcframework.zip
 
       - name: Create Release
-        if: needs.prepare.outputs.do_release == 'true'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ needs.prepare.outputs.release_tag }}
+          tag_name: ${{ needs.prepare.outputs.package_version }}
           target_commitish: ${{ github.ref_name }}
           body: |
-            GhosttyKit ${{ needs.prepare.outputs.release_tag }}
+            GhosttyKit ${{ needs.prepare.outputs.package_version }}
 
-            Built from ghostty ref: ${{ needs.prepare.outputs.build_ref }}
-            Built from ghostty sha: ${{ needs.prepare.outputs.resolved_sha }}
+            Package version: ${{ needs.prepare.outputs.package_version }}
+            Ghostty commit: ${{ needs.prepare.outputs.resolved_sha }}
           draft: false
           prerelease: false
 
       - name: Verify Release Consistency
-        if: needs.prepare.outputs.do_release == 'true'
-        run: ./Script/verify-release.sh "${{ needs.prepare.outputs.release_tag }}" "${{ needs.prepare.outputs.storage_release_tag }}"
+        run: ./Script/verify-release.sh "${{ needs.prepare.outputs.package_version }}" "${{ needs.prepare.outputs.storage_tag }}"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
