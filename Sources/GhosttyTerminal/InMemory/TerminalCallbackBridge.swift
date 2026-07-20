@@ -142,6 +142,21 @@ final class TerminalCallbackBridge {
                     .terminalDidChangeWorkingDirectory(pwd)
             }
 
+        case GHOSTTY_ACTION_SCROLLBAR:
+            let payload = action.action.scrollbar
+            TerminalDebugLog.log(
+                .actions,
+                "callback action=scrollbar total=\(payload.total) offset=\(payload.offset) len=\(payload.len)"
+            )
+            (delegate as? any TerminalSurfaceScrollbarDelegate)?
+                .terminalDidUpdateScrollbar(
+                    TerminalScrollbar(
+                        total: payload.total,
+                        offset: payload.offset,
+                        len: payload.len
+                    )
+                )
+
         default:
             TerminalDebugLog.log(
                 .actions,

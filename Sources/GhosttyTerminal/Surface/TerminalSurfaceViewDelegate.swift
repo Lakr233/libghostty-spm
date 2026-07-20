@@ -117,6 +117,27 @@ public protocol TerminalSurfacePwdDelegate: TerminalSurfaceViewDelegate {
     func terminalDidChangeWorkingDirectory(_ path: String)
 }
 
+/// Scrollbar geometry reported by the terminal, in rows: `offset` rows are
+/// scrolled off above the viewport, `len` rows are visible, out of `total`
+/// rows of content (scrollback + screen).
+public struct TerminalScrollbar: Equatable, Sendable {
+    public let total: UInt64
+    public let offset: UInt64
+    public let len: UInt64
+
+    public init(total: UInt64, offset: UInt64, len: UInt64) {
+        self.total = total
+        self.offset = offset
+        self.len = len
+    }
+}
+
+/// The scrollbar geometry changed (the viewport scrolled or the content grew).
+@MainActor
+public protocol TerminalSurfaceScrollbarDelegate: TerminalSurfaceViewDelegate {
+    func terminalDidUpdateScrollbar(_ scrollbar: TerminalScrollbar)
+}
+
 /// User long-pressed to request a selection-page presentation.
 public struct TerminalTextSelectionRequest: Sendable {
     /// Viewport text snapshot. Lines separated by `\n`.
