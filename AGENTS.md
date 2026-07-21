@@ -120,6 +120,7 @@ When changing SwiftPM products, targets, or test dependencies, update all three 
 - Bare semantic-version tags are GhosttyKit Swift package versions, independent of Ghostty upstream versions.
 - `Ghostty.ref` pins release builds to one immutable upstream commit; update it in a reviewed change instead of inferring an upstream ref from the package version.
 - `storage.<package-version>` owns the XCFramework asset referenced by the matching package tag.
+- arm64e release slices must contain real ARM64E Mach-O members and adapt pointer-authenticated callback, Block, Objective-C IMP, and system callback boundaries; never satisfy the architecture by changing only a fat-archive label.
 
 ## Swift Code Style
 
