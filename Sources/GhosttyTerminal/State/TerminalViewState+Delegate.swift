@@ -16,6 +16,7 @@ extension TerminalViewState:
     TerminalSurfaceBellDelegate,
     TerminalSurfaceDesktopNotificationDelegate,
     TerminalSurfacePwdDelegate,
+    TerminalSurfaceScrollbarDelegate,
     TerminalSurfaceCommandFinishedDelegate,
     TerminalSurfaceLifecycleDelegate
 {
@@ -48,6 +49,10 @@ extension TerminalViewState:
 
     public func terminalDidChangeWorkingDirectory(_ path: String) {
         workingDirectory = path
+    }
+
+    public func terminalDidUpdateScrollbar(_ scrollbar: TerminalScrollbar) {
+        self.scrollbar = scrollbar
     }
 
     public func terminalDidFinishCommand(exitCode: Int?, durationNanos: UInt64) {
