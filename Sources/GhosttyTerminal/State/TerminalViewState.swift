@@ -26,6 +26,10 @@ public final class TerminalViewState: ObservableObject {
     @Published public internal(set) var lastCommandExitCode: Int?
     @Published public internal(set) var lastCommandDurationNanos: UInt64?
 
+    /// Latest scrollbar geometry reported by the terminal (nil until the first
+    /// update). Drives a host-drawn scrollbar.
+    @Published public internal(set) var scrollbar: TerminalScrollbar?
+
     public internal(set) weak var surface: TerminalSurface?
 
     @Published public var configuration: TerminalSurfaceOptions = .init()
