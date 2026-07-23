@@ -198,7 +198,7 @@ link_arm64e() {
         xcrun --sdk "$sdk" clang
         -target "$target"
         "$ARM64E_LINK_SOURCE"
-        -I "$headers_path"
+        -I "$headers_path/libghostty"
         "-Wl,-force_load,$library_path"
         -lc++
         -framework Foundation

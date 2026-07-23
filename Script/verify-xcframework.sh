@@ -86,8 +86,8 @@ for library in libraries:
     variant_dir = os.path.join(xcframework, identifier)
     archive_path = os.path.join(variant_dir, library_path)
     headers_dir = os.path.join(variant_dir, headers_path)
-    header_path = os.path.join(headers_dir, "ghostty.h")
-    modulemap_path = os.path.join(headers_dir, "module.modulemap")
+    header_path = os.path.join(headers_dir, "libghostty", "ghostty.h")
+    modulemap_path = os.path.join(headers_dir, "libghostty", "module.modulemap")
 
     for required_path in (archive_path, header_path, modulemap_path):
         if not os.path.exists(required_path):

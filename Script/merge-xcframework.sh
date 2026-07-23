@@ -28,13 +28,13 @@ FOUND_VARIANTS=0
 verify_headers() {
     local header_dir="$1"
 
-    if [ ! -f "$header_dir/ghostty.h" ]; then
-        echo "[!] missing header: $header_dir/ghostty.h"
+    if [ ! -f "$header_dir/libghostty/ghostty.h" ]; then
+        echo "[!] missing header: $header_dir/libghostty/ghostty.h"
         exit 1
     fi
 
-    if [ ! -f "$header_dir/module.modulemap" ]; then
-        echo "[!] missing module map: $header_dir/module.modulemap"
+    if [ ! -f "$header_dir/libghostty/module.modulemap" ]; then
+        echo "[!] missing module map: $header_dir/libghostty/module.modulemap"
         exit 1
     fi
 }
