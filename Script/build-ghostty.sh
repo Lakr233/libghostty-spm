@@ -262,8 +262,9 @@ else
     echo "[*] appended compatibility objects"
 fi
 
-cp "$SOURCE_DIR/include/ghostty.h" "$OUTPUT_DIR/include/ghostty.h"
-cat >"$OUTPUT_DIR/include/module.modulemap" <<'EOF'
+mkdir -p "$OUTPUT_DIR/include/libghostty"
+cp "$SOURCE_DIR/include/ghostty.h" "$OUTPUT_DIR/include/libghostty/ghostty.h"
+cat >"$OUTPUT_DIR/include/libghostty/module.modulemap" <<'EOF'
 module libghostty {
     umbrella header "ghostty.h"
     export *
