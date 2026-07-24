@@ -9,7 +9,6 @@ on:
       - Ghostty.ref
       - Patches/**
       - Script/build-ghostty.sh
-      - Script/prepare-arm64e-source.sh
       - Script/support/**
 
 permissions:
@@ -29,18 +28,12 @@ jobs:
       matrix:
         include:
           - target: aarch64-macos
-          - target: arm64e-macos
-            cpu: apple_a12
           - target: x86_64-macos
           - target: aarch64-ios
-          - target: arm64e-ios
-            cpu: apple_a12
           - target: aarch64-ios-simulator
             cpu: apple_a17
           - target: x86_64-ios-simulator
           - target: aarch64-ios-macabi
-            cpu: apple_a17
-          - target: arm64e-ios-macabi
             cpu: apple_a17
           - target: x86_64-ios-macabi
     steps:
