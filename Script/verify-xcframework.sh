@@ -103,9 +103,9 @@ for library in libraries:
         )
 
     expected_architectures = {
-        ("macos", None): {"arm64", "arm64e", "x86_64"},
-        ("ios", None): {"arm64", "arm64e"},
-        ("ios", "maccatalyst"): {"arm64", "arm64e", "x86_64"},
+        ("macos", None): {"arm64", "x86_64"},
+        ("ios", None): {"arm64"},
+        ("ios", "maccatalyst"): {"arm64", "x86_64"},
         ("ios", "simulator"): {"arm64", "x86_64"},
     }.get((platform, platform_variant))
     if expected_architectures is not None and actual_architectures != expected_architectures:

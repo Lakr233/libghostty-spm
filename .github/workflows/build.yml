@@ -118,25 +118,16 @@ jobs:
         include:
           - target: aarch64-macos
             variant: macosx
-          - target: arm64e-macos
-            variant: macosx
-            cpu: apple_a12
           - target: x86_64-macos
             variant: macosx
           - target: aarch64-ios
             variant: iphoneos
-          - target: arm64e-ios
-            variant: iphoneos
-            cpu: apple_a12
           - target: aarch64-ios-simulator
             variant: iphonesimulator
             cpu: apple_a17
           - target: x86_64-ios-simulator
             variant: iphonesimulator
           - target: aarch64-ios-macabi
-            variant: maccatalyst
-            cpu: apple_a17
-          - target: arm64e-ios-macabi
             variant: maccatalyst
             cpu: apple_a17
           - target: x86_64-ios-macabi
