@@ -262,6 +262,14 @@ else
     echo "[*] appended compatibility objects"
 fi
 
+SENTRY_SYMBOLS=$(nm -a "$OUTPUT_DIR/lib/libghostty.a" | grep -E 'crash\.sentry|_sentry_' || true)
+if [ -n "$SENTRY_SYMBOLS" ]; then
+    echo "[!] sentry symbols remain in archive"
+    echo "$SENTRY_SYMBOLS"
+    exit 1
+fi
+echo "[*] verified sentry is absent"
+
 mkdir -p "$OUTPUT_DIR/include/libghostty"
 cp "$SOURCE_DIR/include/ghostty.h" "$OUTPUT_DIR/include/libghostty/ghostty.h"
 cat >"$OUTPUT_DIR/include/libghostty/module.modulemap" <<'EOF'
