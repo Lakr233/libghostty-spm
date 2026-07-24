@@ -122,7 +122,6 @@ When changing SwiftPM products, targets, or test dependencies, update all three 
 - `storage.<package-version>` owns the XCFramework asset referenced by the matching package tag.
 - Before deleting a storage release, repoint every live manifest that references it to an available compatible asset; otherwise package resolution fails before any build starts.
 - Do not publish arm64e slices until the Zig compiler supports Apple's complete arm64e pointer-authentication ABI; never synthesize an architecture by rewriting Mach-O metadata or patching selected ABI boundaries.
-- `-Dsentry=false` must remove both the Sentry SDK and Ghostty's crash-context thread-local state; verify release archives contain no `crash.sentry` or `_sentry_` symbols.
 
 ## Swift Code Style
 
