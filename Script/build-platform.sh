@@ -79,13 +79,11 @@ case "$PLATFORM_GROUP" in
     macos)
         build_variant "macosx" \
             "aarch64-macos" \
-            "arm64e-macos@apple_a12" \
             "x86_64-macos"
         ;;
     ios)
         build_variant "iphoneos" \
-            "aarch64-ios" \
-            "arm64e-ios@apple_a12"
+            "aarch64-ios"
         build_variant "iphonesimulator" \
             "aarch64-ios-simulator@apple_a17" \
             "x86_64-ios-simulator"
@@ -93,7 +91,6 @@ case "$PLATFORM_GROUP" in
     maccatalyst)
         build_variant "maccatalyst" \
             "aarch64-ios-macabi@apple_a17" \
-            "arm64e-ios-macabi@apple_a17" \
             "x86_64-ios-macabi"
         ;;
     tvos)
