@@ -297,9 +297,14 @@ public final class TerminalController {
         onWakeup?()
     }
 
+    /// Points core at the bundled shell-integration scripts unless a host app already set `GHOSTTY_RESOURCES_DIR` itself.
     private static func initializeRuntimeIfNeeded() {
         guard !runtimeInitialized else { return }
         runtimeInitialized = true
+        if ProcessInfo.processInfo.environment["GHOSTTY_RESOURCES_DIR"] == nil,
+           let resourceDir = Bundle.module.resourceURL {
+            setenv("GHOSTTY_RESOURCES_DIR", resourceDir.path, 1)
+        }
         ghostty_init(0, nil)
     }
 

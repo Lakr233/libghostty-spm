@@ -5,10 +5,48 @@
 //  Created by Lakr233 on 2026/3/17.
 //
 
+import Foundation
+
 public enum TerminalCursorStyle: String, Sendable, Hashable {
     case block
     case bar
     case underline
+}
+
+/// Mirrors Ghostty core's `configpkg.Config.ShellIntegration`.
+/// `.detect` is resolved here against `$SHELL` since core's own detection never runs under the host-managed IO backend.
+public enum TerminalShellIntegration: Sendable, Hashable {
+    case detect
+    case none
+    case bash
+    case elvish
+    case fish
+    case nushell
+    case zsh
+
+    /// The literal value Ghostty's config text expects.
+    var rawValue: String {
+        switch self {
+        case .detect:
+            // Ported from `detectShell()` in ghostty core's `src/termio/shell_integration.zig`.
+            guard let path = ProcessInfo.processInfo.environment["SHELL"] else { return "none" }
+            let exe = path.split(separator: "/").last.map(String.init) ?? path
+            switch exe {
+            case "bash": return path == "/bin/bash" ? "none" : "bash"
+            case "elvish": return "elvish"
+            case "fish": return "fish"
+            case "nu": return "nushell"
+            case "zsh": return "zsh"
+            default: return "none"
+            }
+        case .none: return "none"
+        case .bash: return "bash"
+        case .elvish: return "elvish"
+        case .fish: return "fish"
+        case .nushell: return "nushell"
+        case .zsh: return "zsh"
+        }
+    }
 }
 
 public enum TerminalConfigCommand: Sendable, Hashable {
@@ -41,6 +79,9 @@ public enum TerminalConfigCommand: Sendable, Hashable {
     // Layout
     case windowPaddingX(Int)
     case windowPaddingY(Int)
+
+    // Shell integration
+    case shellIntegration(TerminalShellIntegration)
 
     /// Escape hatch
     case custom(key: String, value: String)
@@ -106,6 +147,9 @@ public enum TerminalConfigCommand: Sendable, Hashable {
 
         case let .windowPaddingY(value):
             "window-padding-y = \(value)"
+
+        case let .shellIntegration(value):
+            "shell-integration = \(value.rawValue)"
 
         case let .custom(key, value):
             "\(key) = \(value)"
@@ -206,6 +250,11 @@ public struct TerminalConfiguration: Sendable, Hashable {
 
         public mutating func withWindowPaddingY(_ value: Int) {
             commands.append(.windowPaddingY(value))
+        }
+
+        /// Shell integration
+        public mutating func withShellIntegration(_ value: TerminalShellIntegration) {
+            commands.append(.shellIntegration(value))
         }
 
         /// Escape hatch
@@ -325,6 +374,12 @@ public struct TerminalConfiguration: Sendable, Hashable {
 
     public func windowPaddingY(_ value: Int) -> TerminalConfiguration {
         appending(.windowPaddingY(value))
+    }
+
+    // MARK: - Shell Integration
+
+    public func shellIntegration(_ value: TerminalShellIntegration) -> TerminalConfiguration {
+        appending(.shellIntegration(value))
     }
 
     // MARK: - Escape Hatch

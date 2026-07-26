@@ -30,7 +30,8 @@ let package = Package(
         .target(
             name: "GhosttyTerminal",
             dependencies: ["GhosttyKit", "MSDisplayLink"],
-            path: "Sources/GhosttyTerminal"
+            path: "Sources/GhosttyTerminal",
+            resources: [.copy("Resources/shell-integration")]
         ),
         .target(
             name: "ShellCraftKit",
