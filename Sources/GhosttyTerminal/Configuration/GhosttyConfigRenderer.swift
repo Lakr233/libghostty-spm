@@ -30,8 +30,24 @@ enum GhosttyConfigRenderer {
             sections.append(themeLines.joined(separator: "\n"))
         }
 
+        // Ghostty core defaults `shell-integration` to `.detect`, which now
+        // actually does something since this package always points
+        // GHOSTTY_RESOURCES_DIR at its bundled scripts. Force `none` unless
+        // something above already set it, so hosts who never opted in don't
+        // silently get their shell's startup rewritten.
+        if !sections.contains(where: { setsKey("shell-integration", in: $0) }) {
+            sections.append("shell-integration = none")
+        }
+
         guard !sections.isEmpty else { return "" }
         return sections.joined(separator: "\n") + "\n"
+    }
+
+    private static func setsKey(_ key: String, in section: String) -> Bool {
+        section.split(separator: "\n").contains {
+            $0.split(separator: "=", maxSplits: 1).first?
+                .trimmingCharacters(in: .whitespaces) == key
+        }
     }
 
     private static func normalize(_ contents: String) -> String {
