@@ -36,6 +36,24 @@ private enum TerminalCallbacks {
         let bridge = Unmanaged<TerminalCallbackBridge>
             .fromOpaque(bridgePtr)
             .takeUnretainedValue()
+
+        // OPEN_URL's result controls whether Ghostty runs its fallback
+        // system opener. Deliver it synchronously so a delegate that owns the
+        // target can acknowledge the action before Ghostty decides to fall
+        // back.
+        if action.tag == GHOSTTY_ACTION_OPEN_URL {
+            if Thread.isMainThread {
+                return MainActor.assumeIsolated {
+                    bridge.handleAction(action)
+                }
+            }
+            return DispatchQueue.main.sync {
+                MainActor.assumeIsolated {
+                    bridge.handleAction(action)
+                }
+            }
+        }
+
         terminalRunOnMain {
             bridge.handleAction(action)
         }

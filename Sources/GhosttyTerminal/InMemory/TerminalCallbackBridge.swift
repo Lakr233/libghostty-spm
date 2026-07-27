@@ -25,7 +25,9 @@ final class TerminalCallbackBridge {
         self.delegate = delegate
     }
 
-    func handleAction(_ action: ghostty_action_s) {
+    /// Dispatch an action and report whether the embedder handled it.
+    @discardableResult
+    func handleAction(_ action: ghostty_action_s) -> Bool {
         switch action.tag {
         case GHOSTTY_ACTION_SET_TITLE:
             if let cStr = action.action.set_title.title {
@@ -113,8 +115,11 @@ final class TerminalCallbackBridge {
                 .actions,
                 "callback action=open_url kind=\(kind) url=\(TerminalDebugLog.describe(url))"
             )
-            (delegate as? any TerminalSurfaceOpenURLDelegate)?
-                .terminalDidRequestOpenURL(url, kind: kind)
+            guard let openURLDelegate = delegate as? any TerminalSurfaceOpenURLDelegate else {
+                return false
+            }
+            openURLDelegate.terminalDidRequestOpenURL(url, kind: kind)
+            return true
 
         case GHOSTTY_ACTION_MOUSE_OVER_LINK:
             let payload = action.action.mouse_over_link
@@ -163,6 +168,7 @@ final class TerminalCallbackBridge {
                 "callback action=\(TerminalDebugLog.describe(action.tag))"
             )
         }
+        return false
     }
 
     func handleClose(processAlive: Bool) {
