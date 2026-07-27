@@ -8,6 +8,7 @@
 
 #if canImport(AppKit) && !canImport(UIKit)
     import AppKit
+    import GhosttyKit
 
     extension AppTerminalView {
         /// Send raw UTF-8 text directly to the underlying pty (bypassing
@@ -23,6 +24,61 @@
         @discardableResult
         public func performBindingAction(_ action: String) -> Bool {
             surface?.performBindingAction(action) ?? false
+        }
+
+        /// Resolve Ghostty's link target at a view-local point without
+        /// sending a mouse button event.
+        ///
+        /// The embedded C API has no direct link query. Its existing hover
+        /// action does expose the resolved regex/OSC 8 target, so this performs
+        /// a modifier-aware pointer probe and captures that callback. Shift is
+        /// included only while a child TUI owns the mouse; Ghostty strips it
+        /// when escaping capture, leaving the Command modifier expected by its
+        /// link matcher.
+        public func linkTarget(at point: CGPoint) -> String? {
+            guard bounds.contains(point), let surface else { return nil }
+
+            let x = point.x
+            let y = bounds.height - point.y
+            let mouseCaptured = surface.isMouseCaptured
+            var probeModifiers: TerminalInputModifiers = [.super_]
+            if mouseCaptured {
+                probeModifiers.insert(.shift)
+            }
+
+            // libghostty's embedded adapter intentionally drops same-position
+            // pointer events even when only modifiers changed. An outside
+            // point makes the target event observable without a button press.
+            core.bridge.hoveredLink = nil
+            surface.sendMousePos(
+                x: -1,
+                y: -1,
+                mods: probeModifiers.ghosttyMods
+            )
+            surface.sendMousePos(
+                x: x,
+                y: y,
+                mods: probeModifiers.ghosttyMods
+            )
+            let target = core.bridge.hoveredLink
+
+            // Restore the effective modifier/hover state. Shift bypasses TUI
+            // mouse capture and is stripped by Ghostty, so this reset doesn't
+            // synthesize a click or selection in either ownership mode.
+            let restoreModifiers: TerminalInputModifiers =
+                mouseCaptured ? [.shift] : []
+            surface.sendMousePos(
+                x: -1,
+                y: -1,
+                mods: restoreModifiers.ghosttyMods
+            )
+            surface.sendMousePos(
+                x: x,
+                y: y,
+                mods: restoreModifiers.ghosttyMods
+            )
+
+            return target
         }
 
         /// Jump the viewport by a number of shell prompts.

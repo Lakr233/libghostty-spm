@@ -20,12 +20,20 @@ final class TerminalCallbackBridge {
     nonisolated(unsafe) var rawSurface: ghostty_surface_t?
     var onCellSizeChange: ((UInt32, UInt32) -> Void)?
     var onRenderRequest: (() -> Void)?
+    var hoveredLink: String?
 
     init(delegate: (any TerminalSurfaceViewDelegate)? = nil) {
         self.delegate = delegate
     }
 
-    func handleAction(_ action: ghostty_action_s) {
+    /// Dispatch an action and report whether the embedder handled it.
+    ///
+    /// Most actions are notifications and retain the wrapper's historical
+    /// `false` result. OPEN_URL is different: Ghostty interprets `false` as a
+    /// request to invoke its own system opener, so a delegate that accepted
+    /// (or deliberately blocked) the target must acknowledge the action.
+    @discardableResult
+    func handleAction(_ action: ghostty_action_s) -> Bool {
         switch action.tag {
         case GHOSTTY_ACTION_SET_TITLE:
             if let cStr = action.action.set_title.title {
@@ -113,8 +121,11 @@ final class TerminalCallbackBridge {
                 .actions,
                 "callback action=open_url kind=\(kind) url=\(TerminalDebugLog.describe(url))"
             )
-            (delegate as? any TerminalSurfaceOpenURLDelegate)?
-                .terminalDidRequestOpenURL(url, kind: kind)
+            guard let openURLDelegate = delegate as? any TerminalSurfaceOpenURLDelegate else {
+                return false
+            }
+            openURLDelegate.terminalDidRequestOpenURL(url, kind: kind)
+            return true
 
         case GHOSTTY_ACTION_MOUSE_OVER_LINK:
             let payload = action.action.mouse_over_link
@@ -123,6 +134,7 @@ final class TerminalCallbackBridge {
                 let buf = UnsafeBufferPointer(start: ptr, count: Int(payload.len))
                 return String(decoding: buf.map(UInt8.init), as: UTF8.self)
             }()
+            hoveredLink = url
             TerminalDebugLog.log(
                 .actions,
                 "callback action=mouse_over_link url=\(url.map { TerminalDebugLog.describe($0) } ?? "nil")"
@@ -163,6 +175,7 @@ final class TerminalCallbackBridge {
                 "callback action=\(TerminalDebugLog.describe(action.tag))"
             )
         }
+        return false
     }
 
     func handleClose(processAlive: Bool) {
