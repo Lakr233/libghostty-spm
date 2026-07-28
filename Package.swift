@@ -33,6 +33,7 @@ let package = Package(
             path: "Sources/GhosttyTerminal",
             resources: [
                 .copy("Resources/Ghostty"),
+                .copy("Resources/terminfo"),
             ]
         ),
         .target(
