@@ -300,6 +300,7 @@ public final class TerminalController {
     private static func initializeRuntimeIfNeeded() {
         guard !runtimeInitialized else { return }
         runtimeInitialized = true
+        GhosttyRuntimeResources.configureEnvironment()
         ghostty_init(0, nil)
     }
 

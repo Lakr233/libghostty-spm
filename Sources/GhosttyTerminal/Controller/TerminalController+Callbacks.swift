@@ -121,17 +121,38 @@ private enum TerminalCallbacks {
         let bridge = Unmanaged<TerminalCallbackBridge>
             .fromOpaque(userdata)
             .takeUnretainedValue()
-        guard let surface = bridge.rawSurface else { return }
-
         let text = String(cString: string)
+        guard let kind = TerminalClipboardRequestKind(request) else { return }
+        let requestState = UInt(bitPattern: opaquePtr)
         TerminalDebugLog.log(
             .input,
             "clipboard paste confirm request=\(request.rawValue) bytes=\(text.utf8.count) lines=\(TerminalInputText.lineCount(in: text))"
         )
-        text.withCString { cString in
-            ghostty_surface_complete_clipboard_request(surface, cString, opaquePtr, true)
+        terminalRunOnMain {
+            guard let surface = bridge.rawSurface else { return }
+            guard let opaquePtr = UnsafeMutableRawPointer(bitPattern: requestState) else {
+                return
+            }
+            bridge.handleClipboardConfirmation(
+                contents: text,
+                kind: kind
+            ) { allowed in
+                guard bridge.rawSurface == surface else { return }
+                let completedText = allowed ? text : ""
+                completedText.withCString { cString in
+                    ghostty_surface_complete_clipboard_request(
+                        surface,
+                        cString,
+                        opaquePtr,
+                        true
+                    )
+                }
+                TerminalDebugLog.log(
+                    .input,
+                    allowed ? "clipboard request allowed" : "clipboard request denied"
+                )
+            }
         }
-        TerminalDebugLog.log(.input, "clipboard paste confirmed")
     }
 }
 

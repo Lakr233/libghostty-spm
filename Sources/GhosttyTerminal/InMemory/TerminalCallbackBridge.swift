@@ -173,4 +173,22 @@ final class TerminalCallbackBridge {
         (delegate as? any TerminalSurfaceCloseDelegate)?
             .terminalDidClose(processAlive: processAlive)
     }
+
+    func handleClipboardConfirmation(
+        contents: String,
+        kind: TerminalClipboardRequestKind,
+        completion: @escaping (Bool) -> Void
+    ) {
+        guard let delegate = delegate as? any TerminalSurfaceClipboardConfirmationDelegate else {
+            completion(false)
+            return
+        }
+        delegate.terminalDidRequestClipboardConfirmation(
+            TerminalClipboardConfirmationRequest(
+                contents: contents,
+                kind: kind,
+                completion: completion
+            )
+        )
+    }
 }
