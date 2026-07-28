@@ -301,10 +301,12 @@ public final class TerminalController {
     private static func initializeRuntimeIfNeeded() {
         guard !runtimeInitialized else { return }
         runtimeInitialized = true
+        #if os(macOS)
         if ProcessInfo.processInfo.environment["GHOSTTY_RESOURCES_DIR"] == nil,
            let resourceDir = Bundle.module.resourceURL {
             setenv("GHOSTTY_RESOURCES_DIR", resourceDir.path, 1)
         }
+        #endif
         ghostty_init(0, nil)
     }
 

@@ -13,6 +13,8 @@ public enum TerminalCursorStyle: String, Sendable, Hashable {
     case underline
 }
 
+#if os(macOS)
+
 /// Mirrors Ghostty core's `configpkg.Config.ShellIntegration`.
 /// `.detect` is resolved here against `$SHELL` since core's own detection never runs under the host-managed IO backend.
 public enum TerminalShellIntegration: Sendable, Hashable {
@@ -49,6 +51,8 @@ public enum TerminalShellIntegration: Sendable, Hashable {
     }
 }
 
+#endif
+
 public enum TerminalConfigCommand: Sendable, Hashable {
     // Font
     case fontFamily(String)
@@ -81,7 +85,9 @@ public enum TerminalConfigCommand: Sendable, Hashable {
     case windowPaddingY(Int)
 
     // Shell integration
+    #if os(macOS)
     case shellIntegration(TerminalShellIntegration)
+    #endif
 
     /// Escape hatch
     case custom(key: String, value: String)
@@ -148,8 +154,10 @@ public enum TerminalConfigCommand: Sendable, Hashable {
         case let .windowPaddingY(value):
             "window-padding-y = \(value)"
 
+        #if os(macOS)
         case let .shellIntegration(value):
             "shell-integration = \(value.rawValue)"
+        #endif
 
         case let .custom(key, value):
             "\(key) = \(value)"
@@ -252,10 +260,12 @@ public struct TerminalConfiguration: Sendable, Hashable {
             commands.append(.windowPaddingY(value))
         }
 
+        #if os(macOS)
         /// Shell integration
         public mutating func withShellIntegration(_ value: TerminalShellIntegration) {
             commands.append(.shellIntegration(value))
         }
+        #endif
 
         /// Escape hatch
         public mutating func withCustom(_ key: String, _ value: String) {
@@ -378,9 +388,11 @@ public struct TerminalConfiguration: Sendable, Hashable {
 
     // MARK: - Shell Integration
 
+    #if os(macOS)
     public func shellIntegration(_ value: TerminalShellIntegration) -> TerminalConfiguration {
         appending(.shellIntegration(value))
     }
+    #endif
 
     // MARK: - Escape Hatch
 
