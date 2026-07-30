@@ -84,7 +84,7 @@ _entrypoint() {
         }
     } 2>/dev/null || (( _ghostty_fd = 1 ))
 
-    # Defer initialization so that other zsh init files can be configure
+    # Defer initialization so that other zsh init files can configure
     # the integration.
     builtin typeset -ag precmd_functions
     precmd_functions+=(_ghostty_deferred_init)
@@ -388,7 +388,7 @@ _ghostty_deferred_init() {
 
     # Unfunction _ghostty_deferred_init to save memory. Don't unfunction
     # ghostty-integration though because decent public functions aren't supposed to
-    # to unfunction themselves when invoked. Unfunctioning is done by calling code.
+    # unfunction themselves when invoked. Unfunctioning is done by calling code.
     builtin unfunction _ghostty_deferred_init
 }
 

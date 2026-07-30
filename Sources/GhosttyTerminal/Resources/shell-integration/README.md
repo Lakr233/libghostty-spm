@@ -37,7 +37,7 @@ fi
 
 ### Elvish
 
-For [Elvish](https://elv.sh), `$GHOSTTY_RESOURCES_DIR/src/shell-integration`
+For [Elvish](https://elv.sh), `$GHOSTTY_RESOURCES_DIR/shell-integration`
 contains an `./elvish/lib/ghostty-integration.elv` file.
 
 Elvish, on startup, searches for paths defined in `XDG_DATA_DIRS`
@@ -45,7 +45,7 @@ variable for `./elvish/lib/*.elv` files and imports them. They are thus
 made available for use as modules by way of `use <filename>`.
 
 Ghostty launches Elvish, passing the environment with `XDG_DATA_DIRS` prepended
-with `$GHOSTTY_RESOURCES_DIR/src/shell-integration`. It contains
+with `$GHOSTTY_RESOURCES_DIR/shell-integration`. It contains
 `./elvish/lib/ghostty-integration.elv`. The user can then import it
 by `use ghostty-integration` every time after shell startup or
 autostart integration in `$XDG_CONFIG_HOME/elvish/rc.elv`,

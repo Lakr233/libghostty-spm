@@ -115,6 +115,8 @@ When changing SwiftPM products, targets, or test dependencies, update all three 
 - `Package.local.swift` — local development (path-based binary target)
 - `Package.swift.template` — CI template with `__DOWNLOAD_URL__` / `__CHECKSUM__` placeholders
 
+SwiftPM's `.copy("Resources/shell-integration")` preserves the hidden `zsh/.zshenv` file in the built resource bundle; inspect the bundle before adding duplicate rules for hidden resources.
+
 ### Release Versioning
 
 - Bare semantic-version tags are GhosttyKit Swift package versions, independent of Ghostty upstream versions.

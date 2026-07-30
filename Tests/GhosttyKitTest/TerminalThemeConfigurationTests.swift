@@ -53,6 +53,31 @@ struct TerminalThemeConfigurationTests {
         #expect(state.renderedConfig.contains("background = #111111"))
     }
 
+    #if os(macOS)
+    @Test
+    func `rendered config disables shell integration by default`() {
+        let rendered = GhosttyConfigRenderer.render(
+            baseContents: "",
+            configuration: TerminalConfiguration(),
+            theme: TerminalConfiguration()
+        )
+
+        #expect(rendered == "shell-integration = none\n")
+    }
+
+    @Test
+    func `explicit shell integration replaces the default`() {
+        let rendered = GhosttyConfigRenderer.render(
+            baseContents: "",
+            configuration: TerminalConfiguration()
+                .shellIntegration(.zsh),
+            theme: TerminalConfiguration()
+        )
+
+        #expect(rendered == "shell-integration = zsh\n")
+    }
+    #endif
+
     @Test
     func `valid configuration update preserves controller identity`() {
         let state = TerminalViewState(
