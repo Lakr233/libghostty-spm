@@ -82,8 +82,7 @@ so our integration focuses on Ghostty-specific features like `sudo`,
 `ssh-env`, and `ssh-terminfo`.
 
 The shell integration is automatically enabled when running Nushell in Ghostty,
-but you can also load it manually is shell integration is disabled:
-
+but you can also load it manually if shell integration is disabled:
 ```nushell
 source $GHOSTTY_RESOURCES_DIR/shell-integration/nushell/vendor/autoload/ghostty.nu
 use ghostty *
