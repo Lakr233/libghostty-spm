@@ -20,4 +20,24 @@ struct TerminalSurfaceOptionsTests {
         extraEntry.envVars = ["A": "1", "B": "2"]
         #expect(!base.isEquivalent(to: extraEntry))
     }
+
+    @Test
+    func `command and waitAfterCommand default to nil`() {
+        #expect(TerminalSurfaceOptions().command == nil)
+        #expect(TerminalSurfaceOptions().waitAfterCommand == nil)
+    }
+
+    @Test
+    func `isEquivalent considers command and waitAfterCommand`() {
+        let base = TerminalSurfaceOptions(command: "top", waitAfterCommand: true)
+        #expect(base.isEquivalent(to: base))
+
+        var changedCommand = base
+        changedCommand.command = "htop"
+        #expect(!base.isEquivalent(to: changedCommand))
+
+        var changedWait = base
+        changedWait.waitAfterCommand = false
+        #expect(!base.isEquivalent(to: changedWait))
+    }
 }
