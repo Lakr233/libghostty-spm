@@ -117,22 +117,20 @@ PY
 fi
 
 # =============================================================================
-# Patch 2: Metal.zig — iOS first-frame display + synchronous present
+# Patch 2: Metal.zig — iOS first-frame display + main-thread present
 #
 # Problem 1: On iOS the IOSurfaceLayer is added as a sublayer of the UIView's
 # backing layer. By the time the renderer registers its display callback the
 # sublayer already has its bounds set, so no "display" message is generated.
 # The first frame never renders.
 #
-# Problem 2: The async present path dispatches to the main thread via GCD.
-# On iOS the render loop already runs on the main thread, so the async
-# dispatch adds an unnecessary runloop turn of latency and can cause ordering
-# issues with UIKit layout.
+# Problem 2: The synchronous present path writes directly to CALayer. On iOS
+# the render loop runs on a background thread, so the layer mutation must use
+# the main-thread-safe present path.
 #
 # Fix:
-# - Call setNeedsDisplay after registering the display callback on iOS
-# - On iOS, always use the synchronous present path (setSurface checks
-#   isMainThread internally and runs inline when true)
+# - Dispatch setNeedsDisplay to main after callback registration on iOS
+# - On iOS, always use setSurface, which enforces main-thread layer mutation
 # =============================================================================
 METAL_ZIG="${SOURCE_DIR}/src/renderer/Metal.zig"
 if [ -f "$METAL_ZIG" ]; then
@@ -155,10 +153,31 @@ new_cb = """        @ptrCast(&displayCallback),
     );
 
     // iOS: sublayer bounds are already set before the callback is wired up,
-    // so no display message fires automatically. Kick the first frame.
+    // so no display message fires automatically. The render loop runs off
+    // main, so dispatch the Core Animation mutation to the main queue.
     if (comptime builtin.os.tag == .ios) {
-        self.layer.layer.msgSend(void, objc.sel("setNeedsDisplay"), .{});
+        var block = SetNeedsDisplayBlock.init(.{
+            .layer = self.layer.layer.value,
+        }, &setNeedsDisplayCallback);
+        macos.dispatch.dispatch_async(
+            @ptrCast(macos.dispatch.queue.getMain()),
+            @ptrCast(&block),
+        );
     }
+}
+
+const SetNeedsDisplayBlock = objc.Block(struct {
+    layer: objc.c.id,
+}, .{}, void);
+
+fn setNeedsDisplayCallback(
+    block: *const SetNeedsDisplayBlock.Context,
+) callconv(.c) void {
+    objc.Object.fromId(block.layer).msgSend(
+        void,
+        objc.sel("setNeedsDisplay"),
+        .{},
+    );
 }"""
 
 if old_cb not in src:
@@ -166,7 +185,7 @@ if old_cb not in src:
     sys.exit(1)
 src = src.replace(old_cb, new_cb)
 
-# iOS render loop is main-thread; skip the async dispatch path entirely.
+# iOS render loop is background; always use the main-thread-safe present path.
 old_present = """pub inline fn present(self: *Metal, target: Target, sync: bool) !void {
     if (sync) {
         self.layer.setSurfaceSync(target.surface);
@@ -176,8 +195,8 @@ old_present = """pub inline fn present(self: *Metal, target: Target, sync: bool)
 }"""
 
 new_present = """pub inline fn present(self: *Metal, target: Target, sync: bool) !void {
-    // iOS: always present synchronously — the render loop already runs on
-    // the main thread, so the async GCD hop is unnecessary overhead.
+    // iOS: setSurface moves the CALayer update to main when rendering occurs
+    // off-main.
     if (comptime builtin.os.tag == .ios) {
         try self.layer.setSurface(target.surface);
         return;
@@ -195,7 +214,7 @@ if old_present not in src:
 src = src.replace(old_present, new_present)
 
 path.write_text(src)
-print("[+] patched Metal.zig: iOS first-frame trigger + sync present")
+print("[+] patched Metal.zig: iOS first-frame trigger + main-thread present")
 PY
     else
         echo "[+] Metal.zig already patched"
