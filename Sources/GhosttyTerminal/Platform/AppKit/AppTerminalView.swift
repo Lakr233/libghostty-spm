@@ -39,6 +39,14 @@
             core.setDisplayVisible(visible)
         }
 
+        /// Adjusts this surface's resize coalescing window without rebuilding
+        /// it. Overrides `TerminalSurfaceOptions.resizeThrottleMilliseconds`,
+        /// which is the declarative home for the same policy and the one every
+        /// platform can reach; pass `nil` to fall back to it.
+        open func setResizeThrottle(milliseconds: Double?) {
+            core.resizeThrottleInterval = milliseconds.map { max(0, $0) / 1000 }
+        }
+
         var surface: TerminalSurface? {
             core.surface
         }
