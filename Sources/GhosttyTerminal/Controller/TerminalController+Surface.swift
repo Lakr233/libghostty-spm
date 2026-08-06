@@ -28,6 +28,10 @@ extension TerminalController {
             surfaceConfig.font_size = fontSize
         }
 
+        if let waitAfterCommand = configuration.waitAfterCommand {
+            surfaceConfig.wait_after_command = waitAfterCommand
+        }
+
         // Like `working_directory` below, the pointers only need to outlive
         // `ghostty_surface_new`, which copies the values during surface init.
         return withEnvVarEntries(configuration.envVars) { entries, count in
@@ -39,6 +43,7 @@ extension TerminalController {
                 configuration: configuration,
                 config: &surfaceConfig,
                 workingDirectory: configuration.workingDirectory,
+                command: configuration.command,
                 platformSetup: platformSetup
             )
         }
@@ -98,9 +103,42 @@ extension TerminalController {
         configuration: TerminalSurfaceOptions,
         config: inout ghostty_surface_config_s,
         workingDirectory: String?,
+        command: String?,
         platformSetup: (inout ghostty_surface_config_s) -> Void
     ) -> ghostty_surface_t? {
         guard let workingDirectory else {
+            return finalizeCommand(
+                app: app,
+                bridge: bridge,
+                configuration: configuration,
+                config: &config,
+                command: command,
+                platformSetup: platformSetup
+            )
+        }
+
+        return workingDirectory.withCString { ptr in
+            config.working_directory = ptr
+            return finalizeCommand(
+                app: app,
+                bridge: bridge,
+                configuration: configuration,
+                config: &config,
+                command: command,
+                platformSetup: platformSetup
+            )
+        }
+    }
+
+    private func finalizeCommand(
+        app: ghostty_app_t,
+        bridge: TerminalCallbackBridge,
+        configuration: TerminalSurfaceOptions,
+        config: inout ghostty_surface_config_s,
+        command: String?,
+        platformSetup: (inout ghostty_surface_config_s) -> Void
+    ) -> ghostty_surface_t? {
+        guard let command else {
             return buildSurface(
                 app: app,
                 bridge: bridge,
@@ -110,8 +148,8 @@ extension TerminalController {
             )
         }
 
-        return workingDirectory.withCString { ptr in
-            config.working_directory = ptr
+        return command.withCString { ptr in
+            config.command = ptr
             return buildSurface(
                 app: app,
                 bridge: bridge,
