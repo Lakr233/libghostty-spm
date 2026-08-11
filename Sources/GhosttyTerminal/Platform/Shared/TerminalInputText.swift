@@ -43,3 +43,25 @@ enum TerminalInputText {
         text.hasPrefix("UIKeyInput")
     }
 }
+
+enum TerminalSoftwareKeyCommitRoute: Sendable, Equatable {
+    case suppressHardwareDuplicate
+    case semanticEnter
+    case text
+}
+
+enum TerminalSoftwareKeyCommitRouter {
+    static func route(
+        text: String,
+        hasMarkedText: Bool,
+        hardwareKeyHandled: Bool
+    ) -> TerminalSoftwareKeyCommitRoute {
+        if hardwareKeyHandled {
+            return .suppressHardwareDuplicate
+        }
+        if !hasMarkedText, text == "\n" || text == "\r" {
+            return .semanticEnter
+        }
+        return .text
+    }
+}

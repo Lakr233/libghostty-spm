@@ -3,6 +3,55 @@ import Testing
 
 struct TerminalInputTextTests {
     @Test
+    func `routes lone software return commits as semantic enter`() {
+        #expect(
+            TerminalSoftwareKeyCommitRouter.route(
+                text: "\n",
+                hasMarkedText: false,
+                hardwareKeyHandled: false
+            ) == .semanticEnter
+        )
+        #expect(
+            TerminalSoftwareKeyCommitRouter.route(
+                text: "\r",
+                hasMarkedText: false,
+                hardwareKeyHandled: false
+            ) == .semanticEnter
+        )
+    }
+
+    @Test
+    func `keeps paste and marked text on text path`() {
+        for text in ["a\n", "\n\n", "\r\n", "first\nsecond\n"] {
+            #expect(
+                TerminalSoftwareKeyCommitRouter.route(
+                    text: text,
+                    hasMarkedText: false,
+                    hardwareKeyHandled: false
+                ) == .text
+            )
+        }
+        #expect(
+            TerminalSoftwareKeyCommitRouter.route(
+                text: "\n",
+                hasMarkedText: true,
+                hardwareKeyHandled: false
+            ) == .text
+        )
+    }
+
+    @Test
+    func `hardware duplicate wins over software return classification`() {
+        #expect(
+            TerminalSoftwareKeyCommitRouter.route(
+                text: "\n",
+                hasMarkedText: false,
+                hardwareKeyHandled: true
+            ) == .suppressHardwareDuplicate
+        )
+    }
+
+    @Test
     func `filters apple private use function keys from text path`() {
         #expect(TerminalInputText.filteredFunctionKeyText("\u{F702}") == nil)
         #expect(TerminalInputText.filteredFunctionKeyText("\u{F703}") == nil)
@@ -35,3 +84,29 @@ struct TerminalInputTextTests {
         #expect(TerminalInputText.lineCount(in: "line 1\nline 2\nline 3") == 2)
     }
 }
+
+#if canImport(UIKit) && !targetEnvironment(macCatalyst)
+    @MainActor
+    struct TerminalSoftwareReturnStickyModifierTests {
+        @Test
+        func `armed control is consumed by software return`() {
+            let state = TerminalStickyModifierState()
+            state.toggle(.ctrl)
+
+            #expect(state.ctrl == .armed)
+            #expect(state.consumeForNextKey() == .ctrl)
+            #expect(state.ctrl == .inactive)
+        }
+
+        @Test
+        func `locked control remains locked after software return`() {
+            let state = TerminalStickyModifierState()
+            state.toggle(.ctrl)
+            state.toggle(.ctrl)
+
+            #expect(state.ctrl == .locked)
+            #expect(state.consumeForNextKey() == .ctrl)
+            #expect(state.ctrl == .locked)
+        }
+    }
+#endif

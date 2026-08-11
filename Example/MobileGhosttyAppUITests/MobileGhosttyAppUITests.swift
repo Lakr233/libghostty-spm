@@ -33,7 +33,20 @@ final class MobileGhosttyAppUITests: XCTestCase {
         let terminal = try requireTerminalInteractionTarget()
 
         capture("01-launch")
-        typeTerminalText("echo ui-single\n", in: terminal)
+        typeTerminalText("uname\n", in: terminal)
+        let output = app.descendants(matching: .any)["terminal.output"].firstMatch
+        XCTAssertTrue(output.waitForExistence(timeout: 4))
+        let expectedReturnOutput = "Darwin ghostty-sandbox host-managed"
+        let outputExpectation = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "value CONTAINS %@", expectedReturnOutput),
+            object: output
+        )
+        XCTAssertEqual(
+            XCTWaiter.wait(for: [outputExpectation], timeout: 4),
+            .completed
+        )
+        let viewport = try XCTUnwrap(output.value as? String)
+        XCTAssertEqual(viewport.nonOverlappingCount(of: expectedReturnOutput), 1)
         capture("02-single-line-input")
 
         typeTerminalText("echo first line\n", in: terminal)
@@ -446,4 +459,19 @@ final class MobileGhosttyAppUITests: XCTestCase {
             "x"
         }
     #endif
+}
+
+private extension String {
+    func nonOverlappingCount(of needle: String) -> Int {
+        guard !needle.isEmpty else { return 0 }
+        var count = 0
+        var searchStart = startIndex
+        while searchStart < endIndex,
+              let range = range(of: needle, range: searchStart ..< endIndex)
+        {
+            count += 1
+            searchStart = range.upperBound
+        }
+        return count
+    }
 }
