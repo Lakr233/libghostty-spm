@@ -14,6 +14,9 @@ final class ViewController: UIViewController {
     ) { builder in
         builder.withBackgroundOpacity(0)
     }
+    #if DEBUG
+        private var uiTestOutputView: TerminalOutputAccessibilityView?
+    #endif
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -64,6 +67,23 @@ final class ViewController: UIViewController {
             terminalView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             terminalView.bottomAnchor.constraint(equalTo: view.keyboardLayoutGuide.topAnchor),
         ])
+
+        #if DEBUG
+            if ProcessInfo.processInfo.arguments.contains("--ui-testing") {
+                let output = TerminalOutputAccessibilityView(
+                    session: shellSession.terminalSession
+                )
+                output.translatesAutoresizingMaskIntoConstraints = false
+                view.addSubview(output)
+                NSLayoutConstraint.activate([
+                    output.topAnchor.constraint(equalTo: view.topAnchor),
+                    output.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+                    output.widthAnchor.constraint(equalToConstant: 1),
+                    output.heightAnchor.constraint(equalToConstant: 1),
+                ])
+                uiTestOutputView = output
+            }
+        #endif
     }
 
     private func activateTerminal() {
@@ -198,6 +218,32 @@ final class ViewController: UIViewController {
         }
     }
 }
+
+#if DEBUG
+    private final class TerminalOutputAccessibilityView: UIView {
+        private let session: InMemoryTerminalSession
+
+        init(session: InMemoryTerminalSession) {
+            self.session = session
+            super.init(frame: .zero)
+            isAccessibilityElement = true
+            accessibilityIdentifier = "terminal.output"
+            accessibilityLabel = "Terminal Output"
+            isUserInteractionEnabled = false
+            alpha = 0.01
+        }
+
+        @available(*, unavailable)
+        required init?(coder _: NSCoder) {
+            fatalError("init(coder:) has not been implemented")
+        }
+
+        override var accessibilityValue: String? {
+            get { session.readViewportText() }
+            set {}
+        }
+    }
+#endif
 
 // MARK: - Terminal Callbacks
 

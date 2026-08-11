@@ -1,0 +1,179 @@
+diff --git a/include/ghostty.h b/include/ghostty.h
+--- a/include/ghostty.h
++++ b/include/ghostty.h
+@@ -1126,6 +1126,7 @@ GHOSTTY_API void ghostty_surface_update_config(ghostty_surface_t, ghostty_config
+ GHOSTTY_API bool ghostty_surface_needs_confirm_quit(ghostty_surface_t);
+ GHOSTTY_API bool ghostty_surface_process_exited(ghostty_surface_t);
+ GHOSTTY_API void ghostty_surface_write_buffer(ghostty_surface_t, const uint8_t*, uintptr_t);
++GHOSTTY_API void ghostty_surface_write_buffer_replay(ghostty_surface_t, const uint8_t*, uintptr_t);
+ GHOSTTY_API void ghostty_surface_process_exit(ghostty_surface_t, uint32_t, uint64_t);
+ GHOSTTY_API void ghostty_surface_refresh(ghostty_surface_t);
+ GHOSTTY_API void ghostty_surface_draw(ghostty_surface_t);
+diff --git a/src/apprt/embedded.zig b/src/apprt/embedded.zig
+--- a/src/apprt/embedded.zig
++++ b/src/apprt/embedded.zig
+@@ -1660,6 +1660,20 @@ pub const CAPI = struct {
+     ) void {
+         if (len == 0) return;
+         surface.core_surface.io.processOutput(ptr[0..len]);
++    }
++
++    /// Process host output as reconstructed history. The parser and terminal
++    /// state are updated exactly as with ghostty_surface_write_buffer, but
++    /// terminal protocol responses caused by this buffer are discarded at
++    /// their origin. The suppression flag and parser state share the same
++    /// terminal-state mutex, so the flag cannot outlive this parser call.
++    export fn ghostty_surface_write_buffer_replay(
++        surface: *Surface,
++        ptr: [*]const u8,
++        len: usize,
++    ) void {
++        if (len == 0) return;
++        surface.core_surface.io.processOutputSuppressingResponses(ptr[0..len]);
+     }
+ 
+     export fn ghostty_surface_process_exit(
+diff --git a/src/apprt/surface.zig b/src/apprt/surface.zig
+--- a/src/apprt/surface.zig
++++ b/src/apprt/surface.zig
+@@ -107,5 +107,16 @@ pub const Message = union(enum) {
+     /// Selected search index change
+     search_selected: ?usize,
++
++    /// Discard parser-originated surface requests whose eventual effect is a
++    /// terminal protocol response. These requests must not escape a
++    /// reconstructed-history replay scope through the asynchronous surface
++    /// mailbox.
++    pub fn discardIfTerminalResponse(self: Message) bool {
++        return switch (self) {
++            .report_title, .clipboard_read => true,
++            else => false,
++        };
++    }
+ 
+     pub const ReportTitleStyle = enum {
+         csi_21_t,
+@@ -195,3 +206,13 @@ pub fn newConfig(
+ 
+     return copy;
+ }
++
++test "replay response classification for surface messages" {
++    const testing = std.testing;
++
++    try testing.expect((Message{ .report_title = .csi_21_t }).discardIfTerminalResponse());
++    try testing.expect((Message{ .clipboard_read = .standard }).discardIfTerminalResponse());
++
++    const bell: Message = .ring_bell;
++    try testing.expect(!bell.discardIfTerminalResponse());
++}
+diff --git a/src/termio/Termio.zig b/src/termio/Termio.zig
+--- a/src/termio/Termio.zig
++++ b/src/termio/Termio.zig
+@@ -648,6 +648,21 @@ pub fn processOutput(self: *Termio, buf: []const u8) void {
+     self.processOutputLocked(buf);
+ }
+ 
++/// Process reconstructed terminal history without sending protocol replies
++/// back to the host. Response suppression is scoped to this parser call while
++/// the terminal-state mutex is held. The prior suppression state is restored
++/// before this call returns.
++pub fn processOutputSuppressingResponses(self: *Termio, buf: []const u8) void {
++    self.renderer_state.mutex.lock();
++    defer self.renderer_state.mutex.unlock();
++
++    const previous = self.terminal_stream.handler.suppress_terminal_responses;
++    self.terminal_stream.handler.suppress_terminal_responses = true;
++    defer self.terminal_stream.handler.suppress_terminal_responses = previous;
++
++    self.processOutputLocked(buf);
++}
++
+ /// Process output from readdata but the lock is already held.
+ fn processOutputLocked(self: *Termio, buf: []const u8) void {
+     // Schedule a render. We can call this first because we have the lock.
+diff --git a/src/termio/message.zig b/src/termio/message.zig
+--- a/src/termio/message.zig
++++ b/src/termio/message.zig
+@@ -93,6 +93,27 @@ pub const Message = union(enum) {
+         };
+     }
+ 
++    /// Discard messages whose only effect is sending terminal protocol bytes
++    /// to the backend. Returns false for state and lifecycle messages that
++    /// still need to be processed during reconstructed-history replay.
++    pub fn discardIfTerminalResponse(self: Message) bool {
++        switch (self) {
++            .color_scheme_report,
++            .size_report,
++            .focused,
++            .write_small,
++            .write_stable,
++            => return true,
++
++            .write_alloc => |value| {
++                value.alloc.free(value.data);
++                return true;
++            },
++
++            else => return false,
++        }
++    }
++
+     /// The types of size reports that we support.
+     pub const SizeReport = terminal.size_report.Style;
+ };
+@@ -106,3 +127,17 @@ test {
+     const testing = std.testing;
+     try testing.expectEqual(@as(usize, 40), @sizeOf(Message));
+ }
++
++test "replay response classification frees owned writes and preserves state" {
++    const testing = std.testing;
++
++    try testing.expect((Message{ .write_stable = "response" }).discardIfTerminalResponse());
++
++    const owned = try testing.allocator.dupe(u8, "allocated response");
++    try testing.expect((Message{ .write_alloc = .{
++        .alloc = testing.allocator,
++        .data = owned,
++    } }).discardIfTerminalResponse());
++
++    try testing.expect(!(Message{ .linefeed_mode = true }).discardIfTerminalResponse());
++}
+diff --git a/src/termio/stream_handler.zig b/src/termio/stream_handler.zig
+--- a/src/termio/stream_handler.zig
++++ b/src/termio/stream_handler.zig
+@@ -78,6 +78,12 @@ pub const StreamHandler = struct {
+     /// to wake up the termio thread.
+     termio_messaged: bool = false,
+ 
++    /// When true, parser-originated messages that would write terminal
++    /// protocol responses back to the backend are discarded. This is used by
++    /// host-managed replay and is changed only while the terminal-state mutex
++    /// is held.
++    suppress_terminal_responses: bool = false,
++
+     /// This is set to true when we've seen a title escape sequence. We use
+     /// this to determine if we need to default the window title.
+     seen_title: bool = false,
+@@ -128,6 +134,9 @@ pub const StreamHandler = struct {
+         self: *StreamHandler,
+         msg: apprt.surface.Message,
+     ) void {
++        if (self.suppress_terminal_responses and msg.discardIfTerminalResponse()) {
++            return;
++        }
+         // See messageWriter which has similar logic and explains why
+         // we may have to do this.
+         if (self.surface_mailbox.push(msg, .{ .instant = {} }) == 0) {
+@@ -136,6 +145,9 @@ pub const StreamHandler = struct {
+     }
+ 
+     inline fn messageWriter(self: *StreamHandler, msg: termio.Message) void {
++        if (self.suppress_terminal_responses and msg.discardIfTerminalResponse()) {
++            return;
++        }
+         self.termio_mailbox.send(msg, self.renderer_state.mutex);
+         self.termio_messaged = true;
+     }

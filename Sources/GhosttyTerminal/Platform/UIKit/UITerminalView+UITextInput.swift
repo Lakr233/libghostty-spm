@@ -48,7 +48,13 @@
         // MARK: - UIKeyInput
 
         open func insertText(_ text: String) {
-            guard !hardwareKeyHandled else {
+            let route = TerminalSoftwareKeyCommitRouter.route(
+                text: text,
+                hasMarkedText: inputHandler.hasMarkedText,
+                hardwareKeyHandled: hardwareKeyHandled
+            )
+
+            if route == .suppressHardwareDuplicate {
                 TerminalDebugLog.log(
                     .input,
                     "insertText suppressed text=\(TerminalDebugLog.describe(text))"
@@ -56,6 +62,18 @@
                 hardwareKeyHandled = false
                 return
             }
+
+            #if !targetEnvironment(macCatalyst)
+                if route == .semanticEnter {
+                    let mods = stickyModifiers.consumeForNextKey()
+                    TerminalDebugLog.log(
+                        .input,
+                        "insertText semantic enter mods=0x\(String(mods.ghosttyMods.rawValue, radix: 16))"
+                    )
+                    sendSyntheticKey(usage: 0x28, additionalMods: mods)
+                    return
+                }
+            #endif
 
             #if !targetEnvironment(macCatalyst)
                 if inputHandler.hasMarkedText {
