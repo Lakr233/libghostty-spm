@@ -51,9 +51,20 @@
             )
             updateDisplayScale()
             if window != nil {
-                core.rebuildIfReady()
+                // UIKit detaches the hierarchy temporarily all the time — a
+                // full-screen cover (tab switcher) pulls the presenter's view
+                // out of the window. Rebuilding on every reattach discards
+                // Ghostty's grid and scrollback, so a surface that already
+                // exists is kept and only re-measured, matching the AppKit
+                // twin's reattach guard.
+                if core.surface == nil {
+                    core.rebuildIfReady()
+                } else {
+                    core.synchronizeMetrics()
+                }
                 updateColorScheme()
                 core.startDisplayLink()
+                core.requestImmediateTick()
                 // Defer sublayer frame and metrics sync to the next runloop
                 // so that AutoLayout has resolved final bounds.
                 DispatchQueue.main.async { [weak self] in
@@ -62,8 +73,10 @@
                     core.fitToSize()
                 }
             } else {
+                // The surface survives on purpose: this detach may be a
+                // cover's temporary one, and the view's own teardown frees
+                // the surface when the terminal really goes away.
                 core.stopDisplayLink()
-                core.freeSurface()
             }
         }
 
