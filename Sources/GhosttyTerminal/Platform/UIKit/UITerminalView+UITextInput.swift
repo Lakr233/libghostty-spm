@@ -69,7 +69,40 @@
                 }
             #endif
 
+            // The software keyboard's Return arrives as a text insertion of
+            // "\n". The text path is paste-like — with bracketed paste active
+            // the shell inserts a literal newline into its edit buffer
+            // instead of accepting the line — so Return must travel the key
+            // path, the way a hardware keyboard delivers it. Longer strings
+            // containing newlines (dictation, actual pastes) stay on the
+            // text path, where paste semantics are correct.
+            if text == "\n" {
+                sendReturnKey()
+                return
+            }
+
             inputHandler.insertText(text)
+        }
+
+        /// Deliver Return exactly as a hardware keyboard would: one Enter key
+        /// event through the core's key encoder, so terminal modes (kitty
+        /// keyboard protocol included) keep deciding the bytes.
+        private func sendReturnKey() {
+            let usage = UInt16(UIKeyboardHIDUsage.keyboardReturnOrEnter.rawValue)
+
+            var keyEvent = ghostty_input_key_s()
+            keyEvent.action = GHOSTTY_ACTION_PRESS
+            keyEvent.mods = ghostty_input_mods_e(rawValue: 0)
+            keyEvent.keycode = TerminalHardwareKeyRouter.appKitKeyCodeForUIKit(
+                usage: usage
+            )
+            keyEvent.composing = false
+
+            let carriageReturn = "\r"
+            carriageReturn.withCString { ptr in
+                keyEvent.text = ptr
+                surface?.sendKeyEvent(keyEvent)
+            }
         }
 
         open func deleteBackward() {
