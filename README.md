@@ -21,7 +21,17 @@ Swift Package wrapping [Ghostty](https://ghostty.org)'s terminal emulator librar
 
 ## Installation
 
-Add to your `Package.swift`:
+Add to your `Package.swift`. Tracking `main` is the recommended way to
+integrate — fixes land there continuously, while tagged releases are cut
+irregularly and may lag well behind:
+
+```swift
+dependencies: [
+    .package(url: "https://github.com/Lakr233/libghostty-spm.git", branch: "main"),
+]
+```
+
+If your project requires a pinned version instead:
 
 ```swift
 dependencies: [

@@ -63,32 +63,10 @@
                 hardwareKeyHandled = true
             }
 
-            let delivery = TerminalHardwareKeyRouter.routeUIKit(
-                usage: UInt16(key.keyCode.rawValue),
-                backend: configuration.backend,
-                modifiers: mods
-            )
-
             TerminalDebugLog.log(
                 .input,
-                "uikit key action=\(TerminalDebugLog.describe(action)) code=\(key.keyCode.rawValue) chars=\(TerminalDebugLog.describe(key.characters)) ignoring=\(TerminalDebugLog.describe(key.charactersIgnoringModifiers)) mods=0x\(String(filteredModifierFlags.rawValue, radix: 16)) delivery=\(delivery.debugSummary) marked=\(inputHandler.hasMarkedText)"
+                "uikit key action=\(TerminalDebugLog.describe(action)) code=\(key.keyCode.rawValue) chars=\(TerminalDebugLog.describe(key.characters)) ignoring=\(TerminalDebugLog.describe(key.charactersIgnoringModifiers)) mods=0x\(String(filteredModifierFlags.rawValue, radix: 16)) marked=\(inputHandler.hasMarkedText)"
             )
-
-            if action == GHOSTTY_ACTION_RELEASE, delivery.isDirectInput {
-                return
-            }
-
-            if handleDirectInputIfNeeded(
-                delivery,
-                action: action,
-                isCommandModified: isCommandModified,
-                filteredModifierFlags: filteredModifierFlags
-            ) {
-                if let keyboardZoomDirection {
-                    scheduleViewportRefreshAfterKeyboardZoom(keyboardZoomDirection)
-                }
-                return
-            }
 
             var keyEvent = ghostty_input_key_s()
             keyEvent.action = action
@@ -153,29 +131,6 @@
             guard !key.characters.isEmpty else {
                 return key.keyCode == .keyboardDeleteOrBackspace
             }
-            return true
-        }
-
-        private func handleDirectInputIfNeeded(
-            _ delivery: TerminalHardwareKeyDelivery,
-            action: ghostty_input_action_e,
-            isCommandModified: Bool,
-            filteredModifierFlags: UIKeyModifierFlags
-        ) -> Bool {
-            // When IME composition is active, UIKit must own editing keys such as
-            // backspace and arrows so candidate text stays in sync.
-            guard !inputHandler.hasMarkedText else { return false }
-            guard !isCommandModified else { return false }
-            guard filteredModifierFlags.intersection([.alternate, .control]).isEmpty else {
-                return false
-            }
-            guard action == GHOSTTY_ACTION_PRESS || action == GHOSTTY_ACTION_REPEAT else {
-                return false
-            }
-            guard case let .data(sequence) = delivery else { return false }
-            guard case let .inMemory(session) = configuration.backend else { return false }
-
-            session.sendInput(sequence)
             return true
         }
 

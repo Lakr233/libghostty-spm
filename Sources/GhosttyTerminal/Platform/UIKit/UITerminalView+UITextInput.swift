@@ -128,17 +128,6 @@
                 }
             #endif
 
-            let delivery = TerminalHardwareKeyRouter.routeUIKit(
-                usage: usage,
-                backend: configuration.backend
-            )
-            if case let .data(sequence) = delivery,
-               case let .inMemory(session) = configuration.backend
-            {
-                session.sendInput(sequence)
-                return
-            }
-
             var keyEvent = ghostty_input_key_s()
             keyEvent.action = GHOSTTY_ACTION_PRESS
             keyEvent.mods = ghostty_input_mods_e(rawValue: 0)
