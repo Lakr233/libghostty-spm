@@ -33,6 +33,14 @@ struct TerminalViewRepresentable {
         if !view.configuration.isEquivalent(to: configuration) {
             view.configuration = configuration
         }
+
+        #if canImport(UIKit) && !targetEnvironment(macCatalyst)
+            let accessoryItems = context.inputAccessoryItems
+                ?? TerminalInputAccessoryItem.defaultItems
+            if view.inputAccessoryItems != accessoryItems {
+                view.inputAccessoryItems = accessoryItems
+            }
+        #endif
     }
 
     static func synchronizeFocus(_ view: TerminalView, with binding: TerminalFocusBinding?) {

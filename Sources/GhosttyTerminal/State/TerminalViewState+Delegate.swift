@@ -18,7 +18,8 @@ extension TerminalViewState:
     TerminalSurfacePwdDelegate,
     TerminalSurfaceScrollbarDelegate,
     TerminalSurfaceCommandFinishedDelegate,
-    TerminalSurfaceLifecycleDelegate
+    TerminalSurfaceLifecycleDelegate,
+    TerminalSurfaceTextSelectionRequestDelegate
 {
     public func terminalDidChangeTitle(_ title: String) {
         self.title = title
@@ -58,6 +59,10 @@ extension TerminalViewState:
     public func terminalDidFinishCommand(exitCode: Int?, durationNanos: UInt64) {
         lastCommandExitCode = exitCode
         lastCommandDurationNanos = durationNanos
+    }
+
+    public func terminalDidRequestTextSelection(_ request: TerminalTextSelectionRequest) {
+        onTextSelectionRequest?(request)
     }
 
     public func terminalDidAttachSurface(_ surface: TerminalSurface) {
