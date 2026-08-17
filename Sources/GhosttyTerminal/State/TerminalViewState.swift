@@ -36,6 +36,20 @@ public final class TerminalViewState: ObservableObject {
     public var onClose: ((Bool) -> Void)?
     @Published public internal(set) var controller: TerminalController
 
+    #if canImport(UIKit) && !targetEnvironment(macCatalyst)
+        /// Items of the software keyboard's input accessory bar, in order.
+        /// `nil` shows `TerminalInputAccessoryItem.defaultItems`; an empty
+        /// array hides the bar. Applied to the platform view by the SwiftUI
+        /// representable.
+        @Published public var inputAccessoryItems: [TerminalInputAccessoryItem]?
+    #endif
+
+    /// Host hook for the iOS long-press text-selection flow. Setting this is
+    /// the opt-in: while it is `nil` the long-press recognizer stays inactive,
+    /// exactly as if the delegate never adopted
+    /// ``TerminalSurfaceTextSelectionRequestDelegate``.
+    public var onTextSelectionRequest: ((TerminalTextSelectionRequest) -> Void)?
+
     /// Sends text to the attached surface.
     @discardableResult
     public func send(_ text: String) -> Bool {

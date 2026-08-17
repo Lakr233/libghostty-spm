@@ -294,12 +294,35 @@
             guard copySelectedTextToPasteboard() else { return }
         }
 
+        /// A paste has to reach the surface as a paste.
+        ///
+        /// `UIResponder`'s default implementation for a `UIKeyInput` conformer
+        /// pastes by calling `insertText(_:)`, and that path now encodes text
+        /// as key input — which strips the bracketed-paste markers a shell
+        /// relies on to tell pasted text from typing. A pasted command with
+        /// newlines would run line by line instead of landing in the edit
+        /// buffer. Taking the action ourselves keeps clipboard text on
+        /// `sendText`, where ghostty wraps it for mode 2004.
+        @IBAction override open func paste(_: Any?) {
+            guard let text = UIPasteboard.general.string, !text.isEmpty else {
+                return
+            }
+            TerminalDebugLog.log(
+                .input,
+                "paste bytes=\(text.utf8.count) lines=\(TerminalInputText.lineCount(in: text))"
+            )
+            surface?.sendText(text)
+        }
+
         override open func canPerformAction(
             _ action: Selector,
             withSender sender: Any?
         ) -> Bool {
             if action == #selector(copy(_:)) {
                 return surface?.hasSelection() == true
+            }
+            if action == #selector(paste(_:)) {
+                return UIPasteboard.general.hasStrings
             }
             return super.canPerformAction(action, withSender: sender)
         }
@@ -448,11 +471,25 @@
                 }
             }
 
+            /// The delegate to hand a long-press selection to, or nil when no
+            /// host opted in. A `TerminalViewState` delegate conforms
+            /// unconditionally, so for SwiftUI hosts the opt-in is its
+            /// `onTextSelectionRequest` closure being set.
+            var activeTextSelectionDelegate: (any TerminalSurfaceTextSelectionRequestDelegate)? {
+                guard let delegate = delegate as? any TerminalSurfaceTextSelectionRequestDelegate else {
+                    return nil
+                }
+                if let state = delegate as? TerminalViewState, state.onTextSelectionRequest == nil {
+                    return nil
+                }
+                return delegate
+            }
+
             @objc func handleLongPressForSelection(
                 _ gesture: UILongPressGestureRecognizer
             ) {
                 guard gesture.state == .began else { return }
-                guard let delegate = delegate as? any TerminalSurfaceTextSelectionRequestDelegate else { return }
+                guard let delegate = activeTextSelectionDelegate else { return }
                 guard let surface else { return }
                 guard case let .inMemory(session) = configuration.backend else {
                     TerminalDebugLog.log(.input, "long-press selection ignored: backend not inMemory")
@@ -629,7 +666,11 @@
             _ gestureRecognizer: UIGestureRecognizer
         ) -> Bool {
             if gestureRecognizer is UILongPressGestureRecognizer {
-                return (delegate as? any TerminalSurfaceTextSelectionRequestDelegate) != nil
+                #if targetEnvironment(macCatalyst)
+                    return (delegate as? any TerminalSurfaceTextSelectionRequestDelegate) != nil
+                #else
+                    return activeTextSelectionDelegate != nil
+                #endif
             }
             return true
         }
