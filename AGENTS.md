@@ -79,7 +79,7 @@ All example apps run in App Sandbox. Use `GHOSTTY_SURFACE_IO_BACKEND_HOST_MANAGE
 `UITerminalView` conforms to `UITextInput` (which includes `UIKeyInput`) to receive both software keyboard and hardware keyboard input on iOS/Catalyst. The input chain:
 
 1. **Hardware keys** → `pressesBegan`/`pressesEnded` in `+Keyboard.swift` → builds `ghostty_input_key_s` → `surface.sendKeyEvent()`. Sets `hardwareKeyHandled = true` to suppress the duplicate `insertText`/`deleteBackward` that UIKit would otherwise deliver.
-2. **Software keyboard** → UIKit calls `insertText(_:)` / `deleteBackward()` via UIKeyInput. Guarded by `hardwareKeyHandled` flag to avoid double-processing hardware key presses.
+2. **Software keyboard** → UIKit calls `insertText(_:)` / `deleteBackward()` via UIKeyInput. Guarded by `hardwareKeyHandled` flag to avoid double-processing hardware key presses. The text is then re-encoded as a key event (`sendTypedText`), **not** handed to `surface.sendText` — see "Key Path vs Text Path" below.
 3. **Input accessory bar** (iOS only, excludes Catalyst) → `TerminalInputAccessoryView` provides a toolbar above the software keyboard with Esc, Tab, arrow keys, modifier keys (Ctrl/Alt/Cmd), symbol keys, and Paste. Modifier keys support **sticky states**: tap to arm (consumed after next key), double-tap to lock (persists until toggled off). Sticky modifier state is tracked by `TerminalStickyModifierState`. Actions are dispatched via `UITerminalView+InputAccessory.swift`. Button colors are configurable via `TerminalInputAccessoryStyle` (regular/active background and foreground), exposed as `UITerminalView.inputAccessoryStyle`.
 4. **IME / marked text** → `setMarkedText` / `unmarkText` delegate to `TerminalTextInputHandler`, which calls `surface.preedit()` for inline composition preview. Committed text goes through `insertText`. Sticky modifiers are respected during IME composition.
 5. **Text positioning** → `TerminalTextPosition` / `TerminalTextRange` (UITextPosition/UITextRange subclasses) provide minimal cursor geometry. `caretRect`/`firstRect` use `surface.imePoint()` for IME candidate window placement.
@@ -100,6 +100,69 @@ Files in `Platform/UIKit/`:
 - `TerminalTextPosition.swift` — TerminalTextPosition / TerminalTextRange subclasses
 
 The macOS equivalent uses `NSTextInputClient` in `AppTerminalView+NSTextInputClient.swift` with a parallel `TerminalTextInputHandler@AppKit.swift`.
+
+### Key Path vs Text Path (read before touching input)
+
+libghostty has two ways to get characters into a surface, and they are **not**
+interchangeable:
+
+| | C API | ghostty core | shell sees |
+| --- | --- | --- | --- |
+| key path | `ghostty_surface_key` | `keyEvent` → key encoder | keystrokes, per terminal mode (legacy / modifyOtherKeys / Kitty) |
+| text path | `ghostty_surface_text` | `textCallback` → `completeClipboardPaste` | **a paste**, wrapped in `ESC[200~ … ESC[201~` when the app enabled bracketed paste (mode 2004) |
+
+The header says it outright: *"Send raw text to the terminal. This is treated
+like a paste, so this isn't useful for sending escape sequences. For that,
+individual key input should be used."*
+
+**Typing goes on the key path. Only clipboard content goes on the text path.**
+
+Getting this backwards does not fail loudly — it produces symptoms that look
+like rendering or cursor bugs, because the shell is the thing that behaves
+differently:
+
+- zsh renders a pasted region using `zle_highlight`'s `paste:standout`, so a
+  character typed through the text path sits there **reverse-video** until the
+  next edit redraws the line. It reads as a block cursor stuck on the last
+  character with the real cursor blinking a cell ahead. `zle_highlight=(paste:none)`
+  in the affected session makes it vanish — that is the one-line confirmation
+  that a paste, not the renderer, is at fault.
+- Return sent as text lands in the edit buffer as a literal newline under
+  bracketed paste instead of accepting the line (fixed in `f8c1bde`, which is
+  why `insertText("\n")` is special-cased to a synthetic Return key event).
+- A host that tries to rewrite the outbound byte stream to add modifiers hits
+  the bracketed-paste markers wrapped around every `sendText` call, which is
+  why the sticky-modifier state machine is exposed instead
+  (`UITerminalView+PublicSticky.swift`).
+
+Neither the AppKit path nor the sample app can catch a regression here:
+
+- AppKit types through `keyDown`, accumulating `insertText` output into the key
+  event, so it never touches the text path for typed characters.
+- `Example/MobileGhosttyApp` drives a ShellCraftKit simulated shell, which has
+  no bracketed paste at all. **Only a real shell over a pty shows the bug**, so
+  verify iOS input against one (`zsh` on device), not against the sample app.
+
+Where this lives today, in `Platform/UIKit`:
+
+- `TerminalTextInputHandler@UIKit.swift` → `sendTypedText(_:)` — typing, IME
+  commits, dictation, autocorrect replacements. Builds a `ghostty_input_key_s`
+  with `keycode = 0xFFFF`, deliberately outside the AppKit virtual-keycode
+  table, so ghostty resolves the physical key to `.unidentified` and encodes
+  from `text` alone. The legacy encoder writes unmodified printable text
+  directly; the Kitty encoder treats an unmapped key carrying UTF-8 as a pure
+  text event. Text containing newlines falls back to the text path — whatever
+  produced it, a shell must not read those lines as Return presses.
+- `UITerminalView+Interaction.swift` → `paste(_:)` — clipboard only, on
+  `sendText`. This override is **load-bearing**: `UIResponder`'s default paste
+  for a `UIKeyInput` conformer calls `insertText(_:)`, which would send a
+  pasted multi-line command through the key path and run it line by line.
+  `canPerformAction` gates it on `UIPasteboard.general.hasStrings`.
+- `UITerminalView+InputAccessory.swift` → the accessory bar's Paste button,
+  also `sendText`.
+
+When adding an input entry point, decide which of the two it is first, and say
+so in the code — "it's just text" is the mistake this section exists to prevent.
 
 ### iOS Long-Press Text Selection
 

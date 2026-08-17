@@ -78,10 +78,26 @@
         ///
         /// The keycode is deliberately out of the AppKit virtual-keycode
         /// table, so ghostty resolves the physical key to `.unidentified`
-        /// and encodes from the text alone. Real pastes (the accessory's
-        /// paste button, `UIPasteboard` flows) keep using `sendText`.
+        /// and encodes from the text alone. Both of ghostty's encoders
+        /// handle that: the legacy one writes unmodified printable text
+        /// directly, and the Kitty one treats an unmapped key carrying UTF-8
+        /// as a pure text event — the same shape IME commits already had.
+        ///
+        /// Real pastes (the accessory's Paste button, the edit menu's
+        /// `paste(_:)`) keep using `sendText`, where the bracketed-paste
+        /// markers belong. Text with newlines is routed there too: whatever
+        /// produced it, a shell must not see those lines as Return presses.
         private func sendTypedText(_ text: String) {
             guard let view, !text.isEmpty else { return }
+
+            guard !text.contains(where: \.isNewline) else {
+                TerminalDebugLog.log(
+                    .input,
+                    "typed text has newlines, sending as paste bytes=\(text.utf8.count)"
+                )
+                view.surface?.sendText(text)
+                return
+            }
 
             var event = ghostty_input_key_s()
             event.action = GHOSTTY_ACTION_PRESS
