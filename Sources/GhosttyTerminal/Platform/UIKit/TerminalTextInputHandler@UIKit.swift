@@ -49,10 +49,10 @@
                 if applyingStickyModifiers {
                     _ = view.handleStickyCommittedText(text)
                 } else {
-                    view.surface?.sendText(text)
+                    sendTypedText(text)
                 }
             #else
-                view.surface?.sendText(text)
+                sendTypedText(text)
             #endif
             view.refreshInputAccessoryContent()
 
@@ -60,6 +60,41 @@
                 view.inputDelegate?.selectionDidChange(view)
             }
             view.inputDelegate?.textDidChange(view)
+        }
+
+        /// Deliver keyboard text the way a hardware keystroke does: on a key
+        /// event that carries the text, so ghostty's key encoder writes the
+        /// bytes.
+        ///
+        /// `ghostty_surface_text` is documented as "treated like a paste" —
+        /// it lands in `completeClipboardPaste`, so with bracketed paste
+        /// (mode 2004) active every software-keyboard character reaches the
+        /// shell wrapped in `ESC[200~ … ESC[201~`. zsh renders a pasted
+        /// region with `zle_highlight`'s `paste:standout`, which is why the
+        /// character just typed shows up reverse-video until the next edit
+        /// redraws the line. AppKit never hits this because typed text rides
+        /// its `keyDown` event, and the bundled sample app never hits it
+        /// because its simulated shell has no bracketed paste at all.
+        ///
+        /// The keycode is deliberately out of the AppKit virtual-keycode
+        /// table, so ghostty resolves the physical key to `.unidentified`
+        /// and encodes from the text alone. Real pastes (the accessory's
+        /// paste button, `UIPasteboard` flows) keep using `sendText`.
+        private func sendTypedText(_ text: String) {
+            guard let view, !text.isEmpty else { return }
+
+            var event = ghostty_input_key_s()
+            event.action = GHOSTTY_ACTION_PRESS
+            event.mods = ghostty_input_mods_e(rawValue: 0)
+            event.consumed_mods = ghostty_input_mods_e(rawValue: 0)
+            event.keycode = 0xFFFF
+            event.composing = false
+            event.unshifted_codepoint = text.unicodeScalars.first.map(\.value) ?? 0
+
+            text.withCString { ptr in
+                event.text = ptr
+                view.surface?.sendKeyEvent(event)
+            }
         }
 
         func setMarkedText(_ text: String?, selectedRange: NSRange) {
@@ -133,10 +168,10 @@
                     if applyingStickyModifiers {
                         _ = view.handleStickyCommittedText(committedText)
                     } else {
-                        view.surface?.sendText(committedText)
+                        sendTypedText(committedText)
                     }
                 #else
-                    view.surface?.sendText(committedText)
+                    sendTypedText(committedText)
                 #endif
             }
             view.refreshInputAccessoryContent()
