@@ -41,10 +41,14 @@ struct TerminalViewRepresentable {
         DispatchQueue.main.async { [weak view] in
             #if canImport(UIKit)
                 guard let view, view.window != nil else { return }
-                if binding.isFocused {
-                    if !view.isFirstResponder { view.becomeFirstResponder() }
-                } else if view.isFirstResponder {
-                    _ = view.resignFirstResponder()
+                // Acquire-only: `FocusState` resets itself to nil whenever
+                // SwiftUI's own focus system re-evaluates (no native focusable
+                // view anchors it), so treating false as "resign" tears the
+                // keyboard down right after it opens. Moving focus between
+                // surfaces doesn't need the resign either — UIKit retires the
+                // old first responder when the next surface acquires.
+                if binding.isFocused, !view.isFirstResponder {
+                    view.becomeFirstResponder()
                 }
             #elseif canImport(AppKit)
                 guard let view, let window = view.window else { return }
