@@ -6,122 +6,19 @@
 import Foundation
 import GhosttyKit
 
-enum TerminalHardwareKeyDelivery: Equatable {
-    case ghostty(ghostty_input_key_e)
-    case data(Data)
-
-    var isDirectInput: Bool {
-        if case .data = self {
-            return true
-        }
-        return false
-    }
-}
-
 enum TerminalHardwareKeyRouter {
-    static func routeUIKit(
-        usage: UInt16,
-        backend: TerminalSessionBackend
-    ) -> TerminalHardwareKeyDelivery {
-        if case .inMemory = backend,
-           let data = directControlInputForUIKit(usage: usage)
-        {
-            return .data(data)
-        }
+    // Every key on every backend travels through `ghostty_surface_key`, so
+    // the core's key encoder owns the bytes: DECCKM application-cursor
+    // sequences, kitty keyboard protocol, and modifier-aware escapes all
+    // stay correct. The in-memory backend forwards the encoder's output to
+    // the host verbatim (termio queueWrite -> host write callback), so it
+    // needs no raw-byte side channel.
 
-        return .ghostty(ghosttyKeyForUIKit(usage: usage))
-    }
-
-    static func routeUIKit(
-        usage: UInt16,
-        backend: TerminalSessionBackend,
-        modifiers: TerminalInputModifiers
-    ) -> TerminalHardwareKeyDelivery {
-        // Raw host-managed bytes only represent the unmodified control key.
-        // Modified synthetic accessory keys need a real Ghostty key event so
-        // the backend can emit the correct escape sequence for those modifiers.
-        guard modifiers.isEmpty else {
-            return .ghostty(ghosttyKeyForUIKit(usage: usage))
-        }
-        return routeUIKit(usage: usage, backend: backend)
-    }
-
-    static func routeAppKit(
-        keyCode: UInt16,
-        backend: TerminalSessionBackend
-    ) -> TerminalHardwareKeyDelivery {
-        if case .inMemory = backend,
-           let data = directControlInputForAppKit(keyCode: keyCode)
-        {
-            return .data(data)
-        }
-
-        return .ghostty(ghosttyKeyForAppKit(keyCode: keyCode))
-    }
-
-    private static func directControlInputForUIKit(usage: UInt16) -> Data? {
-        switch usage {
-        case 0x2A:
-            Data([0x7F])
-        case 0x2B:
-            Data([0x09])
-        case 0x4C:
-            Data("\u{1B}[3~".utf8)
-        case 0x4A:
-            Data("\u{1B}[H".utf8)
-        case 0x4D:
-            Data("\u{1B}[F".utf8)
-        case 0x4B:
-            Data("\u{1B}[5~".utf8)
-        case 0x4E:
-            Data("\u{1B}[6~".utf8)
-        case 0x4F:
-            Data("\u{1B}[C".utf8)
-        case 0x50:
-            Data("\u{1B}[D".utf8)
-        case 0x51:
-            Data("\u{1B}[B".utf8)
-        case 0x52:
-            Data("\u{1B}[A".utf8)
-        default:
-            nil
-        }
-    }
-
-    private static func directControlInputForAppKit(keyCode: UInt16) -> Data? {
-        switch keyCode {
-        case 0x33:
-            Data([0x7F])
-        case 0x30:
-            Data([0x09])
-        case 0x75:
-            Data("\u{1B}[3~".utf8)
-        case 0x73:
-            Data("\u{1B}[H".utf8)
-        case 0x77:
-            Data("\u{1B}[F".utf8)
-        case 0x74:
-            Data("\u{1B}[5~".utf8)
-        case 0x79:
-            Data("\u{1B}[6~".utf8)
-        case 0x7B:
-            Data("\u{1B}[D".utf8)
-        case 0x7C:
-            Data("\u{1B}[C".utf8)
-        case 0x7D:
-            Data("\u{1B}[B".utf8)
-        case 0x7E:
-            Data("\u{1B}[A".utf8)
-        default:
-            nil
-        }
-    }
-
-    private static func ghosttyKeyForUIKit(usage: UInt16) -> ghostty_input_key_e {
+    static func ghosttyKey(forUIKitUsage usage: UInt16) -> ghostty_input_key_e {
         uiKitMap[usage] ?? GHOSTTY_KEY_UNIDENTIFIED
     }
 
-    private static func ghosttyKeyForAppKit(keyCode: UInt16) -> ghostty_input_key_e {
+    static func ghosttyKey(forAppKitKeyCode keyCode: UInt16) -> ghostty_input_key_e {
         appKitMap[keyCode] ?? GHOSTTY_KEY_UNIDENTIFIED
     }
 

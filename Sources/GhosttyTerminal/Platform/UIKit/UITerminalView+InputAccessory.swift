@@ -66,40 +66,13 @@
                 inputHandler.unmarkText()
             }
 
-            // Unmodified accessory arrows/Esc/Tab can still use the direct
-            // in-memory byte path, but sticky modifiers must round-trip
-            // through Ghostty so modifier-aware escape sequences are preserved.
-            let delivery = TerminalHardwareKeyRouter.routeUIKit(
-                usage: usage,
-                backend: configuration.backend,
-                modifiers: additionalMods
+            var event = ghostty_input_key_s()
+            event.action = GHOSTTY_ACTION_PRESS
+            event.keycode = TerminalHardwareKeyRouter.appKitKeyCode(
+                for: TerminalHardwareKeyRouter.ghosttyKey(forUIKitUsage: usage)
             )
-
-            if !additionalMods.isEmpty, let ghosttyKey = ghosttyKey(from: delivery) {
-                var event = ghostty_input_key_s()
-                event.action = GHOSTTY_ACTION_PRESS
-                event.keycode = TerminalHardwareKeyRouter.appKitKeyCode(
-                    for: ghosttyKey
-                )
-                event.mods = additionalMods.ghosttyMods
-                _ = surface.sendKeyEvent(event)
-                return
-            }
-
-            switch delivery {
-            case let .data(data):
-                guard case let .inMemory(session) = configuration.backend else { return }
-                session.sendInput(data)
-
-            case let .ghostty(ghosttyKey):
-                var event = ghostty_input_key_s()
-                event.action = GHOSTTY_ACTION_PRESS
-                event.keycode = TerminalHardwareKeyRouter.appKitKeyCode(
-                    for: ghosttyKey
-                )
-                event.mods = additionalMods.ghosttyMods
-                _ = surface.sendKeyEvent(event)
-            }
+            event.mods = additionalMods.ghosttyMods
+            _ = surface.sendKeyEvent(event)
         }
 
         @discardableResult
@@ -173,19 +146,16 @@
                 inputHandler.unmarkText()
             }
 
-            if case let .inMemory(session) = configuration.backend {
-                session.sendInput(Data([byte]))
-            } else if let surface {
-                var event = ghostty_input_key_s()
-                event.action = GHOSTTY_ACTION_PRESS
-                event.mods = modifiers.ghosttyMods
-                let char = Character(UnicodeScalar(byte | 0x60))
-                let ghosttyKey = ghosttyKeyForCharacter(char)
-                event.keycode = TerminalHardwareKeyRouter.appKitKeyCode(
-                    for: ghosttyKey
-                )
-                _ = surface.sendKeyEvent(event)
-            }
+            guard let surface else { return }
+            var event = ghostty_input_key_s()
+            event.action = GHOSTTY_ACTION_PRESS
+            event.mods = modifiers.ghosttyMods
+            let char = Character(UnicodeScalar(byte | 0x60))
+            let ghosttyKey = ghosttyKeyForCharacter(char)
+            event.keycode = TerminalHardwareKeyRouter.appKitKeyCode(
+                for: ghosttyKey
+            )
+            _ = surface.sendKeyEvent(event)
         }
 
         private func controlByte(for text: String) -> UInt8? {
@@ -224,11 +194,6 @@
             }
 
             return true
-        }
-
-        private func ghosttyKey(from delivery: TerminalHardwareKeyDelivery) -> ghostty_input_key_e? {
-            guard case let .ghostty(ghosttyKey) = delivery else { return nil }
-            return ghosttyKey
         }
 
         private func keyMapping(

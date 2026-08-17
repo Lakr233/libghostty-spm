@@ -291,14 +291,3 @@ extension TerminalSurfaceContext {
         }
     }
 }
-
-extension TerminalHardwareKeyDelivery {
-    var debugSummary: String {
-        switch self {
-        case let .ghostty(key):
-            "ghostty(\(key.rawValue))"
-        case let .data(data):
-            "data(\(TerminalDebugLog.describe(data)))"
-        }
-    }
-}
