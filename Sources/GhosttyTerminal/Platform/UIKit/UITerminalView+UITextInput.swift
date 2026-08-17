@@ -40,6 +40,16 @@
             set {}
         }
 
+        /// Off for the same reason as autocorrection, and doubly so: the
+        /// system delivers inline predictions as marked text, which a
+        /// terminal renders as highlighted preedit at the caret — plain
+        /// typing then looks perpetually selected.
+        @available(iOS 17.0, *)
+        open var inlinePredictionType: UITextInlinePredictionType {
+            get { .no }
+            set {}
+        }
+
         open var keyboardType: UIKeyboardType {
             get { .default }
             set {}
