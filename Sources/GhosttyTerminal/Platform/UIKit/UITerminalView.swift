@@ -28,6 +28,11 @@
         #endif
         lazy var selectionContextMenuInteraction = UIContextMenuInteraction(delegate: self)
         var hardwareKeyHandled = false
+        /// Signatures of control combos already delivered this runloop turn.
+        /// One physical press can reach us twice — `pressesBegan` and a
+        /// matching `UIKeyCommand` — and which arrives (or both) varies by
+        /// iPadOS version; whichever runs first claims the press here.
+        var recentControlKeyDeliveries: Set<String> = []
         let touchScrollMultiplier: CGFloat = 3.0
         #if !targetEnvironment(macCatalyst)
             var currentFontSize: Float = 14
@@ -260,9 +265,27 @@
                 )
             }
 
-            @objc func keyboardDidShow(_: Notification) {
+            @objc func keyboardDidShow(_ notification: Notification) {
                 guard isFirstResponder else { return }
-                softwareKeyboardVisible = true
+                softwareKeyboardVisible = isSoftwareKeyboardNotification(notification)
+            }
+
+            /// A hardware keyboard posts keyboardDidShow too — for the
+            /// accessory bar alone. Believing it means the next tap on the
+            /// terminal runs the tap-to-dismiss path and resigns first
+            /// responder, killing all hardware input. Only a frame tall
+            /// enough to hold actual keys counts as the software keyboard.
+            private func isSoftwareKeyboardNotification(
+                _ notification: Notification
+            ) -> Bool {
+                guard
+                    let value = notification
+                        .userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? NSValue
+                else { return true }
+                let screenBounds = window?.screen.bounds ?? UIScreen.main.bounds
+                let visibleHeight = value.cgRectValue
+                    .intersection(screenBounds).height
+                return visibleHeight > terminalInputAccessory.bounds.height + 44
             }
 
             @objc func keyboardDidHide(_: Notification) {
