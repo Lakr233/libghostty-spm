@@ -72,6 +72,7 @@
                     updateSublayerFrames()
                     core.fitToSize()
                 }
+                onWindowAttach?()
             } else {
                 // The surface survives on purpose: this detach may be a
                 // cover's temporary one, and the view's own teardown frees
