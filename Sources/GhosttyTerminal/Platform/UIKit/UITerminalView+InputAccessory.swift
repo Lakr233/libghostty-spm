@@ -165,7 +165,10 @@
             return ascii & 0x1F
         }
 
-        private func sendModifiedTextKey(
+        // Not sticky-modifier logic — a plain "character + held modifiers →
+        // one key event" synthesizer; the hardware key-command fallback
+        // (UITerminalView+Keyboard) sends through it too.
+        func sendModifiedTextKey(
             _ text: String,
             modifiers: TerminalInputModifiers
         ) -> Bool {

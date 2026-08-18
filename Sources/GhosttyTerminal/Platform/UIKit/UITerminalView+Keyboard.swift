@@ -10,6 +10,89 @@
     import UIKit
 
     extension UITerminalView {
+        /// Ctrl combos the text input system would otherwise interpret
+        /// itself: as a `UITextInput` first responder, the view hands
+        /// hardware keys to UIKit's text machinery, which consumes most
+        /// Ctrl+letter chords (its emacs-style bindings) before
+        /// `pressesBegan` ever fires. Registering them as key commands with
+        /// priority over system behavior is the only reliable claim — the
+        /// same route Blink and SwiftTerm take.
+        private static let controlKeyCommandInputs: [String] = {
+            var inputs = (UInt8(ascii: "a") ... UInt8(ascii: "z")).map {
+                String(UnicodeScalar($0))
+            }
+            inputs += (UInt8(ascii: "0") ... UInt8(ascii: "9")).map {
+                String(UnicodeScalar($0))
+            }
+            inputs += [" ", "-", "=", "[", "]", "\\", ";", "'", ",", ".", "/", "`"]
+            return inputs
+        }()
+
+        private static let controlKeyCommands: [UIKeyCommand] =
+            controlKeyCommandInputs.map { input in
+                let command = UIKeyCommand(
+                    input: input,
+                    modifierFlags: .control,
+                    action: #selector(handleControlKeyCommand(_:))
+                )
+                command.wantsPriorityOverSystemBehavior = true
+                return command
+            }
+
+        override open var keyCommands: [UIKeyCommand]? {
+            #if targetEnvironment(macCatalyst)
+                return super.keyCommands
+            #else
+                var commands = super.keyCommands ?? []
+                commands.append(contentsOf: Self.controlKeyCommands)
+                return commands
+            #endif
+        }
+
+        @objc private func handleControlKeyCommand(_ command: UIKeyCommand) {
+            #if !targetEnvironment(macCatalyst)
+                guard let input = command.input, !input.isEmpty else { return }
+                guard claimControlKeyDelivery(
+                    input: input,
+                    modifierFlags: command.modifierFlags
+                ) else { return }
+                TerminalDebugLog.log(
+                    .input,
+                    "uikit key command input=\(TerminalDebugLog.describe(input)) mods=0x\(String(command.modifierFlags.rawValue, radix: 16))"
+                )
+                _ = sendModifiedTextKey(
+                    input,
+                    modifiers: TerminalInputModifiers(from: command.modifierFlags)
+                )
+            #endif
+        }
+
+        /// Whether this path gets to deliver the combo. Whichever of
+        /// `pressesBegan` / the key command runs first wins the press; the
+        /// entry expires at the end of the runloop turn, before the key can
+        /// physically repeat.
+        func claimControlKeyDelivery(
+            input: String,
+            modifierFlags: UIKeyModifierFlags
+        ) -> Bool {
+            let relevant = modifierFlags.intersection(
+                [.control, .shift, .alternate, .command]
+            )
+            let signature = "\(input.lowercased())|\(relevant.rawValue)"
+            guard !recentControlKeyDeliveries.contains(signature) else {
+                TerminalDebugLog.log(
+                    .input,
+                    "uikit key delivery deduped signature=\(signature)"
+                )
+                return false
+            }
+            recentControlKeyDeliveries.insert(signature)
+            DispatchQueue.main.async { [weak self] in
+                self?.recentControlKeyDeliveries.remove(signature)
+            }
+            return true
+        }
+
         override open func pressesBegan(
             _ presses: Set<UIPress>,
             with _: UIPressesEvent?
@@ -99,6 +182,20 @@
                 keyEvent.unshifted_codepoint = codepoint.value
             }
 
+            // The key command fallback may have sent this very combo already
+            // (see `controlKeyCommands`); on systems that deliver both, the
+            // first claim wins and this press stays silent.
+            if action == GHOSTTY_ACTION_PRESS,
+               filteredModifierFlags.contains(.control),
+               let input = filteredIgnoringModifiers,
+               !claimControlKeyDelivery(
+                   input: input,
+                   modifierFlags: filteredModifierFlags
+               )
+            {
+                return
+            }
+
             guard !isCommandModified else {
                 _ = surface.sendKeyEvent(keyEvent)
                 if let keyboardZoomDirection {
@@ -107,9 +204,23 @@
                 return
             }
 
-            guard let text = TerminalInputText.filteredFunctionKeyText(key.characters),
-                  !text.isEmpty
-            else {
+            var derivedText = TerminalInputText.filteredFunctionKeyText(key.characters)
+
+            // Ctrl+letter arrives with `characters` already collapsed to the
+            // raw control byte, which the core's key encoder does not accept
+            // as a key. AppKit re-derives the printable text without control
+            // (NSEvent.filteredCharacters); UIKey cannot re-apply modifier
+            // sets, so the unmodified character stands in.
+            if filteredModifierFlags.contains(.control),
+               let scalars = derivedText?.unicodeScalars,
+               scalars.count == 1,
+               let scalar = scalars.first,
+               scalar.value < 0x20
+            {
+                derivedText = filteredIgnoringModifiers
+            }
+
+            guard let text = derivedText, !text.isEmpty else {
                 _ = surface.sendKeyEvent(keyEvent)
                 return
             }
@@ -125,7 +236,13 @@
             isCommandModified: Bool
         ) -> Bool {
             guard !isCommandModified else { return false }
-            guard key.modifierFlags.intersection([.alternate, .control]).isEmpty else {
+            // Ctrl combos travel the key path above — the text system's
+            // rendition is a bare control byte with the modifier context
+            // stripped (`sendTypedText` zeroes mods), which double-fires the
+            // combo at best and loses the ctrl semantics at worst. Alt stays
+            // on the text path: option+letter legitimately types the
+            // composed character.
+            guard key.modifierFlags.intersection([.alternate]).isEmpty else {
                 return false
             }
             guard !key.characters.isEmpty else {
