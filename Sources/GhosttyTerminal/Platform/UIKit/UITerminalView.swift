@@ -41,6 +41,12 @@
         lazy var inputHandler = TerminalTextInputHandler(view: self)
         weak var _inputDelegate: (any UITextInputDelegate)?
         var onFocusChange: ((Bool) -> Void)?
+        /// Fires when the view lands in a window. The SwiftUI focus bridge
+        /// needs it: a focus request that arrives before the window exists
+        /// cannot become first responder and would otherwise be dropped —
+        /// the launch-time case, where the surface is created and focused in
+        /// the same transaction.
+        var onWindowAttach: (() -> Void)?
 
         #if !targetEnvironment(macCatalyst)
             lazy var terminalInputAccessory = TerminalInputAccessoryView(terminalView: self)

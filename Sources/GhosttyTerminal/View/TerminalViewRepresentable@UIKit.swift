@@ -46,10 +46,21 @@
                 view.onFocusChange = { [weak self] focused in
                     self?.focusBinding.setFocused(focused)
                 }
+                // synchronizeFocus can only act on a view that is in a
+                // window; at launch the focus request precedes the window,
+                // so replay it the moment the view attaches.
+                view.onWindowAttach = { [weak self] in
+                    guard let self, let view = self.view else { return }
+                    TerminalViewRepresentable.synchronizeFocus(
+                        view,
+                        with: focusBinding
+                    )
+                }
             }
 
             func detach() {
                 view?.onFocusChange = nil
+                view?.onWindowAttach = nil
                 focusBinding = nil
                 view = nil
             }
