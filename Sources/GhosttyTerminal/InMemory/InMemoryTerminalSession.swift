@@ -154,16 +154,12 @@ public final class InMemoryTerminalSession: @unchecked Sendable {
     /// Enqueue data for the terminal from the host backend.
     ///
     /// Writes are processed in order on a per-session serial queue so parsing
-    /// cannot block the caller or the main thread.
+    /// cannot block the caller or the main thread. Bytes that arrive before a
+    /// surface attaches are buffered (oldest dropped past a 1 MiB cap) and
+    /// flushed on attach — hosts do not need to hold their connection until
+    /// the first viewport report.
     public func receive(_ data: Data) {
-        guard surfaceAccess.enqueueWrite(data) else {
-            TerminalDebugLog.log(
-                .output,
-                "terminal <- host dropped \(TerminalDebugLog.describe(data))"
-            )
-            return
-        }
-
+        surfaceAccess.enqueueWrite(data)
         TerminalDebugLog.log(
             .output,
             "terminal <- host \(TerminalDebugLog.describe(data))"
