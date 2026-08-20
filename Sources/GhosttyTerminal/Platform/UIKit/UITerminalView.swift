@@ -34,6 +34,20 @@
         lazy var selectionContextMenuInteraction = UIContextMenuInteraction(delegate: self)
         lazy var inputHandler = TerminalTextInputHandler(view: self)
 
+        /// Backing store for the iOS 16+ edit-menu interaction — untyped
+        /// because stored properties cannot carry availability.
+        private var _selectionEditMenuInteraction: Any?
+        @available(iOS 16.0, *)
+        var selectionEditMenuInteraction: UIEditMenuInteraction {
+            if let interaction = _selectionEditMenuInteraction as? UIEditMenuInteraction {
+                return interaction
+            }
+            let interaction = UIEditMenuInteraction(delegate: nil)
+            addInteraction(interaction)
+            _selectionEditMenuInteraction = interaction
+            return interaction
+        }
+
         #if !targetEnvironment(macCatalyst)
             lazy var terminalInputAccessory = TerminalInputAccessoryView(terminalView: self)
             let stickyModifiers: TerminalStickyModifierState = .init()
@@ -194,13 +208,24 @@
 
         open func showSelectionCopyMenu(at point: CGPoint) {
             becomeFirstResponder()
-            let menu = UIMenuController.shared
-            menu.menuItems = nil
-            menu.showMenu(
-                from: self,
-                rect: CGRect(x: point.x, y: point.y, width: 1, height: 1)
-            )
-            menu.update()
+            if #available(iOS 16.0, *) {
+                // UIMenuController stopped presenting anything on modern
+                // iOS — the menu silently never appears. The edit-menu
+                // interaction is its replacement; content still comes from
+                // the responder chain (canPerformAction), so Copy shows
+                // exactly when a selection exists.
+                selectionEditMenuInteraction.presentEditMenu(
+                    with: UIEditMenuConfiguration(identifier: nil, sourcePoint: point)
+                )
+            } else {
+                let menu = UIMenuController.shared
+                menu.menuItems = nil
+                menu.showMenu(
+                    from: self,
+                    rect: CGRect(x: point.x, y: point.y, width: 1, height: 1)
+                )
+                menu.update()
+            }
         }
 
         @discardableResult

@@ -113,12 +113,12 @@ final class MobileGhosttyAppUITests: XCTestCase {
 
                 hideSoftwareKeyboardIfVisible()
                 capture("16-ipad-keyboard-hidden-before-pointer")
-                dragIPadPointerSelection(in: terminal)
+                let rightClick = dragIPadPointerSelection(in: terminal)
                 capture("17-ipad-pointer-selection")
                 openCopyMenuAndCopySelection(
                     in: terminal,
                     screenshotName: "18-ipad-pointer-copy-menu",
-                    rightClickOffset: CGVector(dx: 0.10, dy: 0.035)
+                    rightClickCoordinate: rightClick
                 )
             } else {
                 longPressTerminal(in: terminal, offset: CGVector(dx: 0.35, dy: 0.18))
@@ -269,14 +269,39 @@ final class MobileGhosttyAppUITests: XCTestCase {
             UIDevice.current.userInterfaceIdiom == .pad
         }
 
-        private func dragIPadPointerSelection(in element: XCUIElement) {
+        /// Returns the right-click coordinate for the follow-up copy menu.
+        ///
+        /// The drag's own click makes the terminal first responder, which
+        /// summons the software keyboard and shrinks the terminal mid-drag.
+        /// A normalized offset resolved *after* that (the right click) would
+        /// use the post-keyboard frame and land on a different row than the
+        /// selection. Snapshot the frame once and convert every point to a
+        /// screen-absolute coordinate so all events target the same spot —
+        /// the text itself does not move when the view shrinks.
+        private func dragIPadPointerSelection(in element: XCUIElement) -> XCUICoordinate {
+            let frame = element.frame
             log(
                 "ipad-pointer-selection-coordinates",
-                "frame=\(element.frame) command=echo \(iPadPointerSelectionPrefix)\(expectedPointerSelection) start=(0.015, 0.035), end=(0.205, 0.035), rightClick=(0.10, 0.035)"
+                "frame=\(frame) command=echo \(iPadPointerSelectionPrefix)\(expectedPointerSelection) start=(0.015, 0.035), end=(0.205, 0.035), rightClick=(0.10, 0.035)"
             )
-            let start = element.coordinate(withNormalizedOffset: CGVector(dx: 0.015, dy: 0.035))
-            let end = element.coordinate(withNormalizedOffset: CGVector(dx: 0.205, dy: 0.035))
+            let start = screenCoordinate(in: frame, dx: 0.015, dy: 0.035)
+            let end = screenCoordinate(in: frame, dx: 0.205, dy: 0.035)
+            let rightClick = screenCoordinate(in: frame, dx: 0.10, dy: 0.035)
             start.click(forDuration: 0.1, thenDragTo: end)
+            return rightClick
+        }
+
+        private func screenCoordinate(
+            in frame: CGRect,
+            dx: CGFloat,
+            dy: CGFloat
+        ) -> XCUICoordinate {
+            app.coordinate(withNormalizedOffset: .zero).withOffset(
+                CGVector(
+                    dx: frame.minX + frame.width * dx,
+                    dy: frame.minY + frame.height * dy
+                )
+            )
         }
 
         private func hideSoftwareKeyboardIfVisible() {
@@ -291,12 +316,19 @@ final class MobileGhosttyAppUITests: XCTestCase {
     private func openCopyMenuAndCopySelection(
         in element: XCUIElement,
         screenshotName: String,
-        rightClickOffset: CGVector? = nil
+        rightClickCoordinate: XCUICoordinate? = nil
     ) {
         UIPasteboard.general.string = nil
-        let offset = rightClickOffset ?? CGVector(dx: 0.20, dy: 0.045)
-        log("pointer-copy-menu-coordinate", "frame=\(element.frame) rightClick=(\(offset.dx), \(offset.dy))")
-        element.coordinate(withNormalizedOffset: offset).rightClick()
+        let coordinate: XCUICoordinate
+        if let rightClickCoordinate {
+            log("pointer-copy-menu-coordinate", "screen-absolute right click from drag snapshot")
+            coordinate = rightClickCoordinate
+        } else {
+            let offset = CGVector(dx: 0.20, dy: 0.045)
+            log("pointer-copy-menu-coordinate", "frame=\(element.frame) rightClick=(\(offset.dx), \(offset.dy))")
+            coordinate = element.coordinate(withNormalizedOffset: offset)
+        }
+        coordinate.rightClick()
         let copy = copyMenuItem()
         if !copy.waitForExistence(timeout: 3) {
             capture("\(screenshotName)-missing")
