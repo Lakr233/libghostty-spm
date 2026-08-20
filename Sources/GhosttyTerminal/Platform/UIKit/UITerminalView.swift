@@ -259,27 +259,14 @@
                 )
             }
 
-            @objc func keyboardDidShow(_ notification: Notification) {
+            @objc func keyboardDidShow(_: Notification) {
                 guard isFirstResponder else { return }
-                softwareKeyboard.isVisible = isSoftwareKeyboardNotification(notification)
-            }
-
-            /// A hardware keyboard posts keyboardDidShow too — for the
-            /// accessory bar alone. Believing it means the next tap on the
-            /// terminal runs the tap-to-dismiss path and resigns first
-            /// responder, killing all hardware input. Only a frame tall
-            /// enough to hold actual keys counts as the software keyboard.
-            private func isSoftwareKeyboardNotification(
-                _ notification: Notification
-            ) -> Bool {
-                guard
-                    let value = notification
-                        .userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? NSValue
-                else { return true }
-                let screenBounds = window?.screen.bounds ?? UIScreen.main.bounds
-                let visibleHeight = value.cgRectValue
-                    .intersection(screenBounds).height
-                return visibleHeight > terminalInputAccessory.bounds.height + 44
+                // The accessory-only bar of a hardware keyboard counts too:
+                // a tap on the terminal is the only way to put the keyboard
+                // UI away, and resigning is no longer destructive — the next
+                // tap (or pointer click, or the host's focus handoff)
+                // re-acquires first responder and hardware input with it.
+                softwareKeyboard.isVisible = true
             }
 
             @objc func keyboardDidHide(_: Notification) {
