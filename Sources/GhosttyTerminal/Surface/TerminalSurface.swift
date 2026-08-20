@@ -290,13 +290,6 @@ public final class TerminalSurface {
         return (x, y, w, h)
     }
 
-    // MARK: - Mouse Capture
-
-    var isMouseCaptured: Bool {
-        guard let s = surface else { return false }
-        return ghostty_surface_mouse_captured(s)
-    }
-
     // MARK: - Quicklook Word (Apple-only)
 
     #if canImport(UIKit) || canImport(AppKit)

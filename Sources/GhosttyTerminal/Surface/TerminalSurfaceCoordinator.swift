@@ -71,7 +71,6 @@ final class TerminalSurfaceCoordinator {
     /// re-stamping the declarative default.
     var hostDeclaredDisplayVisible: Bool?
     private var isApplicationActive = true
-    private var isSurfaceFocused = false
     private var pendingImmediateTick = true
     private var lastTickTimestamp: TimeInterval = 0
 
@@ -459,7 +458,6 @@ final class TerminalSurfaceCoordinator {
     // MARK: - Focus
 
     func setFocus(_ focused: Bool) {
-        isSurfaceFocused = focused
         requestImmediateTick()
         TerminalDebugLog.log(.lifecycle, "focus=\(focused)")
         surface?.setFocus(focused)

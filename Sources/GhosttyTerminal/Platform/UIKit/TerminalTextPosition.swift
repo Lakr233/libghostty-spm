@@ -31,14 +31,6 @@
             _start.index >= _end.index
         }
 
-        var startPosition: TerminalTextPosition {
-            _start
-        }
-
-        var endPosition: TerminalTextPosition {
-            _end
-        }
-
         var location: Int {
             _start.index
         }
