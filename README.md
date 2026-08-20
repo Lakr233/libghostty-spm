@@ -21,21 +21,9 @@ Swift Package wrapping [Ghostty](https://ghostty.org)'s terminal emulator librar
 
 ## Installation
 
-Add to your `Package.swift`. Tracking `main` is the recommended way to
-integrate — fixes land there continuously, while tagged releases are cut
-irregularly and may lag well behind:
-
 ```swift
 dependencies: [
-    .package(url: "https://github.com/Lakr233/libghostty-spm.git", branch: "main"),
-]
-```
-
-If your project requires a pinned version instead:
-
-```swift
-dependencies: [
-    .package(url: "https://github.com/Lakr233/libghostty-spm.git", from: "1.2.0"),
+    .package(url: "https://github.com/Lakr233/libghostty-spm.git", from: "1.4.0"),
 ]
 ```
 
@@ -136,18 +124,13 @@ The package includes a pre-built XCFramework. To rebuild libghostty from the Gho
 
 This applies patches from `Patches/ghostty/`, builds for all target architectures, and assembles the XCFramework.
 
-## Release Versioning
+## Versions
 
-Bare semantic-version tags such as `1.3.1` are GhosttyKit Swift package
-versions. They are independent from Ghostty's upstream tags. The matching
-`storage.1.3.1` release stores the XCFramework consumed by that package tag.
+Pin a package tag (`1.4.0`, `1.4.1`, …). These are independent of Ghostty's
+own version — 1.4.0 currently ships Ghostty v1.3.1.
 
-Release builds use the immutable upstream Ghostty commit recorded in
-`Ghostty.ref`. Updating Ghostty requires a reviewed change to that file, so a
-package release cannot silently switch to a different upstream tag or commit.
-Manual releases require an explicit package version; scheduled releases only
-increment the package patch version when `main` is newer than the latest
-package tag.
+`upstream.*` (and the older `storage.*`) tags are XCFramework assets, not
+package versions. SPM should not depend on them.
 
 ## Trimmed Build
 
