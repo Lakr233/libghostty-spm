@@ -66,12 +66,38 @@
             #if !targetEnvironment(macCatalyst)
                 claimPendingInputMethodKeys()
             #endif
-            guard !hardwareKeyboard.keyHandled else {
+            // A lone, unmarked "\n"/"\r" is the software keyboard's Return —
+            // it must travel the key path (bracketed paste turns a text-path
+            // newline into a literal insertion instead of accepting the
+            // line). Longer strings containing newlines (dictation, actual
+            // pastes) stay on the text path, where paste semantics are
+            // correct.
+            let route = TerminalSoftwareKeyCommitRouter.route(
+                text: text,
+                hasMarkedText: inputHandler.hasMarkedText,
+                hardwareKeyHandled: hardwareKeyboard.keyHandled
+            )
+
+            if route == .suppressHardwareDuplicate {
                 TerminalDebugLog.log(
                     .input,
                     "insertText suppressed text=\(TerminalDebugLog.describe(text))"
                 )
                 hardwareKeyboard.keyHandled = false
+                return
+            }
+
+            if route == .semanticEnter {
+                #if !targetEnvironment(macCatalyst)
+                    let mods = stickyModifiers.consumeForNextKey()
+                    TerminalDebugLog.log(
+                        .input,
+                        "insertText semantic enter mods=0x\(String(mods.ghosttyMods.rawValue, radix: 16))"
+                    )
+                    sendSyntheticKey(usage: 0x28, additionalMods: mods)
+                #else
+                    sendReturnKey()
+                #endif
                 return
             }
 
@@ -87,24 +113,15 @@
                 }
             #endif
 
-            // The software keyboard's Return arrives as a text insertion of
-            // "\n". The text path is paste-like — with bracketed paste active
-            // the shell inserts a literal newline into its edit buffer
-            // instead of accepting the line — so Return must travel the key
-            // path, the way a hardware keyboard delivers it. Longer strings
-            // containing newlines (dictation, actual pastes) stay on the
-            // text path, where paste semantics are correct.
-            if text == "\n" {
-                sendReturnKey()
-                return
-            }
-
             inputHandler.insertText(text)
         }
 
+        #if targetEnvironment(macCatalyst)
         /// Deliver Return exactly as a hardware keyboard would: one Enter key
         /// event through the core's key encoder, so terminal modes (kitty
-        /// keyboard protocol included) keep deciding the bytes.
+        /// keyboard protocol included) keep deciding the bytes. iOS routes
+        /// semantic Enter through sendSyntheticKey (sticky modifiers apply);
+        /// Catalyst has no accessory bar, so this direct path remains.
         private func sendReturnKey() {
             let usage = UInt16(UIKeyboardHIDUsage.keyboardReturnOrEnter.rawValue)
 
@@ -122,6 +139,7 @@
                 surface?.sendKeyEvent(keyEvent)
             }
         }
+        #endif
 
         open func deleteBackward() {
             #if !targetEnvironment(macCatalyst)
