@@ -24,6 +24,10 @@ struct TerminalViewRepresentable {
             view.delegate = context
         }
 
+        if context.attachedView !== view {
+            context.attachedView = view
+        }
+
         if let currentController = view.controller, currentController === controller {
             // Keep the current surface.
         } else {
