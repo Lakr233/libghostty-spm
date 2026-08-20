@@ -25,16 +25,10 @@ fi
 
 git fetch --tags origin
 
-package_commit=$(git rev-parse "refs/tags/$PACKAGE_TAG")
-storage_commit=$(git rev-parse "refs/tags/$STORAGE_TAG")
-
-if [ "$package_commit" != "$storage_commit" ]; then
-    echo "[!] package tag and storage tag point at different commits"
-    echo "    $PACKAGE_TAG: $package_commit"
-    echo "    $STORAGE_TAG: $storage_commit"
-    exit 1
-fi
-
+# The package tag and the upstream.* tag are cut at different times on
+# purpose (an XCFramework build vs a Swift-only release), so they need not
+# share a commit — the binding verified here is the manifest's URL/checksum
+# against the asset the storage tag actually serves.
 manifest=$(git show "$PACKAGE_TAG:Package.swift")
 download_url=$(printf '%s\n' "$manifest" | python3 -c 'import re, sys; text=sys.stdin.read(); urls=re.findall(r"url:\s*\"([^\"]+)\"", text); matches=[url for url in urls if "/releases/download/" in url and url.endswith("/GhosttyKit.xcframework.zip")]; print(matches[0] if matches else "", end="")')
 checksum=$(printf '%s\n' "$manifest" | python3 -c 'import re, sys; text=sys.stdin.read(); match=re.search(r"checksum:\s*\"([0-9a-f]{64})\"", text); print(match.group(1) if match else "", end="")')

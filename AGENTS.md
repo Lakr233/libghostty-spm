@@ -180,10 +180,27 @@ When changing SwiftPM products, targets, or test dependencies, update all three 
 
 ### Release Versioning
 
-- Bare semantic-version tags are GhosttyKit Swift package versions, independent of Ghostty upstream versions.
-- `Ghostty.ref` pins release builds to one immutable upstream commit; update it in a reviewed change instead of inferring an upstream ref from the package version.
-- `storage.<package-version>` owns the XCFramework asset referenced by the matching package tag.
-- Before deleting a storage release, repoint every live manifest that references it to an available compatible asset; otherwise package resolution fails before any build starts.
+Two release tracks, decoupled since 1.4.0:
+
+- **`upstream.<X.Y.Z>` tags own the XCFramework.** `X.Y.Z` is the upstream
+  Ghostty *release* version: `Ghostty.version` names it, `Ghostty.ref` pins
+  its tag's exact commit sha, and the "Build Upstream XCFramework" workflow
+  (build.yml, dispatch-only) verifies they agree, builds all targets with
+  Zig, and publishes `GhosttyKit.xcframework.zip` on the `upstream.<X.Y.Z>`
+  release. Patches in `Patches/ghostty/` target that release, not upstream
+  main. When bumping, keep build.yml's Zig version in sync with the pinned
+  upstream's `minimum_zig_version` (build.zig.zon).
+- **Bare semver tags (1.4.0+) are Swift package releases** and follow their
+  own sequence, independent of upstream's. The "Release Package" workflow
+  (release.yml, dispatch with `package_version`) never runs Zig: it points
+  `Package.swift` at the `upstream.<Ghostty.version>` asset, runs the full
+  test matrix against it, commits the manifest, and tags. A Swift-only
+  change releases in minutes.
+- `storage.<package-version>` is the pre-1.4.0 legacy layout; those
+  releases were built from upstream *main* snapshots (e.g. storage.1.3.2 ←
+  ghostty commit 35e1a016, 2026-07), not from the similarly numbered
+  upstream tags.
+- Before deleting a storage or upstream release, repoint every live manifest that references it to an available compatible asset; otherwise package resolution fails before any build starts.
 - Do not publish arm64e slices until the Zig compiler supports Apple's complete arm64e pointer-authentication ABI; never synthesize an architecture by rewriting Mach-O metadata or patching selected ABI boundaries.
 
 ## Swift Code Style

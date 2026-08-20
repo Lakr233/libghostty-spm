@@ -1,5 +1,5 @@
 diff --git a/include/ghostty.h b/include/ghostty.h
-index 40ff55c..4c4f01b 100644
+index 40ff55c9b..567fbd4f9 100644
 --- a/include/ghostty.h
 +++ b/include/ghostty.h
 @@ -437,10 +437,26 @@ typedef enum {
@@ -29,17 +29,19 @@ index 40ff55c..4c4f01b 100644
    double scale_factor;
    float font_size;
    const char* working_directory;
-@@ -1080,6 +1096,8 @@ ghostty_surface_config_s ghostty_surface_inherited_config(ghostty_surface_t, gho
+@@ -1080,6 +1096,10 @@ ghostty_surface_config_s ghostty_surface_inherited_config(ghostty_surface_t, gho
  void ghostty_surface_update_config(ghostty_surface_t, ghostty_config_t);
  bool ghostty_surface_needs_confirm_quit(ghostty_surface_t);
  bool ghostty_surface_process_exited(ghostty_surface_t);
 +void ghostty_surface_write_buffer(ghostty_surface_t, const uint8_t*, uintptr_t);
++uint64_t ghostty_surface_foreground_pid(ghostty_surface_t);
++ghostty_string_s ghostty_surface_tty_name(ghostty_surface_t);
 +void ghostty_surface_process_exit(ghostty_surface_t, uint32_t, uint64_t);
  void ghostty_surface_refresh(ghostty_surface_t);
  void ghostty_surface_draw(ghostty_surface_t);
  void ghostty_surface_set_content_scale(ghostty_surface_t, double, double);
 diff --git a/src/Surface.zig b/src/Surface.zig
-index 4d66622..145d113 100644
+index 4d66622e3..145d1135b 100644
 --- a/src/Surface.zig
 +++ b/src/Surface.zig
 @@ -620,34 +620,42 @@ pub fn init(
@@ -136,10 +138,10 @@ index 4d66622..145d113 100644
  
      self.renderer_state.mutex.lock();
 diff --git a/src/apprt/embedded.zig b/src/apprt/embedded.zig
-index 0d5a4f8..b44d4d3 100644
+index 0d5a4f8da..a0be58795 100644
 --- a/src/apprt/embedded.zig
 +++ b/src/apprt/embedded.zig
-@@ -15,6 +15,7 @@ const input = @import("../input.zig");
+@@ -15,12 +15,15 @@ const input = @import("../input.zig");
  const internal_os = @import("../os/main.zig");
  const renderer = @import("../renderer.zig");
  const terminal = @import("../terminal/main.zig");
@@ -147,7 +149,15 @@ index 0d5a4f8..b44d4d3 100644
  const CoreApp = @import("../App.zig");
  const CoreInspector = @import("../inspector/main.zig").Inspector;
  const CoreSurface = @import("../Surface.zig");
-@@ -409,6 +410,8 @@ pub const Surface = struct {
+ const configpkg = @import("../config.zig");
+ const Config = configpkg.Config;
+ 
++const String = @import("../main_c.zig").String;
++
+ const log = std.log.scoped(.embedded_window);
+ 
+ pub const resourcesDir = internal_os.resourcesDir;
+@@ -409,6 +412,8 @@ pub const Surface = struct {
      app: *App,
      platform: Platform,
      userdata: ?*anyopaque = null,
@@ -156,7 +166,7 @@ index 0d5a4f8..b44d4d3 100644
      core_surface: CoreSurface,
      content_scale: apprt.ContentScale,
      size: apprt.SurfaceSize,
-@@ -419,6 +422,17 @@ pub const Surface = struct {
+@@ -419,6 +424,17 @@ pub const Surface = struct {
      /// that getTitle works without the implementer needing to save it.
      title: ?[:0]const u8 = null,
  
@@ -174,7 +184,7 @@ index 0d5a4f8..b44d4d3 100644
      /// Surface initialization options.
      pub const Options = extern struct {
          /// The platform that this surface is being initialized for and
-@@ -429,6 +443,20 @@ pub const Surface = struct {
+@@ -429,6 +445,20 @@ pub const Surface = struct {
          /// Userdata passed to some of the callbacks.
          userdata: ?*anyopaque = null,
  
@@ -195,7 +205,7 @@ index 0d5a4f8..b44d4d3 100644
          /// The scale factor of the screen.
          scale_factor: f64 = 1,
  
-@@ -467,6 +495,12 @@ pub const Surface = struct {
+@@ -467,6 +497,12 @@ pub const Surface = struct {
              .app = app,
              .platform = try .init(opts.platform_tag, opts.platform),
              .userdata = opts.userdata,
@@ -208,7 +218,7 @@ index 0d5a4f8..b44d4d3 100644
              .core_surface = undefined,
              .content_scale = .{
                  .x = @floatCast(opts.scale_factor),
-@@ -632,6 +666,19 @@ pub const Surface = struct {
+@@ -632,6 +668,19 @@ pub const Surface = struct {
          return &self.core_surface;
      }
  
@@ -228,7 +238,7 @@ index 0d5a4f8..b44d4d3 100644
      pub fn rtApp(self: *const Surface) *App {
          return self.app;
      }
-@@ -1598,6 +1645,28 @@ pub const CAPI = struct {
+@@ -1598,6 +1647,44 @@ pub const CAPI = struct {
          return surface.core_surface.child_exited;
      }
  
@@ -239,6 +249,22 @@ index 0d5a4f8..b44d4d3 100644
 +    ) void {
 +        if (len == 0) return;
 +        surface.core_surface.io.processOutput(ptr[0..len]);
++    }
++
++    /// The pty's foreground process group pid. This release predates the
++    /// upstream process-info API, and a host-managed surface has no
++    /// in-process pty at all, so this reports "no process yet" (0) — the
++    /// same answer the modern API gives for a host-managed backend.
++    export fn ghostty_surface_foreground_pid(surface: *Surface) u64 {
++        _ = surface;
++        return 0;
++    }
++
++    /// The pty's controlling tty name; empty for the same reason
++    /// ghostty_surface_foreground_pid reports 0.
++    export fn ghostty_surface_tty_name(surface: *Surface) String {
++        _ = surface;
++        return .empty;
 +    }
 +
 +    export fn ghostty_surface_process_exit(
@@ -258,7 +284,7 @@ index 0d5a4f8..b44d4d3 100644
      export fn ghostty_surface_has_selection(surface: *Surface) bool {
          return surface.core_surface.hasSelection();
 diff --git a/src/termio.zig b/src/termio.zig
-index b168851..6931fcb 100644
+index b16885109..6931fcb58 100644
 --- a/src/termio.zig
 +++ b/src/termio.zig
 @@ -23,6 +23,7 @@ const message = @import("termio/message.zig");
@@ -271,7 +297,7 @@ index b168851..6931fcb 100644
  pub const Thread = @import("termio/Thread.zig");
 diff --git a/src/termio/HostManaged.zig b/src/termio/HostManaged.zig
 new file mode 100644
-index 0000000..0d18213
+index 000000000..0d1821350
 --- /dev/null
 +++ b/src/termio/HostManaged.zig
 @@ -0,0 +1,136 @@
@@ -412,7 +438,7 @@ index 0000000..0d18213
 +    }
 +};
 diff --git a/src/termio/backend.zig b/src/termio/backend.zig
-index ae0e200..f1d35d2 100644
+index ae0e2004f..f1d35d2a2 100644
 --- a/src/termio/backend.zig
 +++ b/src/termio/backend.zig
 @@ -10,28 +10,34 @@ const termio = @import("../termio.zig");
