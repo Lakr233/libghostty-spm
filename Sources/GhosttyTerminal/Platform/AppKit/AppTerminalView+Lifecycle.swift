@@ -93,6 +93,13 @@
                     name: NSWindow.didChangeScreenNotification,
                     object: window
                 )
+                // Same runloop hop as `requestFocus`: attaching can happen
+                // mid SwiftUI update, where the first-responder dance must
+                // not mutate focus state.
+                DispatchQueue.main.async { [weak self] in
+                    guard let self else { return }
+                    (delegate as? TerminalViewState)?.replayPendingFocusIfNeeded()
+                }
             } else {
                 core.stopDisplayLink()
                 core.setFocus(false)
