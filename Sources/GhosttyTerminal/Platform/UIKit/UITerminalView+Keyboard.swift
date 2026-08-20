@@ -24,11 +24,12 @@
         /// still here when the turn ends is replayed to the surface.
         var pendingInputMethodKeys: [DeferredInputMethodKey] = []
         var inputMethodFlushScheduled = false
-        /// Learned once per process: the text input system ignored a loaned
-        /// key outright, so deferred presses must be forwarded to `super` —
-        /// the route that feeds them to the input method on the iPadOS
-        /// versions that do not process hardware keys on their own.
-        var inputMethodNeedsPressForwarding = false
+        /// Learned once per process — not per view, or every new tab would
+        /// re-calibrate: the text input system ignored a loaned key
+        /// outright, so deferred presses must be forwarded to `super` — the
+        /// route that feeds them to the input method on the iPadOS versions
+        /// that do not process hardware keys on their own.
+        @MainActor static var inputMethodNeedsPressForwarding = false
         /// Presses currently loaned to the input method; their release must
         /// not reach the surface (a replay sends its own synthetic pair).
         var pressesLoanedToInputMethod: Set<UIPress> = []
@@ -54,6 +55,13 @@
         let consumedMods: ghostty_input_mods_e
         let unshiftedCodepoint: UInt32
         let text: String?
+        /// The physical press, held for the turn so a calibration flush can
+        /// still hand it to `super` instead of leaking raw text.
+        weak var press: UIPress?
+        /// The press has been given to `super` (at press time or by a
+        /// calibration flush); the next unclaimed flush replays it raw
+        /// rather than retrying forever.
+        var forwardAttempted: Bool
     }
 
     extension UITerminalView {
@@ -156,11 +164,11 @@
                     if shouldDeferKeyToInputMethod(key) {
                         TerminalDebugLog.log(
                             .input,
-                            "uikit key deferred to input method code=\(key.keyCode.rawValue) marked=\(inputHandler.hasMarkedText) lang=\(textInputMode?.primaryLanguage ?? "nil") forwarding=\(hardwareKeyboard.inputMethodNeedsPressForwarding)"
+                            "uikit key deferred to input method code=\(key.keyCode.rawValue) marked=\(inputHandler.hasMarkedText) lang=\(textInputMode?.primaryLanguage ?? "nil") forwarding=\(HardwareKeyboardState.inputMethodNeedsPressForwarding)"
                         )
-                        deferKeyToInputMethod(key, action: GHOSTTY_ACTION_PRESS)
+                        deferKeyToInputMethod(key, press: press, action: GHOSTTY_ACTION_PRESS)
                         hardwareKeyboard.pressesLoanedToInputMethod.insert(press)
-                        if hardwareKeyboard.inputMethodNeedsPressForwarding {
+                        if HardwareKeyboardState.inputMethodNeedsPressForwarding {
                             hardwareKeyboard.pressesForwardedToInputMethod.insert(press)
                             forwardedToInputMethod.insert(press)
                         }
@@ -437,6 +445,7 @@
         extension UITerminalView {
             func deferKeyToInputMethod(
                 _ key: UIKey,
+                press: UIPress?,
                 action: ghostty_input_action_e
             ) {
                 let mods = TerminalInputModifiers(from: filteredModifierFlags(for: key))
@@ -456,7 +465,11 @@
                     mods: mods.ghosttyMods,
                     consumedMods: TerminalInputModifiers(from: consumedFlags).ghosttyMods,
                     unshiftedCodepoint: unshifted,
-                    text: TerminalInputText.filteredFunctionKeyText(key.characters)
+                    text: TerminalInputText.filteredFunctionKeyText(key.characters),
+                    press: press,
+                    // Forwarded at press time whenever calibration already
+                    // happened; only then may an unclaimed flush replay raw.
+                    forwardAttempted: HardwareKeyboardState.inputMethodNeedsPressForwarding
                 ))
                 scheduleInputMethodKeyFlush()
             }
@@ -488,15 +501,54 @@
                 hardwareKeyboard.pendingInputMethodKeys.removeAll()
 
                 // The system never handed these presses to the input method
-                // on its own — from now on, forward deferred presses through
-                // `super` so UIKit's default press handling feeds them to it.
-                // Only the keys of this first flush arrive as raw text.
-                if !hardwareKeyboard.inputMethodNeedsPressForwarding {
-                    hardwareKeyboard.inputMethodNeedsPressForwarding = true
+                // on its own — calibrate to forwarding, and give these very
+                // presses to `super` right now: the input method can still
+                // compose them, so nothing leaks into the shell. Only keys
+                // whose forward has already been tried fall through to the
+                // raw replay below.
+                let retriable = keys.filter { !$0.forwardAttempted }
+                if !retriable.isEmpty {
+                    if !HardwareKeyboardState.inputMethodNeedsPressForwarding {
+                        HardwareKeyboardState.inputMethodNeedsPressForwarding = true
+                        TerminalDebugLog.log(
+                            .input,
+                            "text input system ignored the loan; forwarding deferred presses to super from now on"
+                        )
+                    }
+                    hardwareKeyboard.pendingInputMethodKeys = keys.map { key in
+                        var retried = key
+                        retried.forwardAttempted = true
+                        return retried
+                    }
+                    for key in retriable {
+                        guard let press = key.press else { continue }
+                        if hardwareKeyboard.pressesLoanedToInputMethod.contains(press) {
+                            // Still held down: its ended will complete at
+                            // `super` through the forwarded set.
+                            hardwareKeyboard.pressesForwardedToInputMethod.insert(press)
+                            super.pressesBegan([press], with: nil)
+                        } else {
+                            // Already released — hand `super` the whole
+                            // pair so the input method sees a full press.
+                            super.pressesBegan([press], with: nil)
+                            super.pressesEnded([press], with: nil)
+                        }
+                    }
+                    // The claim (or the next flush) decides their fate.
+                    scheduleInputMethodKeyFlush()
+                    return
+                }
+
+                // A live composition proves the input method heard the keys
+                // even though it mutated nothing — candidate paging does
+                // exactly that. Replaying them raw would type into the shell
+                // behind the preedit.
+                guard !inputHandler.hasMarkedText else {
                     TerminalDebugLog.log(
                         .input,
-                        "text input system ignored the loan; forwarding deferred presses to super from now on"
+                        "dropping \(keys.count) unclaimed key(s): composition active"
                     )
+                    return
                 }
 
                 guard let surface else { return }
