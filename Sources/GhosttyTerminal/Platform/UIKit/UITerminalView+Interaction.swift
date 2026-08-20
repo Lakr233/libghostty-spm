@@ -9,6 +9,22 @@
     import GhosttyKit
     import UIKit
 
+    /// Mouse/trackpad interaction state; behavior lives in +Interaction.
+    struct PointerInteractionState {
+        var activeButton: ghostty_input_mouse_button_e?
+        var selectionStartPoint: CGPoint?
+        var lastSelectionRect: CGRect?
+        var pendingSelectionMenuPoint: CGPoint?
+        var panOwnsTouchSequence = false
+        var suppressNextTouchEnd = false
+    }
+
+    /// Touch-scroll momentum state; behavior lives in +Interaction.
+    struct MomentumScrollState {
+        var displayLink: CADisplayLink?
+        var velocity: CGPoint = .zero
+    }
+
     extension UITerminalView {
         override open func touchesBegan(
             _ touches: Set<UITouch>,
@@ -21,10 +37,10 @@
             #if targetEnvironment(macCatalyst)
                 becomeFirstResponder()
             #else
-                pendingKeyboardDismissOnTouchEnd = false
-                touchDidScrollDuringCurrentTouch = false
-                if softwareKeyboardVisible {
-                    pendingKeyboardDismissOnTouchEnd = true
+                softwareKeyboard.pendingDismissOnTouchEnd = false
+                softwareKeyboard.touchDidScrollDuringCurrentTouch = false
+                if softwareKeyboard.isVisible {
+                    softwareKeyboard.pendingDismissOnTouchEnd = true
                 } else {
                     becomeFirstResponder()
                 }
@@ -49,11 +65,11 @@
                 return
             }
             #if !targetEnvironment(macCatalyst)
-                if pendingKeyboardDismissOnTouchEnd, !touchDidScrollDuringCurrentTouch {
+                if softwareKeyboard.pendingDismissOnTouchEnd, !softwareKeyboard.touchDidScrollDuringCurrentTouch {
                     resignFirstResponder()
                 }
-                pendingKeyboardDismissOnTouchEnd = false
-                touchDidScrollDuringCurrentTouch = false
+                softwareKeyboard.pendingDismissOnTouchEnd = false
+                softwareKeyboard.touchDidScrollDuringCurrentTouch = false
             #endif
             super.touchesEnded(touches, with: event)
         }
@@ -66,8 +82,8 @@
                 return
             }
             #if !targetEnvironment(macCatalyst)
-                pendingKeyboardDismissOnTouchEnd = false
-                touchDidScrollDuringCurrentTouch = false
+                softwareKeyboard.pendingDismissOnTouchEnd = false
+                softwareKeyboard.touchDidScrollDuringCurrentTouch = false
             #endif
             super.touchesCancelled(touches, with: event)
         }
@@ -96,17 +112,17 @@
             let hasIndirectPointerTouch = touches.contains { $0.type == .indirectPointer }
 
             #if !targetEnvironment(macCatalyst)
-                if suppressNextIndirectPointerTouchEnd, hasIndirectPointerTouch {
+                if pointer.suppressNextTouchEnd, hasIndirectPointerTouch {
                     if phase == .ended || phase == .cancelled {
-                        suppressNextIndirectPointerTouchEnd = false
+                        pointer.suppressNextTouchEnd = false
                         return true
                     }
-                    suppressNextIndirectPointerTouchEnd = false
+                    pointer.suppressNextTouchEnd = false
                 }
 
-                if indirectPointerPanOwnsTouchSequence, hasIndirectPointerTouch {
+                if pointer.panOwnsTouchSequence, hasIndirectPointerTouch {
                     if phase == .began {
-                        indirectPointerPanOwnsTouchSequence = false
+                        pointer.panOwnsTouchSequence = false
                     } else {
                         return true
                     }
@@ -134,7 +150,7 @@
             let location = touch.location(in: self)
             let suppressSurfacePositionForSelectionMenu =
                 button == GHOSTTY_MOUSE_RIGHT &&
-                (pendingSelectionMenuPoint != nil || pointIsInsidePointerSelection(location))
+                (pointer.pendingSelectionMenuPoint != nil || pointIsInsidePointerSelection(location))
             TerminalDebugLog.log(
                 .input,
                 "pointer touch phase=\(phase) type=\(touch.type.rawValue) button=\(button.rawValue) location=\(NSCoder.string(for: location)) mask=\(event?.buttonMask.rawValue ?? 0)"
@@ -149,11 +165,11 @@
 
             switch phase {
             case .began:
-                activePointerButton = button
+                pointer.activeButton = button
                 switch button {
                 case GHOSTTY_MOUSE_LEFT:
-                    pointerSelectionStartPoint = location
-                    pendingSelectionMenuPoint = nil
+                    pointer.selectionStartPoint = location
+                    pointer.pendingSelectionMenuPoint = nil
                     surface?.sendMouseButton(
                         state: GHOSTTY_MOUSE_PRESS,
                         button: button,
@@ -162,9 +178,9 @@
 
                 case GHOSTTY_MOUSE_RIGHT:
                     if pointIsInsidePointerSelection(location) {
-                        pendingSelectionMenuPoint = location
+                        pointer.pendingSelectionMenuPoint = location
                     } else {
-                        pendingSelectionMenuPoint = selectionMenuPoint(at: location)
+                        pointer.pendingSelectionMenuPoint = selectionMenuPoint(at: location)
                     }
 
                 default:
@@ -179,16 +195,16 @@
                 updatePointerSelectionRect(to: location)
 
             case .ended:
-                let releasedButton = activePointerButton ?? button
-                activePointerButton = nil
+                let releasedButton = pointer.activeButton ?? button
+                pointer.activeButton = nil
 
                 if releasedButton == GHOSTTY_MOUSE_RIGHT,
-                   pendingSelectionMenuPoint != nil
+                   pointer.pendingSelectionMenuPoint != nil
                 {
                     if selectionMenuPoint(at: location) != nil {
                         showSelectionCopyMenu(at: location)
                     }
-                    pendingSelectionMenuPoint = nil
+                    pointer.pendingSelectionMenuPoint = nil
                     return true
                 }
 
@@ -209,13 +225,13 @@
                 if releasedButton == GHOSTTY_MOUSE_LEFT {
                     finishPointerSelection(at: location)
                 }
-                pendingSelectionMenuPoint = nil
+                pointer.pendingSelectionMenuPoint = nil
 
             case .cancelled:
-                let releasedButton = activePointerButton ?? button
-                activePointerButton = nil
-                pendingSelectionMenuPoint = nil
-                pointerSelectionStartPoint = nil
+                let releasedButton = pointer.activeButton ?? button
+                pointer.activeButton = nil
+                pointer.pendingSelectionMenuPoint = nil
+                pointer.selectionStartPoint = nil
                 surface?.sendMouseButton(
                     state: GHOSTTY_MOUSE_RELEASE,
                     button: releasedButton,
@@ -238,11 +254,11 @@
         }
 
         func updatePointerSelectionRect(to point: CGPoint) {
-            guard activePointerButton == GHOSTTY_MOUSE_LEFT,
-                  let start = pointerSelectionStartPoint
+            guard pointer.activeButton == GHOSTTY_MOUSE_LEFT,
+                  let start = pointer.selectionStartPoint
             else { return }
 
-            lastPointerSelectionRect = CGRect(
+            pointer.lastSelectionRect = CGRect(
                 x: min(start.x, point.x),
                 y: min(start.y, point.y),
                 width: abs(start.x - point.x),
@@ -255,11 +271,11 @@
         }
 
         func finishPointerSelection(at point: CGPoint) {
-            defer { pointerSelectionStartPoint = nil }
-            guard let start = pointerSelectionStartPoint else { return }
+            defer { pointer.selectionStartPoint = nil }
+            guard let start = pointer.selectionStartPoint else { return }
             let dragDistance = hypot(point.x - start.x, point.y - start.y)
             if dragDistance < 2 {
-                lastPointerSelectionRect = nil
+                pointer.lastSelectionRect = nil
             } else {
                 updatePointerSelectionRect(to: point)
             }
@@ -274,7 +290,7 @@
                   TerminalDebugLog.categories.contains(.input)
             else { return }
 
-            let rectDescription = lastPointerSelectionRect.map {
+            let rectDescription = pointer.lastSelectionRect.map {
                 NSCoder.string(for: $0)
             } ?? "nil"
             let metricsDescription = surface?.size().map(\.debugSummary) ?? "nil"
@@ -330,7 +346,7 @@
         }
 
         func pointIsInsidePointerSelection(_ point: CGPoint) -> Bool {
-            lastPointerSelectionRect.map {
+            pointer.lastSelectionRect.map {
                 $0.insetBy(dx: -4, dy: -4).contains(point)
             } ?? false
         }
@@ -351,7 +367,7 @@
             @objc func handleCatalystScrollWheelGesture(
                 _ gesture: UIPanGestureRecognizer
             ) {
-                guard activePointerButton == nil else { return }
+                guard pointer.activeButton == nil else { return }
 
                 let translation = gesture.translation(in: self)
                 gesture.setTranslation(.zero, in: self)
@@ -391,7 +407,7 @@
                 addGestureRecognizer(longPress)
 
                 setupIndirectPointerSelectionGesture()
-                currentFontSize = configuration.fontSize ?? 14
+                fontZoom.currentFontSize = configuration.fontSize ?? 14
                 setupPinchZoomGesture()
             }
 
@@ -423,19 +439,19 @@
                 case .began:
                     core.setFocus(true)
                     stopMomentumScrolling()
-                    indirectPointerPanOwnsTouchSequence = true
-                    if activePointerButton != GHOSTTY_MOUSE_LEFT {
-                        activePointerButton = GHOSTTY_MOUSE_LEFT
+                    pointer.panOwnsTouchSequence = true
+                    if pointer.activeButton != GHOSTTY_MOUSE_LEFT {
+                        pointer.activeButton = GHOSTTY_MOUSE_LEFT
                         surface?.sendMouseButton(
                             state: GHOSTTY_MOUSE_PRESS,
                             button: GHOSTTY_MOUSE_LEFT,
                             mods: mods
                         )
                     }
-                    if pointerSelectionStartPoint == nil {
-                        pointerSelectionStartPoint = location
+                    if pointer.selectionStartPoint == nil {
+                        pointer.selectionStartPoint = location
                     }
-                    pendingSelectionMenuPoint = nil
+                    pointer.pendingSelectionMenuPoint = nil
                     surface?.sendMousePos(x: location.x, y: location.y, mods: mods)
 
                 case .changed:
@@ -443,7 +459,7 @@
                     surface?.sendMousePos(x: location.x, y: location.y, mods: mods)
 
                 case .ended:
-                    activePointerButton = nil
+                    pointer.activeButton = nil
                     updatePointerSelectionRect(to: location)
                     surface?.sendMousePos(x: location.x, y: location.y, mods: mods)
                     surface?.sendMouseButton(
@@ -452,16 +468,16 @@
                         mods: mods
                     )
                     finishPointerSelection(at: location)
-                    indirectPointerPanOwnsTouchSequence = false
-                    suppressNextIndirectPointerTouchEnd = true
+                    pointer.panOwnsTouchSequence = false
+                    pointer.suppressNextTouchEnd = true
 
                 case .cancelled, .failed:
-                    activePointerButton = nil
-                    indirectPointerPanOwnsTouchSequence = false
-                    suppressNextIndirectPointerTouchEnd = true
-                    pointerSelectionStartPoint = nil
-                    pendingSelectionMenuPoint = nil
-                    lastPointerSelectionRect = nil
+                    pointer.activeButton = nil
+                    pointer.panOwnsTouchSequence = false
+                    pointer.suppressNextTouchEnd = true
+                    pointer.selectionStartPoint = nil
+                    pointer.pendingSelectionMenuPoint = nil
+                    pointer.lastSelectionRect = nil
                     surface?.sendMouseButton(
                         state: GHOSTTY_MOUSE_RELEASE,
                         button: GHOSTTY_MOUSE_LEFT,
@@ -555,15 +571,15 @@
         ) {
             switch gesture.state {
             case .began:
-                guard activePointerButton == nil else { return }
+                guard pointer.activeButton == nil else { return }
                 #if !targetEnvironment(macCatalyst)
-                    touchDidScrollDuringCurrentTouch = true
+                    softwareKeyboard.touchDidScrollDuringCurrentTouch = true
                 #endif
                 TerminalDebugLog.log(.input, "touch scroll began")
                 stopMomentumScrolling()
 
             case .changed:
-                guard activePointerButton == nil else { return }
+                guard pointer.activeButton == nil else { return }
                 let translation = gesture.translation(in: self)
                 gesture.setTranslation(.zero, in: self)
                 TerminalDebugLog.log(
@@ -579,7 +595,7 @@
                 )
 
             case .ended:
-                guard activePointerButton == nil else { return }
+                guard pointer.activeButton == nil else { return }
                 let velocity = gesture.velocity(in: self)
                 TerminalDebugLog.log(
                     .input,
@@ -599,7 +615,7 @@
         func startMomentumScrolling(velocity: CGPoint) {
             guard abs(velocity.x) > 50 || abs(velocity.y) > 50 else { return }
 
-            momentumVelocity = velocity
+            momentumScroll.velocity = velocity
             TerminalDebugLog.log(
                 .input,
                 "momentum start velocity=\(String(format: "%.2f", velocity.x))x\(String(format: "%.2f", velocity.y))"
@@ -613,27 +629,27 @@
                 selector: #selector(momentumScrollFrame(_:))
             )
             link.add(to: .main, forMode: .common)
-            momentumDisplayLink = link
+            momentumScroll.displayLink = link
         }
 
         @objc func momentumScrollFrame(_ link: CADisplayLink) {
             let dt = link.targetTimestamp - link.timestamp
             let deceleration: CGFloat = 0.92
 
-            momentumVelocity.x *= deceleration
-            momentumVelocity.y *= deceleration
+            momentumScroll.velocity.x *= deceleration
+            momentumScroll.velocity.y *= deceleration
 
-            let deltaX = momentumVelocity.x * dt * touchScrollMultiplier
-            let deltaY = momentumVelocity.y * dt * touchScrollMultiplier
+            let deltaX = momentumScroll.velocity.x * dt * touchScrollMultiplier
+            let deltaY = momentumScroll.velocity.y * dt * touchScrollMultiplier
 
-            if abs(momentumVelocity.x) < 50, abs(momentumVelocity.y) < 50 {
+            if abs(momentumScroll.velocity.x) < 50, abs(momentumScroll.velocity.y) < 50 {
                 stopMomentumScrolling()
                 return
             }
 
             TerminalDebugLog.log(
                 .input,
-                "momentum frame velocity=\(String(format: "%.2f", momentumVelocity.x))x\(String(format: "%.2f", momentumVelocity.y)) delta=\(String(format: "%.2f", deltaX))x\(String(format: "%.2f", deltaY))"
+                "momentum frame velocity=\(String(format: "%.2f", momentumScroll.velocity.x))x\(String(format: "%.2f", momentumScroll.velocity.y)) delta=\(String(format: "%.2f", deltaX))x\(String(format: "%.2f", deltaY))"
             )
 
             let mods = TerminalScrollModifiers(precision: true, momentum: .changed)
@@ -645,7 +661,7 @@
         }
 
         func stopMomentumScrolling(sendTerminalEndEvent: Bool = true) {
-            guard momentumDisplayLink != nil else { return }
+            guard momentumScroll.displayLink != nil else { return }
             TerminalDebugLog.log(.input, "momentum stop")
 
             if sendTerminalEndEvent {
@@ -653,9 +669,9 @@
                 surface?.sendMouseScroll(x: 0, y: 0, mods: mods.rawValue)
             }
 
-            momentumDisplayLink?.invalidate()
-            momentumDisplayLink = nil
-            momentumVelocity = .zero
+            momentumScroll.displayLink?.invalidate()
+            momentumScroll.displayLink = nil
+            momentumScroll.velocity = .zero
         }
     }
 
