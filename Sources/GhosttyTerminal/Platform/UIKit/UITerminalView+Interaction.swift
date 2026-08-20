@@ -120,11 +120,13 @@
             }
 
             core.setFocus(true)
-            #if targetEnvironment(macCatalyst)
-                if phase == .began {
-                    becomeFirstResponder()
-                }
-            #endif
+            // A pointer click claims keyboard focus the way a finger tap
+            // does — without this, clicking a terminal with a mouse or
+            // trackpad never made it first responder and hardware keys kept
+            // going to whatever held focus before.
+            if phase == .began, !isFirstResponder {
+                becomeFirstResponder()
+            }
             stopMomentumScrolling()
 
             let button = pointerButton(from: event)

@@ -147,11 +147,16 @@
                 // insertText. Sending the raw key here would type the latin
                 // keystrokes straight into the shell, and marking the press
                 // handled would then suppress the committed text — together,
-                // "cannot type Chinese on a hardware keyboard". Mirror the
-                // AppKit twin instead: the key event still reaches the core
-                // flagged `composing` and without text, so it encodes no
-                // bytes, and `hardwareKeyHandled` stays false so the input
-                // method's text lands.
+                // "cannot type Chinese on a hardware keyboard".
+                //
+                // But whether the text input system actually processes
+                // hardware keys varies by iPadOS version — on systems where
+                // it does not, deferring alone swallows every printable key.
+                // So the deferral is a loan, not a gift: the key is recorded,
+                // and if no UITextInput mutation claims it before the runloop
+                // turn ends (the same window the key-command dedup relies
+                // on), it is replayed to the surface exactly as the direct
+                // path would have sent it.
                 if action == GHOSTTY_ACTION_PRESS || action == GHOSTTY_ACTION_REPEAT,
                    filteredModifierFlags.isDisjoint(with: [.control, .command]),
                    TerminalIMEComposition.shouldDeferKey(
@@ -165,14 +170,7 @@
                         .input,
                         "uikit key deferred to input method code=\(key.keyCode.rawValue) marked=\(inputHandler.hasMarkedText) lang=\(textInputMode?.primaryLanguage ?? "nil")"
                     )
-                    var composingEvent = ghostty_input_key_s()
-                    composingEvent.action = action
-                    composingEvent.mods = mods.ghosttyMods
-                    composingEvent.keycode = TerminalHardwareKeyRouter.appKitKeyCodeForUIKit(
-                        usage: UInt16(key.keyCode.rawValue)
-                    )
-                    composingEvent.composing = true
-                    _ = surface.sendKeyEvent(composingEvent)
+                    deferKeyToInputMethod(key, action: action, mods: mods)
                     return
                 }
             #endif
@@ -352,4 +350,94 @@
             case decrease
         }
     }
+
+    #if !targetEnvironment(macCatalyst)
+        /// A hardware key loaned to the input method, kept ready to replay:
+        /// everything the direct path would have put on the key event.
+        struct DeferredInputMethodKey {
+            let action: ghostty_input_action_e
+            let keycode: UInt32
+            let mods: ghostty_input_mods_e
+            let consumedMods: ghostty_input_mods_e
+            let unshiftedCodepoint: UInt32
+            let text: String?
+        }
+
+        extension UITerminalView {
+            func deferKeyToInputMethod(
+                _ key: UIKey,
+                action: ghostty_input_action_e,
+                mods: TerminalInputModifiers
+            ) {
+                var consumedFlags = key.modifierFlags
+                consumedFlags.remove(.control)
+                consumedFlags.remove(.command)
+
+                let unshifted = TerminalInputText.filteredFunctionKeyText(
+                    key.charactersIgnoringModifiers
+                )?.unicodeScalars.first?.value ?? 0
+
+                pendingInputMethodKeys.append(DeferredInputMethodKey(
+                    action: action,
+                    keycode: TerminalHardwareKeyRouter.appKitKeyCodeForUIKit(
+                        usage: UInt16(key.keyCode.rawValue)
+                    ),
+                    mods: mods.ghosttyMods,
+                    consumedMods: TerminalInputModifiers(from: consumedFlags).ghosttyMods,
+                    unshiftedCodepoint: unshifted,
+                    text: TerminalInputText.filteredFunctionKeyText(key.characters)
+                ))
+                scheduleInputMethodKeyFlush()
+            }
+
+            /// The text input system spoke — every loaned key was heard.
+            /// Called from each UITextInput mutation entry point.
+            func claimPendingInputMethodKeys() {
+                guard !pendingInputMethodKeys.isEmpty else { return }
+                TerminalDebugLog.log(
+                    .input,
+                    "input method claimed \(pendingInputMethodKeys.count) deferred key(s)"
+                )
+                pendingInputMethodKeys.removeAll()
+            }
+
+            private func scheduleInputMethodKeyFlush() {
+                guard !pendingInputMethodFlushScheduled else { return }
+                pendingInputMethodFlushScheduled = true
+                DispatchQueue.main.async { [weak self] in
+                    guard let self else { return }
+                    pendingInputMethodFlushScheduled = false
+                    replayUnclaimedInputMethodKeys()
+                }
+            }
+
+            private func replayUnclaimedInputMethodKeys() {
+                guard !pendingInputMethodKeys.isEmpty else { return }
+                let keys = pendingInputMethodKeys
+                pendingInputMethodKeys.removeAll()
+                guard let surface else { return }
+                TerminalDebugLog.log(
+                    .input,
+                    "input method left \(keys.count) key(s) unclaimed, replaying"
+                )
+                for key in keys {
+                    var keyEvent = ghostty_input_key_s()
+                    keyEvent.action = key.action
+                    keyEvent.mods = key.mods
+                    keyEvent.keycode = key.keycode
+                    keyEvent.consumed_mods = key.consumedMods
+                    keyEvent.unshifted_codepoint = key.unshiftedCodepoint
+                    keyEvent.composing = false
+                    if let text = key.text, !text.isEmpty {
+                        text.withCString { ptr in
+                            keyEvent.text = ptr
+                            _ = surface.sendKeyEvent(keyEvent)
+                        }
+                    } else {
+                        _ = surface.sendKeyEvent(keyEvent)
+                    }
+                }
+            }
+        }
+    #endif
 #endif

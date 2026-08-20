@@ -58,6 +58,9 @@
         // MARK: - UIKeyInput
 
         open func insertText(_ text: String) {
+            #if !targetEnvironment(macCatalyst)
+                claimPendingInputMethodKeys()
+            #endif
             guard !hardwareKeyHandled else {
                 TerminalDebugLog.log(
                     .input,
@@ -116,6 +119,9 @@
         }
 
         open func deleteBackward() {
+            #if !targetEnvironment(macCatalyst)
+                claimPendingInputMethodKeys()
+            #endif
             if inputHandler.deleteBackwardInMarkedText() {
                 TerminalDebugLog.log(.input, "deleteBackward handled by marked text")
                 hardwareKeyHandled = false
@@ -159,10 +165,16 @@
             _ markedText: String?,
             selectedRange: NSRange
         ) {
+            #if !targetEnvironment(macCatalyst)
+                claimPendingInputMethodKeys()
+            #endif
             inputHandler.setMarkedText(markedText, selectedRange: selectedRange)
         }
 
         open func unmarkText() {
+            #if !targetEnvironment(macCatalyst)
+                claimPendingInputMethodKeys()
+            #endif
             inputHandler.unmarkText(applyingStickyModifiers: false)
         }
 
@@ -254,6 +266,9 @@
         }
 
         open func replace(_: UITextRange, withText text: String) {
+            #if !targetEnvironment(macCatalyst)
+                claimPendingInputMethodKeys()
+            #endif
             #if !targetEnvironment(macCatalyst)
                 if inputHandler.hasMarkedText {
                     inputHandler.insertText(text)
