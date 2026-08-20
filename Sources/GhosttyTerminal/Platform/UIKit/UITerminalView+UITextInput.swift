@@ -61,12 +61,12 @@
             #if !targetEnvironment(macCatalyst)
                 claimPendingInputMethodKeys()
             #endif
-            guard !hardwareKeyHandled else {
+            guard !hardwareKeyboard.keyHandled else {
                 TerminalDebugLog.log(
                     .input,
                     "insertText suppressed text=\(TerminalDebugLog.describe(text))"
                 )
-                hardwareKeyHandled = false
+                hardwareKeyboard.keyHandled = false
                 return
             }
 
@@ -124,13 +124,13 @@
             #endif
             if inputHandler.deleteBackwardInMarkedText() {
                 TerminalDebugLog.log(.input, "deleteBackward handled by marked text")
-                hardwareKeyHandled = false
+                hardwareKeyboard.keyHandled = false
                 return
             }
 
-            guard !hardwareKeyHandled else {
+            guard !hardwareKeyboard.keyHandled else {
                 TerminalDebugLog.log(.input, "deleteBackward suppressed")
-                hardwareKeyHandled = false
+                hardwareKeyboard.keyHandled = false
                 return
             }
 
