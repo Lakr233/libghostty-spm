@@ -68,7 +68,19 @@ final class TerminalSurfaceCoordinator {
     private var isSurfaceFocused = false
     private var pendingImmediateTick = true
     private var lastTickTimestamp: TimeInterval = 0
-    private var tickScheduled = false
+
+    /// Held only while frames are owed. The engine's wakeups arrive at PTY
+    /// speed, not display speed; rendering straight from them draws far more
+    /// often than the screen can show and starves input handling under heavy
+    /// output. The link paces draws to vsync (60 fps cap) instead, and is
+    /// released after a stretch of idle frames so a quiet terminal costs no
+    /// per-frame wakeups at all. All instances share one platform link.
+    private var displayLink: DisplayLink?
+    private var idleFrameCount = 0
+    private static let displayLinkFrameRateRange = DisplayLinkFrameRateRange(
+        minimum: 30, maximum: 60, preferred: 60
+    )
+    private static let idleFramesBeforeRelease = 30
 
     init() {
         bridge.onCellSizeChange = { [weak self] width, height in
@@ -81,15 +93,15 @@ final class TerminalSurfaceCoordinator {
 
     func requestImmediateTick() {
         pendingImmediateTick = true
-        scheduleTickIfNeeded()
+        ensureDisplayLink()
     }
 
     func startDisplayLink() {
-        scheduleTickIfNeeded()
+        ensureDisplayLink()
     }
 
     func stopDisplayLink() {
-        tickScheduled = false
+        releaseDisplayLink()
     }
 
     // MARK: - Surface Lifecycle
@@ -410,9 +422,18 @@ final class TerminalSurfaceCoordinator {
     // MARK: - Frame Rendering
 
     func tick(context: DisplayLinkCallbackContext) {
-        guard shouldRenderFrame(at: context.timestamp) else {
+        guard canRenderFrame else {
+            releaseDisplayLink()
             return
         }
+        guard shouldRenderFrame(at: context.timestamp) else {
+            idleFrameCount += 1
+            if idleFrameCount >= Self.idleFramesBeforeRelease {
+                releaseDisplayLink()
+            }
+            return
+        }
+        idleFrameCount = 0
         pendingImmediateTick = false
         lastTickTimestamp = context.timestamp
         TerminalDebugLog.log(.render, "tick")
@@ -467,7 +488,7 @@ final class TerminalSurfaceCoordinator {
 
     private func tearDownSurface(removingBridgeFrom controller: TerminalController?) {
         TerminalDebugLog.log(.lifecycle, "tear down surface")
-        tickScheduled = false
+        releaseDisplayLink()
         if let session = configuration.inMemorySession {
             session.clearSurface(ifMatches: surface?.rawValue)
         }
@@ -511,28 +532,24 @@ final class TerminalSurfaceCoordinator {
         return pendingImmediateTick || lastTickTimestamp == 0
     }
 
-    private func scheduleTickIfNeeded() {
+    private func ensureDisplayLink() {
         guard canRenderFrame else {
-            tickScheduled = false
+            releaseDisplayLink()
             return
         }
-        guard !tickScheduled else {
-            return
-        }
-        tickScheduled = true
-        TerminalDebugLog.log(.lifecycle, "tick scheduled")
-        DispatchQueue.main.async { [weak self] in
-            guard let self else { return }
-            tickScheduled = false
-            let timestamp = Self.monotonicTimestamp()
-            tick(
-                context: .init(
-                    duration: 0,
-                    timestamp: timestamp,
-                    targetTimestamp: timestamp
-                )
-            )
-        }
+        idleFrameCount = 0
+        guard displayLink == nil else { return }
+        let link = DisplayLink(preferredFrameRateRange: Self.displayLinkFrameRateRange)
+        link.delegatingObject(self)
+        displayLink = link
+        TerminalDebugLog.log(.lifecycle, "display link acquired")
+    }
+
+    private func releaseDisplayLink() {
+        guard displayLink != nil else { return }
+        displayLink = nil
+        idleFrameCount = 0
+        TerminalDebugLog.log(.lifecycle, "display link released")
     }
 
     private static func monotonicTimestamp() -> TimeInterval {
@@ -554,12 +571,11 @@ final class TerminalSurfaceCoordinator {
 
     private func renderImmediately() {
         guard canRenderFrame else {
-            tickScheduled = false
+            releaseDisplayLink()
             return
         }
 
         pendingImmediateTick = true
-        tickScheduled = false
         let timestamp = Self.monotonicTimestamp()
         tick(
             context: .init(
@@ -568,5 +584,16 @@ final class TerminalSurfaceCoordinator {
                 targetTimestamp: timestamp
             )
         )
+        ensureDisplayLink()
+    }
+}
+
+extension TerminalSurfaceCoordinator: DisplayLinkDelegate {
+    // The shared CADisplayLink dispatches synchronously on the main run
+    // loop; the protocol just cannot say so.
+    nonisolated func synchronization(context: DisplayLinkCallbackContext) {
+        MainActor.assumeIsolated {
+            tick(context: context)
+        }
     }
 }
