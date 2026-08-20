@@ -9,6 +9,17 @@
     import UIKit
 
     extension UITerminalView {
+        /// Make this view the first responder, reporting whether keyboard
+        /// focus was actually acquired. Fails (returns false) while the view
+        /// is not in a window; ``TerminalViewState/requestFocus()`` retries
+        /// then on window attach.
+        @discardableResult
+        public func acquireProgrammaticFocus() -> Bool {
+            guard window != nil else { return false }
+            if isFirstResponder { return true }
+            return becomeFirstResponder()
+        }
+
         /// Invoke a named Ghostty binding action (e.g. "copy_to_clipboard",
         /// "clear_screen"). Returns true when the action dispatched.
         @discardableResult

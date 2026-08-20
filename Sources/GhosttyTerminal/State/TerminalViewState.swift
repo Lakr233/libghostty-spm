@@ -32,6 +32,11 @@ public final class TerminalViewState: ObservableObject {
 
     public internal(set) weak var surface: TerminalSurface?
 
+    /// The platform view currently presenting this state, set by the SwiftUI
+    /// representable. Weak: the state outlives detached views.
+    weak var attachedView: TerminalView?
+    private var pendingFocusRequest = false
+
     @Published public var configuration: TerminalSurfaceOptions = .init()
     public var onClose: ((Bool) -> Void)?
     @Published public internal(set) var controller: TerminalController
@@ -49,6 +54,33 @@ public final class TerminalViewState: ObservableObject {
     /// exactly as if the delegate never adopted
     /// ``TerminalSurfaceTextSelectionRequestDelegate``.
     public var onTextSelectionRequest: ((TerminalTextSelectionRequest) -> Void)?
+
+    /// Hands keyboard focus to the attached terminal view, imperatively.
+    ///
+    /// The SwiftUI `terminalFocused` bridge is best-effort: with no native
+    /// focusable view anchoring the `FocusState`, SwiftUI's focus system can
+    /// reset the state to nil before the bridge acts on it, leaving the
+    /// previously focused surface holding first responder — and eating every
+    /// hardware key. Hosts that must move focus deterministically (switching
+    /// tabs, dismissing a cover) call this; a request that lands before the
+    /// view is in a window replays once it attaches.
+    public func requestFocus() {
+        pendingFocusRequest = true
+        // Hop the runloop: hosts call this from SwiftUI `onChange`, and the
+        // first-responder dance writes focus state that must not mutate
+        // SwiftUI state mid-update.
+        DispatchQueue.main.async { [weak self] in
+            self?.replayPendingFocusIfNeeded()
+        }
+    }
+
+    func replayPendingFocusIfNeeded() {
+        guard pendingFocusRequest else { return }
+        guard let view = attachedView, view.acquireProgrammaticFocus() else {
+            return
+        }
+        pendingFocusRequest = false
+    }
 
     /// Sends text to the attached surface.
     @discardableResult

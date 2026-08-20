@@ -73,6 +73,13 @@
                     core.fitToSize()
                 }
                 onWindowAttach?()
+                // Same runloop hop as `requestFocus`: attaching can happen
+                // mid SwiftUI update, where the first-responder dance must
+                // not mutate focus state.
+                DispatchQueue.main.async { [weak self] in
+                    guard let self else { return }
+                    (delegate as? TerminalViewState)?.replayPendingFocusIfNeeded()
+                }
             } else {
                 // The surface survives on purpose: this detach may be a
                 // cover's temporary one, and the view's own teardown frees
@@ -170,6 +177,10 @@
         @discardableResult
         override open func becomeFirstResponder() -> Bool {
             let result = super.becomeFirstResponder()
+            // A failed acquire (view not in a window yet) must not report
+            // focus: the SwiftUI bridge would record this surface as focused
+            // while another view keeps eating the keyboard.
+            guard result else { return false }
             core.setFocus(true)
             onFocusChange?(true)
             return result
