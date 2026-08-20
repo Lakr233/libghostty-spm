@@ -13,6 +13,8 @@
     }
 
     extension UITerminalView {
+        static let minFontSize: Float = 4
+        static let maxFontSize: Float = 64
         private static let scaleStepThreshold: CGFloat = 0.1
 
         func setupPinchZoomGesture() {
@@ -26,6 +28,7 @@
         @objc func handlePinchGesture(_ gesture: UIPinchGestureRecognizer) {
             switch gesture.state {
             case .began:
+                softwareKeyboard.tapCandidateArmed = false
                 fontZoom.lastPinchScale = gesture.scale
                 TerminalDebugLog.log(
                     .actions,

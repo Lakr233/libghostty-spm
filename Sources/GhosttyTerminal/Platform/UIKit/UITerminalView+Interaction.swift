@@ -26,6 +26,15 @@
     }
 
     extension UITerminalView {
+        static let touchScrollMultiplier: CGFloat = 3.0
+        /// How far a finger may wander and still count as a tap.
+        static let tapCandidateSlop: CGFloat = 10
+        /// How long a press may last and still count as a tap. Below the
+        /// long-press recognizer's 0.5s so a stationary hold never
+        /// toggles the keyboard even when no selection delegate is
+        /// installed and the recognizer itself refuses to begin.
+        static let tapCandidateMaxDuration: TimeInterval = 0.35
+
         override open func touchesBegan(
             _ touches: Set<UITouch>,
             with event: UIEvent?
@@ -37,12 +46,24 @@
             #if targetEnvironment(macCatalyst)
                 becomeFirstResponder()
             #else
-                softwareKeyboard.pendingDismissOnTouchEnd = false
-                softwareKeyboard.touchDidScrollDuringCurrentTouch = false
-                if softwareKeyboard.isVisible {
-                    softwareKeyboard.pendingDismissOnTouchEnd = true
+                if momentumScroll.displayLink != nil {
+                    // A touch during momentum is a scroll-stop, not a tap.
+                    stopMomentumScrolling()
+                    softwareKeyboard.tapCandidateArmed = false
+                } else if let touch = touches.first,
+                          // View-scoped on purpose: `allTouches` spans the
+                          // whole app, and a finger resting on host chrome
+                          // (sidebar, tab bar) must not swallow a tap here.
+                          (event?.touches(for: self)?.count ?? touches.count) == 1
+                {
+                    softwareKeyboard.tapCandidateArmed = true
+                    softwareKeyboard.tapCandidateStart = touch.location(in: self)
+                    softwareKeyboard.tapCandidateTimestamp = touch.timestamp
                 } else {
-                    becomeFirstResponder()
+                    // A second finger means pinch (or some other
+                    // multi-touch gesture) — the sequence can no longer
+                    // be a tap.
+                    softwareKeyboard.tapCandidateArmed = false
                 }
             #endif
         }
@@ -54,6 +75,15 @@
             if handleIndirectPointerTouches(touches, phase: .moved, event: event) {
                 return
             }
+            #if !targetEnvironment(macCatalyst)
+                if softwareKeyboard.tapCandidateArmed, let touch = touches.first {
+                    let point = touch.location(in: self)
+                    let start = softwareKeyboard.tapCandidateStart
+                    if hypot(point.x - start.x, point.y - start.y) > Self.tapCandidateSlop {
+                        softwareKeyboard.tapCandidateArmed = false
+                    }
+                }
+            #endif
             super.touchesMoved(touches, with: event)
         }
 
@@ -65,11 +95,21 @@
                 return
             }
             #if !targetEnvironment(macCatalyst)
-                if softwareKeyboard.pendingDismissOnTouchEnd, !softwareKeyboard.touchDidScrollDuringCurrentTouch {
-                    resignFirstResponder()
+                if softwareKeyboard.tapCandidateArmed, let touch = touches.first {
+                    softwareKeyboard.tapCandidateArmed = false
+                    let duration = touch.timestamp - softwareKeyboard.tapCandidateTimestamp
+                    if duration <= Self.tapCandidateMaxDuration {
+                        TerminalDebugLog.log(
+                            .input,
+                            "tap toggles keyboard visible=\(softwareKeyboard.isVisible) duration=\(String(format: "%.3f", duration))"
+                        )
+                        if softwareKeyboard.isVisible {
+                            resignFirstResponder()
+                        } else {
+                            becomeFirstResponder()
+                        }
+                    }
                 }
-                softwareKeyboard.pendingDismissOnTouchEnd = false
-                softwareKeyboard.touchDidScrollDuringCurrentTouch = false
             #endif
             super.touchesEnded(touches, with: event)
         }
@@ -82,8 +122,7 @@
                 return
             }
             #if !targetEnvironment(macCatalyst)
-                softwareKeyboard.pendingDismissOnTouchEnd = false
-                softwareKeyboard.touchDidScrollDuringCurrentTouch = false
+                softwareKeyboard.tapCandidateArmed = false
             #endif
             super.touchesCancelled(touches, with: event)
         }
@@ -507,6 +546,7 @@
                 _ gesture: UILongPressGestureRecognizer
             ) {
                 guard gesture.state == .began else { return }
+                softwareKeyboard.tapCandidateArmed = false
                 guard let delegate = activeTextSelectionDelegate else { return }
                 guard let surface else { return }
                 guard case let .inMemory(session) = configuration.backend else {
@@ -573,7 +613,7 @@
             case .began:
                 guard pointer.activeButton == nil else { return }
                 #if !targetEnvironment(macCatalyst)
-                    softwareKeyboard.touchDidScrollDuringCurrentTouch = true
+                    softwareKeyboard.tapCandidateArmed = false
                 #endif
                 TerminalDebugLog.log(.input, "touch scroll began")
                 stopMomentumScrolling()
@@ -589,8 +629,8 @@
 
                 let scrollMods = TerminalScrollModifiers(precision: true)
                 surface?.sendMouseScroll(
-                    x: Double(translation.x * touchScrollMultiplier),
-                    y: Double(translation.y * touchScrollMultiplier),
+                    x: Double(translation.x * Self.touchScrollMultiplier),
+                    y: Double(translation.y * Self.touchScrollMultiplier),
                     mods: scrollMods.rawValue
                 )
 
@@ -639,8 +679,8 @@
             momentumScroll.velocity.x *= deceleration
             momentumScroll.velocity.y *= deceleration
 
-            let deltaX = momentumScroll.velocity.x * dt * touchScrollMultiplier
-            let deltaY = momentumScroll.velocity.y * dt * touchScrollMultiplier
+            let deltaX = momentumScroll.velocity.x * dt * Self.touchScrollMultiplier
+            let deltaY = momentumScroll.velocity.y * dt * Self.touchScrollMultiplier
 
             if abs(momentumScroll.velocity.x) < 50, abs(momentumScroll.velocity.y) < 50 {
                 stopMomentumScrolling()

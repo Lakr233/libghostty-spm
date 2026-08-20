@@ -7,6 +7,11 @@
     import GhosttyKit
     import UIKit
 
+    /// UITextInput delegate wiring; behavior lives in +UITextInput.
+    struct TextInputBridgeState {
+        weak var inputDelegate: (any UITextInputDelegate)?
+    }
+
     extension UITerminalView: UITextInput, UITextInputTraits {
         // MARK: - UITextInputTraits
 
@@ -287,8 +292,8 @@
         // MARK: - UITextInput Delegate
 
         open var inputDelegate: (any UITextInputDelegate)? {
-            get { _inputDelegate }
-            set { _inputDelegate = newValue }
+            get { textInputBridge.inputDelegate }
+            set { textInputBridge.inputDelegate = newValue }
         }
 
         // MARK: - UITextInput Tokenizer

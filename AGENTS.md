@@ -188,6 +188,16 @@ When changing SwiftPM products, targets, or test dependencies, update all three 
 
 ## Swift Code Style
 
+- **Per-concern view state structs**: the platform views (`UITerminalView` /
+  `AppTerminalView`) keep no loose stored properties. Each concern's mutable
+  state is a struct defined in the `+Xxx` extension file that owns the
+  behavior (`SoftwareKeyboardState` in `+Keyboard`, `PointerInteractionState`
+  in `+Interaction`, `FocusBridgeState` in `+Lifecycle`, …); the root class
+  declares only `var xxx: XxxState = .init()` lines — the storage must live
+  in the class because extensions cannot add stored properties. Lazy objects
+  that need `self` stay in the class; constants are `static let`s in the
+  extension that uses them; anything derivable from other state is a computed
+  var, never stored.
 - **4-space indentation**, opening brace on same line
 - PascalCase types, camelCase properties/methods
 - PascalCase files for types, `+` for extensions (e.g., `AppTerminalView+Input.swift`)

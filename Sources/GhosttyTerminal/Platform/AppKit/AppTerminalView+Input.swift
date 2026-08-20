@@ -9,6 +9,18 @@
     import AppKit
     import GhosttyKit
 
+    /// Cmd/Ctrl key-equivalent echo dedup state; behavior lives in +Input.
+    struct KeyEchoState {
+        var lastPerformKeyEvent: TimeInterval?
+    }
+
+    /// Mouse selection state; behavior lives in +Input.
+    struct PointerSelectionState {
+        var selectionStartPoint: CGPoint?
+        var lastSelectionRect: CGRect?
+        var pendingSelectionMenuPoint: CGPoint?
+    }
+
     extension AppTerminalView {
         override open func keyDown(with event: NSEvent) {
             inputHandler?.handleKeyDown(with: event)
@@ -48,19 +60,19 @@
                 if !event.modifierFlags.contains(.command),
                    !event.modifierFlags.contains(.control)
                 {
-                    lastPerformKeyEvent = nil
+                    keyEcho.lastPerformKeyEvent = nil
                     return false
                 }
 
-                if let lastPerformKeyEvent,
-                   lastPerformKeyEvent == event.timestamp
+                if let last = keyEcho.lastPerformKeyEvent,
+                   last == event.timestamp
                 {
-                    self.lastPerformKeyEvent = nil
+                    keyEcho.lastPerformKeyEvent = nil
                     equivalent = event.characters ?? ""
                     break
                 }
 
-                lastPerformKeyEvent = event.timestamp
+                keyEcho.lastPerformKeyEvent = event.timestamp
                 return false
             }
 
@@ -92,9 +104,9 @@
         }
 
         override open func doCommand(by selector: Selector) {
-            if let lastPerformKeyEvent,
+            if let last = keyEcho.lastPerformKeyEvent,
                let current = NSApp.currentEvent,
-               lastPerformKeyEvent == current.timestamp
+               last == current.timestamp
             {
                 NSApp.sendEvent(current)
                 return
@@ -132,8 +144,8 @@
             window?.makeFirstResponder(self)
             let (x, y) = mousePoint(from: event)
             let mods = TerminalInputModifiers(from: event.modifierFlags)
-            pointerSelectionStartPoint = CGPoint(x: x, y: y)
-            pendingSelectionMenuPoint = nil
+            pointer.selectionStartPoint = CGPoint(x: x, y: y)
+            pointer.pendingSelectionMenuPoint = nil
             surface?.sendMousePos(x: x, y: y, mods: mods.ghosttyMods)
             surface?.sendMouseButton(
                 state: GHOSTTY_MOUSE_PRESS,
@@ -160,7 +172,7 @@
             let mods = TerminalInputModifiers(from: event.modifierFlags)
             surface?.sendMousePos(x: x, y: y, mods: mods.ghosttyMods)
             if let menuPoint = selectionMenuPoint(at: CGPoint(x: x, y: y)) {
-                pendingSelectionMenuPoint = menuPoint
+                pointer.pendingSelectionMenuPoint = menuPoint
                 return
             }
             surface?.sendMouseButton(
@@ -174,8 +186,8 @@
             let (x, y) = mousePoint(from: event)
             let mods = TerminalInputModifiers(from: event.modifierFlags)
             surface?.sendMousePos(x: x, y: y, mods: mods.ghosttyMods)
-            if pendingSelectionMenuPoint != nil {
-                pendingSelectionMenuPoint = nil
+            if pointer.pendingSelectionMenuPoint != nil {
+                pointer.pendingSelectionMenuPoint = nil
                 showSelectionCopyMenu(with: event)
                 return
             }
@@ -250,8 +262,8 @@
         }
 
         private func updatePointerSelectionRect(to point: CGPoint) {
-            guard let start = pointerSelectionStartPoint else { return }
-            lastPointerSelectionRect = CGRect(
+            guard let start = pointer.selectionStartPoint else { return }
+            pointer.lastSelectionRect = CGRect(
                 x: min(start.x, point.x),
                 y: min(start.y, point.y),
                 width: abs(start.x - point.x),
@@ -260,11 +272,11 @@
         }
 
         private func finishPointerSelection(at point: CGPoint) {
-            defer { pointerSelectionStartPoint = nil }
-            guard let start = pointerSelectionStartPoint else { return }
+            defer { pointer.selectionStartPoint = nil }
+            guard let start = pointer.selectionStartPoint else { return }
             let dragDistance = hypot(point.x - start.x, point.y - start.y)
             if dragDistance < 2 {
-                lastPointerSelectionRect = nil
+                pointer.lastSelectionRect = nil
             } else {
                 updatePointerSelectionRect(to: point)
             }
