@@ -1,8 +1,8 @@
 diff --git a/include/ghostty.h b/include/ghostty.h
-index 72bbb57a8..d9e399220 100644
+index 5523654c4..c57d5bff1 100644
 --- a/include/ghostty.h
 +++ b/include/ghostty.h
-@@ -464,10 +464,26 @@ typedef enum {
+@@ -468,10 +468,26 @@ typedef enum {
    GHOSTTY_SURFACE_CONTEXT_SPLIT = 2,
  } ghostty_surface_context_e;
  
@@ -29,7 +29,7 @@ index 72bbb57a8..d9e399220 100644
    double scale_factor;
    float font_size;
    const char* working_directory;
-@@ -1109,6 +1125,8 @@ GHOSTTY_API ghostty_surface_config_s ghostty_surface_inherited_config(ghostty_su
+@@ -1135,6 +1151,8 @@ GHOSTTY_API ghostty_surface_config_s ghostty_surface_inherited_config(ghostty_su
  GHOSTTY_API void ghostty_surface_update_config(ghostty_surface_t, ghostty_config_t);
  GHOSTTY_API bool ghostty_surface_needs_confirm_quit(ghostty_surface_t);
  GHOSTTY_API bool ghostty_surface_process_exited(ghostty_surface_t);
@@ -39,32 +39,32 @@ index 72bbb57a8..d9e399220 100644
  GHOSTTY_API void ghostty_surface_draw(ghostty_surface_t);
  GHOSTTY_API void ghostty_surface_set_content_scale(ghostty_surface_t, double, double);
 diff --git a/src/Surface.zig b/src/Surface.zig
-index 2c4edc497..b35c4465e 100644
+index c57eeab54..c58621706 100644
 --- a/src/Surface.zig
 +++ b/src/Surface.zig
-@@ -628,40 +628,48 @@ pub fn init(
+@@ -638,37 +638,49 @@ pub fn init(
      // This separate block ({}) is important because our errdefers must
      // be scoped here to be valid.
      {
 -        var env = rt_surface.defaultTermioEnv() catch |err| env: {
 -            // If an error occurs, we don't want to block surface startup.
 -            log.warn("error getting env map for surface err={}", .{err});
--            break :env internal_os.getEnvMap(alloc) catch
--                std.process.EnvMap.init(alloc);
+-            break :env global.environMap() catch std.process.Environ.Map.init(alloc);
 -        };
 -        errdefer env.deinit();
 +        const backend: termio.Backend = switch (rt_surface.termioBackend()) {
 +            .exec => backend: {
 +                var env = rt_surface.defaultTermioEnv() catch |err| env: {
++                    // If an error occurs, we don't want to block surface startup.
 +                    log.warn("error getting env map for surface err={}", .{err});
-+                    break :env internal_os.getEnvMap(alloc) catch
-+                        std.process.EnvMap.init(alloc);
++                    break :env global.environMap() catch std.process.Environ.Map.init(alloc);
 +                };
 +                errdefer env.deinit();
  
 -        // don't leak GHOSTTY_LOG to any subprocesses
--        env.remove("GHOSTTY_LOG");
-+                env.remove("GHOSTTY_LOG");
+-        _ = env.orderedRemove("GHOSTTY_LOG");
++                // don't leak GHOSTTY_LOG to any subprocesses
++                _ = env.orderedRemove("GHOSTTY_LOG");
  
 -        var buf: [18]u8 = undefined;
 -        try env.put(
@@ -86,12 +86,13 @@ index 2c4edc497..b35c4465e 100644
 -            .shell_integration_features = config.@"shell-integration-features",
 -            .cursor_blink = config.@"cursor-style-blink",
 -            .working_directory = if (config.@"working-directory") |wd| wd.value() else null,
--            .resources_dir = global_state.resources_dir.host(),
+-            .resources_dir = global.resourcesDir().host(),
 -            .term = config.term,
 -            .rt_pre_exec_info = .init(config),
 -            .rt_post_fork_info = .init(config),
 -        });
 -        errdefer io_exec.deinit();
++                // Initialize our IO backend
 +                var io_exec = try termio.Exec.init(alloc, .{
 +                    .command = command,
 +                    .env = env,
@@ -100,7 +101,7 @@ index 2c4edc497..b35c4465e 100644
 +                    .shell_integration_features = config.@"shell-integration-features",
 +                    .cursor_blink = config.@"cursor-style-blink",
 +                    .working_directory = if (config.@"working-directory") |wd| wd.value() else null,
-+                    .resources_dir = global_state.resources_dir.host(),
++                    .resources_dir = global.resourcesDir().host(),
 +                    .term = config.term,
 +                    .rt_pre_exec_info = .init(config),
 +                    .rt_post_fork_info = .init(config),
@@ -117,11 +118,9 @@ index 2c4edc497..b35c4465e 100644
 +            },
 +        };
  
--        // Initialize our IO mailbox
+         // Initialize our IO mailbox
          var io_mailbox = try termio.Mailbox.initSPSC(alloc);
-         errdefer io_mailbox.deinit(alloc);
- 
-@@ -669,7 +677,7 @@ pub fn init(
+@@ -678,7 +690,7 @@ pub fn init(
              .size = size,
              .full_config = config,
              .config = try termio.Termio.DerivedConfig.init(alloc, config),
@@ -130,7 +129,7 @@ index 2c4edc497..b35c4465e 100644
              .mailbox = io_mailbox,
              .renderer_state = &self.renderer_state,
              .renderer_wakeup = render_thread.wakeup,
-@@ -1311,9 +1319,11 @@ fn childExitedAbnormally(
+@@ -1331,9 +1343,11 @@ fn childExitedAbnormally(
      const alloc = arena.allocator();
  
      // Build up our command for the error message
@@ -144,12 +143,12 @@ index 2c4edc497..b35c4465e 100644
 +    defer alloc.free(command);
      const runtime_str = try std.fmt.allocPrint(alloc, "{d} ms", .{info.runtime_ms});
  
-     self.renderer_state.mutex.lock();
+     self.renderer_state.mutex.lockUncancelable(global.io());
 diff --git a/src/apprt/embedded.zig b/src/apprt/embedded.zig
-index 7310159cc..0180884fc 100644
+index a380dc50c..0d716c6c8 100644
 --- a/src/apprt/embedded.zig
 +++ b/src/apprt/embedded.zig
-@@ -15,6 +15,7 @@ const input = @import("../input.zig");
+@@ -16,6 +16,7 @@ const input = @import("../input.zig");
  const internal_os = @import("../os/main.zig");
  const renderer = @import("../renderer.zig");
  const terminal = @import("../terminal/main.zig");
@@ -157,7 +156,7 @@ index 7310159cc..0180884fc 100644
  const CoreApp = @import("../App.zig");
  const CoreInspector = @import("../inspector/main.zig").Inspector;
  const CoreSurface = @import("../Surface.zig");
-@@ -411,6 +412,8 @@ pub const Surface = struct {
+@@ -430,6 +431,8 @@ pub const Surface = struct {
      app: *App,
      platform: Platform,
      userdata: ?*anyopaque = null,
@@ -166,7 +165,7 @@ index 7310159cc..0180884fc 100644
      core_surface: CoreSurface,
      content_scale: apprt.ContentScale,
      size: apprt.SurfaceSize,
-@@ -421,6 +424,17 @@ pub const Surface = struct {
+@@ -440,6 +443,17 @@ pub const Surface = struct {
      /// that getTitle works without the implementer needing to save it.
      title: ?[:0]const u8 = null,
  
@@ -184,7 +183,7 @@ index 7310159cc..0180884fc 100644
      /// Surface initialization options.
      pub const Options = extern struct {
          /// The platform that this surface is being initialized for and
-@@ -431,6 +445,20 @@ pub const Surface = struct {
+@@ -450,6 +464,20 @@ pub const Surface = struct {
          /// Userdata passed to some of the callbacks.
          userdata: ?*anyopaque = null,
  
@@ -205,7 +204,7 @@ index 7310159cc..0180884fc 100644
          /// The scale factor of the screen.
          scale_factor: f64 = 1,
  
-@@ -469,6 +497,12 @@ pub const Surface = struct {
+@@ -488,6 +516,12 @@ pub const Surface = struct {
              .app = app,
              .platform = try .init(opts.platform_tag, opts.platform),
              .userdata = opts.userdata,
@@ -218,7 +217,7 @@ index 7310159cc..0180884fc 100644
              .core_surface = undefined,
              .content_scale = .{
                  .x = @floatCast(opts.scale_factor),
-@@ -634,6 +668,19 @@ pub const Surface = struct {
+@@ -653,6 +687,19 @@ pub const Surface = struct {
          return &self.core_surface;
      }
  
@@ -238,7 +237,7 @@ index 7310159cc..0180884fc 100644
      pub fn rtApp(self: *const Surface) *App {
          return self.app;
      }
-@@ -1600,6 +1647,28 @@ pub const CAPI = struct {
+@@ -1611,6 +1658,28 @@ pub const CAPI = struct {
          return surface.core_surface.child_exited;
      }
  

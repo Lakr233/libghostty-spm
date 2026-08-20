@@ -1,20 +1,19 @@
-name: Build GhosttyKit
+name: Build Upstream XCFramework
+
+# Builds the GhosttyKit XCFramework from the pinned upstream Ghostty release
+# (Ghostty.ref + Ghostty.version) and publishes it on the `upstream.<version>`
+# release tag. Swift package releases (bare semver tags, 1.4.0+) are cut
+# separately by release.yml and reference the asset published here — a
+# Swift-only change never rebuilds the Zig core.
 
 on:
   workflow_dispatch:
-    inputs:
-      package_version:
-        description: "GhosttyKit package version to publish, for example 1.3.1."
-        required: true
-        type: string
-  schedule:
-    - cron: "23 6 * * 1"
 
 permissions:
   contents: write
 
 concurrency:
-  group: build-${{ github.ref_name || 'scheduled' }}
+  group: build-upstream
   cancel-in-progress: true
 
 jobs:
@@ -23,8 +22,7 @@ jobs:
     outputs:
       build_needed: ${{ steps.release.outputs.build_needed }}
       ghostty_ref: ${{ steps.release.outputs.ghostty_ref }}
-      resolved_sha: ${{ steps.release.outputs.resolved_sha }}
-      package_version: ${{ steps.release.outputs.package_version }}
+      ghostty_version: ${{ steps.release.outputs.ghostty_version }}
       storage_tag: ${{ steps.release.outputs.storage_tag }}
     steps:
       - name: Checkout
@@ -33,63 +31,19 @@ jobs:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Resolve Release
+      - name: Resolve Upstream Release
         id: release
         run: |
-          EVENT="${{ github.event_name }}"
-          INPUT_PACKAGE_VERSION="${{ github.event.inputs.package_version }}"
           GHOSTTY_REF=$(tr -d '[:space:]' < Ghostty.ref)
+          GHOSTTY_VERSION=$(tr -d '[:space:]' < Ghostty.version)
 
           if ! echo "$GHOSTTY_REF" | grep -Eq '^[0-9a-f]{40}$'; then
             echo "[!] Ghostty.ref must contain one full lowercase commit sha"
             exit 1
           fi
-
-          git fetch --tags origin
-          LATEST_PACKAGE_VERSION=$(
-            git tag --list |
-              python3 -c 'import re, sys; versions = [tuple(int(part) for part in tag.split(".")) for tag in (line.strip() for line in sys.stdin) if re.fullmatch(r"\d+\.\d+\.\d+", tag)]; print(".".join(map(str, max(versions))), end="") if versions else None'
-          )
-
-          case "$EVENT" in
-            workflow_dispatch)
-              PACKAGE_VERSION="$INPUT_PACKAGE_VERSION"
-              ;;
-            schedule)
-              PACKAGE_VERSION=$(
-                python3 -c 'import sys; version = sys.argv[1]; major, minor, patch = map(int, version.split(".")) if version else (1, 0, -1); print(f"{major}.{minor}.{patch + 1}", end="")' "$LATEST_PACKAGE_VERSION"
-              )
-              ;;
-            *)
-              echo "[!] unsupported event: $EVENT"
-              exit 1
-              ;;
-          esac
-
-          if ! echo "$PACKAGE_VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
-            echo "[!] package_version must be semantic, for example 1.3.1: $PACKAGE_VERSION"
+          if ! echo "$GHOSTTY_VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "[!] Ghostty.version must be semantic, for example 1.3.1"
             exit 1
-          fi
-
-          if [ -n "$LATEST_PACKAGE_VERSION" ] && ! python3 -c 'import sys; latest = tuple(map(int, sys.argv[1].split("."))); requested = tuple(map(int, sys.argv[2].split("."))); raise SystemExit(0 if requested > latest else 1)' "$LATEST_PACKAGE_VERSION" "$PACKAGE_VERSION"; then
-            echo "[!] package_version must be newer than $LATEST_PACKAGE_VERSION: $PACKAGE_VERSION"
-            exit 1
-          fi
-
-          STORAGE_TAG="storage.$PACKAGE_VERSION"
-          if git rev-parse "refs/tags/$PACKAGE_VERSION" >/dev/null 2>&1; then
-            echo "[!] package tag already exists: $PACKAGE_VERSION"
-            exit 1
-          fi
-          if git rev-parse "refs/tags/$STORAGE_TAG" >/dev/null 2>&1; then
-            echo "[!] storage tag already exists: $STORAGE_TAG"
-            exit 1
-          fi
-
-          if [ "$EVENT" = "schedule" ] && [ -n "$LATEST_PACKAGE_VERSION" ] && [ "$(git rev-list -n 1 "$LATEST_PACKAGE_VERSION")" = "$(git rev-parse HEAD)" ]; then
-            echo "[*] main matches package tag $LATEST_PACKAGE_VERSION, skipping scheduled release"
-            echo "build_needed=false" >> "$GITHUB_OUTPUT"
-            exit 0
           fi
 
           RESOLVED_SHA=$(gh api "repos/ghostty-org/ghostty/commits/$GHOSTTY_REF" --jq '.sha')
@@ -98,11 +52,26 @@ jobs:
             exit 1
           fi
 
-          echo "[*] package_version=$PACKAGE_VERSION ghostty_ref=$GHOSTTY_REF"
+          TAG_SHA=$(gh api "repos/ghostty-org/ghostty/commits/v$GHOSTTY_VERSION" --jq '.sha')
+          if [ "$TAG_SHA" != "$GHOSTTY_REF" ]; then
+            echo "[!] Ghostty.ref is not the commit of upstream tag v$GHOSTTY_VERSION"
+            echo "    tag v$GHOSTTY_VERSION: $TAG_SHA"
+            echo "    Ghostty.ref:          $GHOSTTY_REF"
+            exit 1
+          fi
+
+          STORAGE_TAG="upstream.$GHOSTTY_VERSION"
+          git fetch --tags origin
+          if git rev-parse "refs/tags/$STORAGE_TAG" >/dev/null 2>&1; then
+            echo "[*] $STORAGE_TAG already published, nothing to build"
+            echo "build_needed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "[*] building v$GHOSTTY_VERSION ($GHOSTTY_REF) -> $STORAGE_TAG"
           echo "build_needed=true" >> "$GITHUB_OUTPUT"
           echo "ghostty_ref=$GHOSTTY_REF" >> "$GITHUB_OUTPUT"
-          echo "resolved_sha=$RESOLVED_SHA" >> "$GITHUB_OUTPUT"
-          echo "package_version=$PACKAGE_VERSION" >> "$GITHUB_OUTPUT"
+          echo "ghostty_version=$GHOSTTY_VERSION" >> "$GITHUB_OUTPUT"
           echo "storage_tag=$STORAGE_TAG" >> "$GITHUB_OUTPUT"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -137,6 +106,8 @@ jobs:
         uses: actions/checkout@v5
 
       - name: Setup Zig
+        # Keep in sync with minimum_zig_version in the pinned upstream's
+        # build.zig.zon; a version drift fails every target at once.
         uses: mlugg/setup-zig@v2
         with:
           version: 0.15.2
@@ -165,7 +136,7 @@ jobs:
           compression-level: 0
           retention-days: 1
 
-  merge-test-release:
+  merge-release:
     needs: [prepare, build-target]
     if: needs.prepare.outputs.build_needed == 'true'
     runs-on: macos-26
@@ -234,36 +205,10 @@ jobs:
       - name: Test XCFramework Consumer
         run: ./Script/test-xcframework-consumer.sh "$PWD/BinaryTarget/GhosttyKit.xcframework"
 
-      - name: Use Local Binary Target
-        run: cp Package.local.swift Package.swift
+      - name: Stage Asset
+        run: mv ./build/GhosttyKit.xcframework.zip ./GhosttyKit.xcframework.zip
 
-      - name: Build Package Matrix
-        run: ./Script/test.sh
-
-      - name: Run Swift Tests
-        run: swift test
-
-      - name: Prepare Release
-        run: |
-          STORAGE_TAG="${{ needs.prepare.outputs.storage_tag }}"
-          DOWNLOAD_URL="https://github.com/${{ github.repository }}/releases/download/$STORAGE_TAG/GhosttyKit.xcframework.zip"
-          echo "[*] predicted download url: $DOWNLOAD_URL"
-
-          mv ./build/GhosttyKit.xcframework.zip /tmp/GhosttyKit.xcframework.zip
-          git clean -fdx -f
-          git reset --hard
-          mv /tmp/GhosttyKit.xcframework.zip ./GhosttyKit.xcframework.zip
-          ./Script/build-manifest.sh GhosttyKit.xcframework.zip "$DOWNLOAD_URL"
-
-      - name: Commit & Push
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add -A
-          git commit -m "chore: autopublish $(date -u +%Y-%m-%dT%H:%M:%SZ)" || echo "No changes to commit"
-          git push
-
-      - name: Create Storage Release
+      - name: Create Upstream Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ needs.prepare.outputs.storage_tag }}
@@ -271,27 +216,9 @@ jobs:
           body: |
             GhosttyKit XCFramework
 
-            Package version: ${{ needs.prepare.outputs.package_version }}
-            Ghostty commit: ${{ needs.prepare.outputs.resolved_sha }}
+            Ghostty release: v${{ needs.prepare.outputs.ghostty_version }}
+            Ghostty commit: ${{ needs.prepare.outputs.ghostty_ref }}
           draft: false
           prerelease: false
           files: |
             GhosttyKit.xcframework.zip
-
-      - name: Create Release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ needs.prepare.outputs.package_version }}
-          target_commitish: ${{ github.ref_name }}
-          body: |
-            GhosttyKit ${{ needs.prepare.outputs.package_version }}
-
-            Package version: ${{ needs.prepare.outputs.package_version }}
-            Ghostty commit: ${{ needs.prepare.outputs.resolved_sha }}
-          draft: false
-          prerelease: false
-
-      - name: Verify Release Consistency
-        run: ./Script/verify-release.sh "${{ needs.prepare.outputs.package_version }}" "${{ needs.prepare.outputs.storage_tag }}"
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

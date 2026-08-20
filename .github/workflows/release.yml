@@ -1,0 +1,137 @@
+name: Release Package
+
+# Cuts a Swift package release (bare semver tag, 1.4.0+). No Zig build
+# happens here: the manifest points at the XCFramework already published on
+# the `upstream.<Ghostty.version>` release by build.yml, so a Swift-only
+# change releases in minutes.
+
+on:
+  workflow_dispatch:
+    inputs:
+      package_version:
+        description: "Package version to publish, for example 1.4.0."
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-package
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: macos-26
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Xcode
+        run: sudo xcode-select -s /Applications/Xcode.app
+
+      - name: Resolve Release
+        id: release
+        run: |
+          PACKAGE_VERSION="${{ github.event.inputs.package_version }}"
+          if ! echo "$PACKAGE_VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "[!] package_version must be semantic, for example 1.4.0: $PACKAGE_VERSION"
+            exit 1
+          fi
+
+          git fetch --tags origin
+          if git rev-parse "refs/tags/$PACKAGE_VERSION" >/dev/null 2>&1; then
+            echo "[!] package tag already exists: $PACKAGE_VERSION"
+            exit 1
+          fi
+
+          LATEST_PACKAGE_VERSION=$(
+            git tag --list |
+              python3 -c 'import re, sys; versions = [tuple(int(part) for part in tag.split(".")) for tag in (line.strip() for line in sys.stdin) if re.fullmatch(r"\d+\.\d+\.\d+", tag)]; print(".".join(map(str, max(versions))), end="") if versions else None'
+          )
+          if [ -n "$LATEST_PACKAGE_VERSION" ] && ! python3 -c 'import sys; latest = tuple(map(int, sys.argv[1].split("."))); requested = tuple(map(int, sys.argv[2].split("."))); raise SystemExit(0 if requested > latest else 1)' "$LATEST_PACKAGE_VERSION" "$PACKAGE_VERSION"; then
+            echo "[!] package_version must be newer than $LATEST_PACKAGE_VERSION: $PACKAGE_VERSION"
+            exit 1
+          fi
+
+          GHOSTTY_VERSION=$(tr -d '[:space:]' < Ghostty.version)
+          STORAGE_TAG="upstream.$GHOSTTY_VERSION"
+          if ! gh release view "$STORAGE_TAG" >/dev/null 2>&1; then
+            echo "[!] upstream release not found: $STORAGE_TAG — run the Build Upstream XCFramework workflow first"
+            exit 1
+          fi
+
+          echo "[*] package_version=$PACKAGE_VERSION storage_tag=$STORAGE_TAG"
+          echo "package_version=$PACKAGE_VERSION" >> "$GITHUB_OUTPUT"
+          echo "ghostty_version=$GHOSTTY_VERSION" >> "$GITHUB_OUTPUT"
+          echo "storage_tag=$STORAGE_TAG" >> "$GITHUB_OUTPUT"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Download XCFramework
+        run: |
+          gh release download "${{ steps.release.outputs.storage_tag }}" \
+            --pattern GhosttyKit.xcframework.zip \
+            --dir ./build
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Generate Manifest
+        run: |
+          DOWNLOAD_URL="https://github.com/${{ github.repository }}/releases/download/${{ steps.release.outputs.storage_tag }}/GhosttyKit.xcframework.zip"
+          ./Script/build-manifest.sh ./build/GhosttyKit.xcframework.zip "$DOWNLOAD_URL"
+          cp Package.swift /tmp/Package.release.swift
+
+      - name: Unpack Binary Target
+        run: |
+          mkdir -p BinaryTarget
+          ditto -x -k ./build/GhosttyKit.xcframework.zip BinaryTarget/
+          test -d BinaryTarget/GhosttyKit.xcframework
+
+      - name: Test XCFramework Consumer
+        run: ./Script/test-xcframework-consumer.sh "$PWD/BinaryTarget/GhosttyKit.xcframework"
+
+      - name: Use Local Binary Target
+        run: cp Package.local.swift Package.swift
+
+      - name: Build Package Matrix
+        run: ./Script/test.sh
+
+      - name: Run Swift Tests
+        run: swift test
+
+      - name: Restore Release Manifest
+        run: |
+          git clean -fdx -f
+          git reset --hard
+          cp /tmp/Package.release.swift Package.swift
+
+      - name: Commit & Push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Package.swift
+          git commit -m "release: ${{ steps.release.outputs.package_version }}" || echo "No changes to commit"
+          git push
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.release.outputs.package_version }}
+          target_commitish: ${{ github.ref_name }}
+          body: |
+            GhosttyKit ${{ steps.release.outputs.package_version }}
+
+            Package version: ${{ steps.release.outputs.package_version }}
+            Ghostty release: v${{ steps.release.outputs.ghostty_version }} (upstream.${{ steps.release.outputs.ghostty_version }})
+          draft: false
+          prerelease: false
+
+      - name: Verify Release Consistency
+        run: ./Script/verify-release.sh "${{ steps.release.outputs.package_version }}" "${{ steps.release.outputs.storage_tag }}"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
