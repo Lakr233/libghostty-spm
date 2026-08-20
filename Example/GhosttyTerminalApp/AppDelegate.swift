@@ -8,6 +8,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_: Notification) {
         TerminalDebugLog.enable(.standard)
+        TerminalDebugLog.sink = { message in
+            NSLog("%@", message)
+        }
 
         let window = NSWindow(
             contentRect: NSRect(origin: .zero, size: defaultContentSize),

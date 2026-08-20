@@ -81,6 +81,17 @@ final class GhosttyTerminalAppUITests: XCTestCase {
 
     private func installSystemAlertHandler() -> NSObjectProtocol {
         addUIInterruptionMonitor(withDescription: "System alert") { alert in
+            // Typing CJK text makes XCTest switch input sources, and macOS
+            // shows a small input-source HUD near the caret that AX reports
+            // as an app-owned dialog. Left to XCTest's built-in handler, it
+            // clicks through the HUD's InputSource button and dies on a
+            // stale snapshot when the transient window vanishes mid-query.
+            // Claim it handled — the HUD dismisses on its own and never
+            // blocks the interaction.
+            if alert.buttons["InputSource"].firstMatch.exists {
+                return true
+            }
+
             let preferredButtons = [
                 "OK", "Ok", "好", "确定", "允许", "Allow", "继续", "Continue",
                 "关闭", "Close", "Dismiss",
@@ -116,6 +127,7 @@ final class GhosttyTerminalAppUITests: XCTestCase {
     private func openCopyMenuAndCopySelection(in element: XCUIElement, screenshotName: String) {
         NSPasteboard.general.clearContents()
         disableSystemAlertMonitorBeforeContextMenu()
+        defer { reinstallSystemAlertMonitorAfterContextMenu() }
         element.coordinate(withNormalizedOffset: CGVector(dx: 0.20, dy: 0.10)).rightClick()
         let copy = copyMenuItem()
         if !copy.waitForExistence(timeout: 3) {
@@ -132,6 +144,7 @@ final class GhosttyTerminalAppUITests: XCTestCase {
 
     private func assertNoCopyMenuWithoutSelection(in element: XCUIElement) {
         disableSystemAlertMonitorBeforeContextMenu()
+        defer { reinstallSystemAlertMonitorAfterContextMenu() }
         element.coordinate(withNormalizedOffset: CGVector(dx: 0.20, dy: 0.10)).rightClick()
         XCTAssertFalse(
             copyMenuItem().waitForExistence(timeout: 0.5),
@@ -139,11 +152,21 @@ final class GhosttyTerminalAppUITests: XCTestCase {
         )
     }
 
+    /// The monitor must stay away only while a context menu is open — a
+    /// menu counts as an interrupting element and the handler would dismiss
+    /// it. Every other interaction wants the monitor back, or XCTest's
+    /// built-in interruption handling runs unguarded (see the input-source
+    /// HUD note above).
     private func disableSystemAlertMonitorBeforeContextMenu() {
         if let systemAlertMonitor {
             removeUIInterruptionMonitor(systemAlertMonitor)
             self.systemAlertMonitor = nil
         }
+    }
+
+    private func reinstallSystemAlertMonitorAfterContextMenu() {
+        guard systemAlertMonitor == nil else { return }
+        systemAlertMonitor = installSystemAlertHandler()
     }
 
     private func copyMenuItem() -> XCUIElement {
