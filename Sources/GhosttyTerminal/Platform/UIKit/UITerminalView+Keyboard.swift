@@ -30,6 +30,12 @@
         /// route that feeds them to the input method on the iPadOS versions
         /// that do not process hardware keys on their own.
         @MainActor static var inputMethodNeedsPressForwarding = false
+        /// Set on the first claim: the input method demonstrably hears our
+        /// keys. From then on an unclaimed forwarded key is never replayed
+        /// raw — the input method's responses arrive asynchronously (they
+        /// round-trip the keyboard daemon), and replaying a key it is still
+        /// composing types it twice.
+        @MainActor static var inputMethodProvenResponsive = false
         /// Presses currently loaned to the input method; their release must
         /// not reach the surface (a replay sends its own synthetic pair).
         var pressesLoanedToInputMethod: Set<UIPress> = []
@@ -478,6 +484,7 @@
             /// Called from each UITextInput mutation entry point.
             func claimPendingInputMethodKeys() {
                 guard !hardwareKeyboard.pendingInputMethodKeys.isEmpty else { return }
+                HardwareKeyboardState.inputMethodProvenResponsive = true
                 TerminalDebugLog.log(
                     .input,
                     "input method claimed \(hardwareKeyboard.pendingInputMethodKeys.count) deferred key(s)"
@@ -485,13 +492,18 @@
                 hardwareKeyboard.pendingInputMethodKeys.removeAll()
             }
 
-            private func scheduleInputMethodKeyFlush() {
+            private func scheduleInputMethodKeyFlush(after delay: TimeInterval = 0) {
                 guard !hardwareKeyboard.inputMethodFlushScheduled else { return }
                 hardwareKeyboard.inputMethodFlushScheduled = true
-                DispatchQueue.main.async { [weak self] in
+                let flush = { [weak self] in
                     guard let self else { return }
                     hardwareKeyboard.inputMethodFlushScheduled = false
                     replayUnclaimedInputMethodKeys()
+                }
+                if delay > 0 {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: flush)
+                } else {
+                    DispatchQueue.main.async(execute: flush)
                 }
             }
 
@@ -534,19 +546,26 @@
                             super.pressesEnded([press], with: nil)
                         }
                     }
-                    // The claim (or the next flush) decides their fate.
-                    scheduleInputMethodKeyFlush()
+                    // The claim decides their fate — and it round-trips the
+                    // keyboard daemon, so give it real time instead of one
+                    // runloop turn. Costs a one-time delay on the process's
+                    // first key when no input method is listening at all.
+                    scheduleInputMethodKeyFlush(after: 0.25)
                     return
                 }
 
-                // A live composition proves the input method heard the keys
-                // even though it mutated nothing — candidate paging does
-                // exactly that. Replaying them raw would type into the shell
-                // behind the preedit.
-                guard !inputHandler.hasMarkedText else {
+                // A responsive input method never gets keys replayed behind
+                // its back: its claims arrive asynchronously (a key we
+                // replay now may be mid-composition and would type twice),
+                // and a key it consumes without any mutation — candidate
+                // paging — is its to consume. The same goes for a visibly
+                // live composition even before the first claim.
+                guard !HardwareKeyboardState.inputMethodProvenResponsive,
+                      !inputHandler.hasMarkedText
+                else {
                     TerminalDebugLog.log(
                         .input,
-                        "dropping \(keys.count) unclaimed key(s): composition active"
+                        "dropping \(keys.count) unclaimed key(s): input method owns them (proven=\(HardwareKeyboardState.inputMethodProvenResponsive) marked=\(inputHandler.hasMarkedText))"
                     )
                     return
                 }
