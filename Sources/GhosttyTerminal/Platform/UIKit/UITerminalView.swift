@@ -12,32 +12,23 @@
     @MainActor
     open class UITerminalView: UIView {
         let core = TerminalSurfaceCoordinator()
-        var momentumDisplayLink: CADisplayLink?
-        var momentumVelocity: CGPoint = .zero
+
+        // Grouped view state, one struct per concern. Each type is defined
+        // in the extension that owns the behavior (+Keyboard, +Interaction,
+        // +PinchZoom); the storage lives here because extensions cannot add
+        // stored properties.
+        var hardwareKeyboard = HardwareKeyboardState()
+        var pointer = PointerInteractionState()
+        var momentumScroll = MomentumScrollState()
         #if !targetEnvironment(macCatalyst)
+            var softwareKeyboard = SoftwareKeyboardState()
+            var fontZoom = FontZoomState()
             static let minFontSize: Float = 4
             static let maxFontSize: Float = 64
         #endif
-        var activePointerButton: ghostty_input_mouse_button_e?
-        var pointerSelectionStartPoint: CGPoint?
-        var lastPointerSelectionRect: CGRect?
-        var pendingSelectionMenuPoint: CGPoint?
-        #if !targetEnvironment(macCatalyst)
-            var indirectPointerPanOwnsTouchSequence = false
-            var suppressNextIndirectPointerTouchEnd = false
-        #endif
+
         lazy var selectionContextMenuInteraction = UIContextMenuInteraction(delegate: self)
-        var hardwareKeyHandled = false
-        /// Signatures of control combos already delivered this runloop turn.
-        /// One physical press can reach us twice — `pressesBegan` and a
-        /// matching `UIKeyCommand` — and which arrives (or both) varies by
-        /// iPadOS version; whichever runs first claims the press here.
-        var recentControlKeyDeliveries: Set<String> = []
         let touchScrollMultiplier: CGFloat = 3.0
-        #if !targetEnvironment(macCatalyst)
-            var currentFontSize: Float = 14
-            var lastPinchScale: CGFloat = 1.0
-        #endif
         lazy var inputHandler = TerminalTextInputHandler(view: self)
         weak var _inputDelegate: (any UITextInputDelegate)?
         var onFocusChange: ((Bool) -> Void)?
@@ -51,9 +42,6 @@
         #if !targetEnvironment(macCatalyst)
             lazy var terminalInputAccessory = TerminalInputAccessoryView(terminalView: self)
             let stickyModifiers = TerminalStickyModifierState()
-            var softwareKeyboardVisible = false
-            var pendingKeyboardDismissOnTouchEnd = false
-            var touchDidScrollDuringCurrentTouch = false
         #endif
 
         #if !targetEnvironment(macCatalyst)
@@ -153,7 +141,7 @@
                 context: "selectionMenuPoint",
                 point: point
             )
-            if let rect = lastPointerSelectionRect {
+            if let rect = pointer.lastSelectionRect {
                 let pointIsInsidePointerSelection = rect.insetBy(dx: -4, dy: -4).contains(point)
                 guard pointIsInsidePointerSelection else {
                     TerminalDebugLog.log(
@@ -271,31 +259,18 @@
                 )
             }
 
-            @objc func keyboardDidShow(_ notification: Notification) {
+            @objc func keyboardDidShow(_: Notification) {
                 guard isFirstResponder else { return }
-                softwareKeyboardVisible = isSoftwareKeyboardNotification(notification)
-            }
-
-            /// A hardware keyboard posts keyboardDidShow too — for the
-            /// accessory bar alone. Believing it means the next tap on the
-            /// terminal runs the tap-to-dismiss path and resigns first
-            /// responder, killing all hardware input. Only a frame tall
-            /// enough to hold actual keys counts as the software keyboard.
-            private func isSoftwareKeyboardNotification(
-                _ notification: Notification
-            ) -> Bool {
-                guard
-                    let value = notification
-                        .userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? NSValue
-                else { return true }
-                let screenBounds = window?.screen.bounds ?? UIScreen.main.bounds
-                let visibleHeight = value.cgRectValue
-                    .intersection(screenBounds).height
-                return visibleHeight > terminalInputAccessory.bounds.height + 44
+                // The accessory-only bar of a hardware keyboard counts too:
+                // a tap on the terminal is the only way to put the keyboard
+                // UI away, and resigning is no longer destructive — the next
+                // tap (or pointer click, or the host's focus handoff)
+                // re-acquires first responder and hardware input with it.
+                softwareKeyboard.isVisible = true
             }
 
             @objc func keyboardDidHide(_: Notification) {
-                softwareKeyboardVisible = false
+                softwareKeyboard.isVisible = false
             }
         #endif
 

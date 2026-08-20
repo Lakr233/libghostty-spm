@@ -10,6 +10,17 @@
     import AppKit
 
     extension AppTerminalView {
+        /// Make this view the window's first responder, reporting whether
+        /// keyboard focus was actually acquired. Fails (returns false) while
+        /// the view is not in a window; ``TerminalViewState/requestFocus()``
+        /// retries then on window attach.
+        @discardableResult
+        public func acquireProgrammaticFocus() -> Bool {
+            guard let window else { return false }
+            if window.firstResponder === self { return true }
+            return window.makeFirstResponder(self)
+        }
+
         /// Send raw UTF-8 text directly to the underlying pty (bypassing
         /// key translation). Use this for synthetic input like `\x1b[Z`
         /// (Shift+Tab / CSI Z) or multi-line paste-style injections.

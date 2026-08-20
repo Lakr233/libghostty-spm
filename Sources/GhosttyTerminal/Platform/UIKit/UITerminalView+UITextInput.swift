@@ -58,12 +58,15 @@
         // MARK: - UIKeyInput
 
         open func insertText(_ text: String) {
-            guard !hardwareKeyHandled else {
+            #if !targetEnvironment(macCatalyst)
+                claimPendingInputMethodKeys()
+            #endif
+            guard !hardwareKeyboard.keyHandled else {
                 TerminalDebugLog.log(
                     .input,
                     "insertText suppressed text=\(TerminalDebugLog.describe(text))"
                 )
-                hardwareKeyHandled = false
+                hardwareKeyboard.keyHandled = false
                 return
             }
 
@@ -116,15 +119,18 @@
         }
 
         open func deleteBackward() {
+            #if !targetEnvironment(macCatalyst)
+                claimPendingInputMethodKeys()
+            #endif
             if inputHandler.deleteBackwardInMarkedText() {
                 TerminalDebugLog.log(.input, "deleteBackward handled by marked text")
-                hardwareKeyHandled = false
+                hardwareKeyboard.keyHandled = false
                 return
             }
 
-            guard !hardwareKeyHandled else {
+            guard !hardwareKeyboard.keyHandled else {
                 TerminalDebugLog.log(.input, "deleteBackward suppressed")
-                hardwareKeyHandled = false
+                hardwareKeyboard.keyHandled = false
                 return
             }
 
@@ -159,10 +165,16 @@
             _ markedText: String?,
             selectedRange: NSRange
         ) {
+            #if !targetEnvironment(macCatalyst)
+                claimPendingInputMethodKeys()
+            #endif
             inputHandler.setMarkedText(markedText, selectedRange: selectedRange)
         }
 
         open func unmarkText() {
+            #if !targetEnvironment(macCatalyst)
+                claimPendingInputMethodKeys()
+            #endif
             inputHandler.unmarkText(applyingStickyModifiers: false)
         }
 
@@ -254,6 +266,9 @@
         }
 
         open func replace(_: UITextRange, withText text: String) {
+            #if !targetEnvironment(macCatalyst)
+                claimPendingInputMethodKeys()
+            #endif
             #if !targetEnvironment(macCatalyst)
                 if inputHandler.hasMarkedText {
                     inputHandler.insertText(text)
