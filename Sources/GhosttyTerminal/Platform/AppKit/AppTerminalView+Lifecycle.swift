@@ -8,6 +8,11 @@
 #if canImport(AppKit) && !canImport(UIKit)
     import AppKit
 
+    /// SwiftUI focus-bridge hooks; behavior lives in +Lifecycle.
+    struct FocusBridgeState {
+        var onFocusChange: ((Bool) -> Void)?
+    }
+
     extension AppTerminalView {
         func setupTrackingArea() {
             let options: NSTrackingArea.Options = [
@@ -38,14 +43,14 @@
         override open func becomeFirstResponder() -> Bool {
             let result = super.becomeFirstResponder()
             core.setFocus(true)
-            onFocusChange?(true)
+            focusBridge.onFocusChange?(true)
             return result
         }
 
         override open func resignFirstResponder() -> Bool {
             let result = super.resignFirstResponder()
             core.setFocus(false)
-            onFocusChange?(false)
+            focusBridge.onFocusChange?(false)
             return result
         }
 
@@ -110,12 +115,12 @@
             let focused = window?.isKeyWindow == true
                 && window?.firstResponder === self
             core.setFocus(focused)
-            onFocusChange?(focused)
+            focusBridge.onFocusChange?(focused)
         }
 
         @objc func windowDidResignKey(_: Notification) {
             core.setFocus(false)
-            onFocusChange?(false)
+            focusBridge.onFocusChange?(false)
         }
 
         @objc func windowDidChangeScreen(_: Notification) {

@@ -47,7 +47,7 @@
             interpretedCommandSelector = nil
             let markedTextBefore = inputMethodHandler?.hasMarkedText == true
             let keyboardIdBefore = markedTextBefore ? nil : KeyboardLayout.id
-            view.lastPerformKeyEvent = nil
+            view.keyEcho.lastPerformKeyEvent = nil
             view.interpretKeyEvents([translationEvent])
             if !markedTextBefore, keyboardIdBefore != KeyboardLayout.id {
                 _ = inputMethodHandler?.finishCollectingText()

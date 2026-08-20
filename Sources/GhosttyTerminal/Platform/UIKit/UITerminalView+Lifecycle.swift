@@ -8,6 +8,17 @@
 #if canImport(UIKit)
     import UIKit
 
+    /// SwiftUI focus-bridge hooks; behavior lives in +Lifecycle.
+    struct FocusBridgeState {
+        var onFocusChange: ((Bool) -> Void)?
+        /// Fires when the view lands in a window. The SwiftUI focus bridge
+        /// needs it: a focus request that arrives before the window exists
+        /// cannot become first responder and would otherwise be dropped —
+        /// the launch-time case, where the surface is created and focused in
+        /// the same transaction.
+        var onWindowAttach: (() -> Void)?
+    }
+
     extension UITerminalView {
         func setupApplicationLifecycleObservers() {
             NotificationCenter.default.addObserver(
@@ -89,7 +100,7 @@
                     updateSublayerFrames()
                     core.fitToSize()
                 }
-                onWindowAttach?()
+                focusBridge.onWindowAttach?()
                 // Same runloop hop as `requestFocus`: attaching can happen
                 // mid SwiftUI update, where the first-responder dance must
                 // not mutate focus state.
@@ -199,7 +210,7 @@
             // while another view keeps eating the keyboard.
             guard result else { return false }
             core.setFocus(true)
-            onFocusChange?(true)
+            focusBridge.onFocusChange?(true)
             return result
         }
 
@@ -207,7 +218,7 @@
         override open func resignFirstResponder() -> Bool {
             let result = super.resignFirstResponder()
             core.setFocus(false)
-            onFocusChange?(false)
+            focusBridge.onFocusChange?(false)
             return result
         }
     }

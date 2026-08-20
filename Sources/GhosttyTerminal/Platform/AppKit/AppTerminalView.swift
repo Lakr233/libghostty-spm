@@ -14,11 +14,14 @@
         let core = TerminalSurfaceCoordinator()
         var metalLayer: CAMetalLayer?
         var inputHandler: TerminalKeyEventHandler?
-        var lastPerformKeyEvent: TimeInterval?
-        var pointerSelectionStartPoint: CGPoint?
-        var lastPointerSelectionRect: CGRect?
-        var pendingSelectionMenuPoint: CGPoint?
-        var onFocusChange: ((Bool) -> Void)?
+
+        // Grouped view state, one struct per concern — same convention as
+        // the UIKit twin: each state type is defined in the extension file
+        // that owns the behavior (+Input, +Lifecycle); the storage lives
+        // here because extensions cannot add stored properties.
+        var keyEcho: KeyEchoState = .init()
+        var pointer: PointerSelectionState = .init()
+        var focusBridge: FocusBridgeState = .init()
 
         open weak var delegate: (any TerminalSurfaceViewDelegate)? {
             get { core.delegate }
@@ -115,7 +118,7 @@
                 return nil
             }
 
-            if let rect = lastPointerSelectionRect {
+            if let rect = pointer.lastSelectionRect {
                 guard rect.insetBy(dx: -4, dy: -4).contains(point) else {
                     TerminalDebugLog.log(
                         .input,

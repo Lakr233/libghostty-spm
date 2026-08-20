@@ -44,12 +44,19 @@
         var pressesForwardedToInputMethod: Set<UIPress> = []
     }
 
-    /// Software-keyboard visibility and tap-to-dismiss state; behavior in
+    /// Software-keyboard visibility and tap-to-toggle state; behavior in
     /// +Keyboard (observers) and +Interaction (touch handling).
     struct SoftwareKeyboardState {
         var isVisible = false
-        var pendingDismissOnTouchEnd = false
-        var touchDidScrollDuringCurrentTouch = false
+        /// The active direct-touch sequence can still resolve to a clean
+        /// tap. Armed on the first finger down; disarmed by a second
+        /// finger, by movement past the slop, by any recognized gesture
+        /// (scroll pan, pinch, long press), or by the press running long.
+        /// Only a sequence still armed at touch end toggles the keyboard —
+        /// a drag, zoom, or hold must never count as the tap.
+        var tapCandidateArmed = false
+        var tapCandidateStart: CGPoint = .zero
+        var tapCandidateTimestamp: TimeInterval = 0
     }
 
     /// A hardware key loaned to the input method, kept ready to replay:

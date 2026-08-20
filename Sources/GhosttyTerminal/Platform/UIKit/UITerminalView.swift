@@ -13,35 +13,30 @@
     open class UITerminalView: UIView {
         let core = TerminalSurfaceCoordinator()
 
-        // Grouped view state, one struct per concern. Each type is defined
-        // in the extension that owns the behavior (+Keyboard, +Interaction,
-        // +PinchZoom); the storage lives here because extensions cannot add
-        // stored properties.
-        var hardwareKeyboard = HardwareKeyboardState()
-        var pointer = PointerInteractionState()
-        var momentumScroll = MomentumScrollState()
+        // Grouped view state, one struct per concern. Each state type is
+        // defined in the extension file that owns the behavior (+Keyboard,
+        // +Interaction, +PinchZoom, +Lifecycle, +UITextInput); the storage
+        // lives here because extensions cannot add stored properties. A new
+        // stored value joins (or starts) its concern's struct — the root
+        // class declares only these `var xxx: XxxState = .init()` lines,
+        // plus the lazy objects that need `self`. Constants live as statics
+        // in the extension that uses them.
+        var hardwareKeyboard: HardwareKeyboardState = .init()
+        var pointer: PointerInteractionState = .init()
+        var momentumScroll: MomentumScrollState = .init()
+        var focusBridge: FocusBridgeState = .init()
+        var textInputBridge: TextInputBridgeState = .init()
         #if !targetEnvironment(macCatalyst)
-            var softwareKeyboard = SoftwareKeyboardState()
-            var fontZoom = FontZoomState()
-            static let minFontSize: Float = 4
-            static let maxFontSize: Float = 64
+            var softwareKeyboard: SoftwareKeyboardState = .init()
+            var fontZoom: FontZoomState = .init()
         #endif
 
         lazy var selectionContextMenuInteraction = UIContextMenuInteraction(delegate: self)
-        let touchScrollMultiplier: CGFloat = 3.0
         lazy var inputHandler = TerminalTextInputHandler(view: self)
-        weak var _inputDelegate: (any UITextInputDelegate)?
-        var onFocusChange: ((Bool) -> Void)?
-        /// Fires when the view lands in a window. The SwiftUI focus bridge
-        /// needs it: a focus request that arrives before the window exists
-        /// cannot become first responder and would otherwise be dropped —
-        /// the launch-time case, where the surface is created and focused in
-        /// the same transaction.
-        var onWindowAttach: (() -> Void)?
 
         #if !targetEnvironment(macCatalyst)
             lazy var terminalInputAccessory = TerminalInputAccessoryView(terminalView: self)
-            let stickyModifiers = TerminalStickyModifierState()
+            let stickyModifiers: TerminalStickyModifierState = .init()
         #endif
 
         #if !targetEnvironment(macCatalyst)
@@ -71,6 +66,16 @@
         open var configuration: TerminalSurfaceOptions {
             get { core.configuration }
             set { core.configuration = newValue }
+        }
+
+        /// Whether this surface should keep drawing — the UIKit twin of the
+        /// AppKit view's method of the same name. A host that keeps several
+        /// surfaces mounted at once (tabs hidden behind `opacity(0)`) marks
+        /// the hidden ones invisible: the surface keeps its grid, scrollback,
+        /// and session — only rendering stops and the display link is
+        /// released.
+        open func setSurfaceVisible(_ visible: Bool) {
+            core.setDisplayVisible(visible)
         }
 
         var surface: TerminalSurface? {
