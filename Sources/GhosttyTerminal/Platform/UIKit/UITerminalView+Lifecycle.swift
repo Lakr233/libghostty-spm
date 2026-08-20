@@ -22,6 +22,15 @@
                 name: UIApplication.didBecomeActiveNotification,
                 object: nil
             )
+            // Scene-based apps activate scene-first; on cold launch the
+            // app-level notification can precede this view's registration.
+            // Either signal re-syncs the same state.
+            NotificationCenter.default.addObserver(
+                self,
+                selector: #selector(applicationDidBecomeActive),
+                name: UIScene.didActivateNotification,
+                object: nil
+            )
         }
 
         func syncApplicationActiveState() {
@@ -51,6 +60,14 @@
             )
             updateDisplayScale()
             if window != nil {
+                // Re-read the application state on every attach. The
+                // did-become-active notification can slip past a view whose
+                // registration races cold launch — the view then believes
+                // the app inactive forever, its surface is born occluded,
+                // the renderer skips every draw, and the first terminal of a
+                // cold launch sits blank. The attach is the moment we
+                // reliably know the answer matters.
+                syncApplicationActiveState()
                 // UIKit detaches the hierarchy temporarily all the time — a
                 // full-screen cover (tab switcher) pulls the presenter's view
                 // out of the window. Rebuilding on every reattach discards
