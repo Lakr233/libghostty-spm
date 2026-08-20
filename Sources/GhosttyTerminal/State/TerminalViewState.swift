@@ -37,6 +37,14 @@ public final class TerminalViewState: ObservableObject {
     weak var attachedView: TerminalView?
     private var pendingFocusRequest = false
 
+    /// Whether the attached surface should keep drawing. Hosts that keep
+    /// several surfaces mounted at once (tabs hidden behind `opacity(0)`)
+    /// set this false on the hidden ones: the surface keeps its grid,
+    /// scrollback, and session — only rendering stops and the display link
+    /// is released, instead of every mounted tab drawing frames nobody
+    /// sees. Defaults to true.
+    @Published public var isSurfaceVisible: Bool = true
+
     @Published public var configuration: TerminalSurfaceOptions = .init()
     public var onClose: ((Bool) -> Void)?
     @Published public internal(set) var controller: TerminalController

@@ -64,6 +64,12 @@ final class TerminalSurfaceCoordinator {
 
     private var lastMetrics: TerminalViewportMetrics?
     private var isDisplayVisible = true
+    /// The last visibility the SwiftUI host declared through
+    /// `TerminalViewState.isSurfaceVisible`. The representable forwards only
+    /// changes to this value, so an imperative `setSurfaceVisible` call made
+    /// between SwiftUI updates is not silently reverted by every refresh
+    /// re-stamping the declarative default.
+    var hostDeclaredDisplayVisible: Bool?
     private var isApplicationActive = true
     private var isSurfaceFocused = false
     private var pendingImmediateTick = true
@@ -175,8 +181,15 @@ final class TerminalSurfaceCoordinator {
         let newSurface = TerminalSurface(rawSurface)
         surface = newSurface
         newSurface.setOcclusion(effectiveSurfaceVisible)
+        // Wakeups must keep draining while the surface is merely occluded:
+        // the app mailbox (titles, pwd, bell, child-exit) only empties in
+        // ghostty_app_tick, and a full mailbox blocks the session's write
+        // thread on its next push. Only a detached surface or a
+        // backgrounded app suspends ticks — visibility gates rendering
+        // alone (canRenderFrame).
         controller.shouldProcessWakeup = { [weak self] in
-            self?.canRenderFrame == true
+            guard let self else { return false }
+            return isApplicationActive && isAttached()
         }
         controller.onWakeup = { [weak self] in
             self?.requestImmediateTick()
