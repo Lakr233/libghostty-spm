@@ -19,6 +19,14 @@ final class InMemoryTerminalSurfaceAccess: @unchecked Sendable {
     private var generation: UInt64 = 0
     /// Prevents the caller from freeing a surface while a C operation uses it.
     private var activeOperations = 0
+    /// Bytes received while no surface is attached, replayed into the next
+    /// one. The host's transport does not pause while a view (re)builds its
+    /// surface — a reattach replay that lands in that gap used to be dropped
+    /// wholesale, leaving the restored session showing only whatever the
+    /// shell printed afterwards. Bounded: oldest bytes go first, matching
+    /// what a terminal scrollback would have forgotten anyway.
+    private var pendingWrites = Data()
+    private static let pendingWriteByteLimit = 1 << 20
 
     init(
         write: @escaping Write,
@@ -34,7 +42,23 @@ final class InMemoryTerminalSurfaceAccess: @unchecked Sendable {
         self.surface = nil
         waitForActiveOperations()
         self.surface = surface
+        // Flush bytes that arrived surfaceless, ahead of anything received
+        // after this call: both ride the same serial queue, so enqueueing
+        // here (before the lock drops for good) preserves stream order.
+        var flush: Data?
+        if surface != nil, !pendingWrites.isEmpty {
+            flush = pendingWrites
+            pendingWrites = Data()
+        }
+        let flushGeneration = generation
         condition.unlock()
+        if let flush {
+            outputQueue.async { [self] in
+                withSurface(generation: flushGeneration) { surface in
+                    write(surface, flush)
+                }
+            }
+        }
     }
 
     @discardableResult
@@ -60,9 +84,20 @@ final class InMemoryTerminalSurfaceAccess: @unchecked Sendable {
 
     @discardableResult
     func enqueueWrite(_ data: Data) -> Bool {
-        guard let generation = currentGeneration else { return false }
+        condition.lock()
+        guard surface != nil else {
+            pendingWrites.append(data)
+            let excess = pendingWrites.count - Self.pendingWriteByteLimit
+            if excess > 0 {
+                pendingWrites.removeFirst(excess)
+            }
+            condition.unlock()
+            return true
+        }
+        let writeGeneration = generation
+        condition.unlock()
         outputQueue.async { [self] in
-            withSurface(generation: generation) { surface in
+            withSurface(generation: writeGeneration) { surface in
                 write(surface, data)
             }
         }
