@@ -140,6 +140,43 @@
                 filteredModifierFlags: filteredModifierFlags
             )
 
+            #if !targetEnvironment(macCatalyst)
+                // A composition input method (Chinese/Japanese/Korean) owns
+                // the keys it composes with: the text input system delivers
+                // the preedit via setMarkedText and the commit via
+                // insertText. Sending the raw key here would type the latin
+                // keystrokes straight into the shell, and marking the press
+                // handled would then suppress the committed text — together,
+                // "cannot type Chinese on a hardware keyboard". Mirror the
+                // AppKit twin instead: the key event still reaches the core
+                // flagged `composing` and without text, so it encodes no
+                // bytes, and `hardwareKeyHandled` stays false so the input
+                // method's text lands.
+                if action == GHOSTTY_ACTION_PRESS || action == GHOSTTY_ACTION_REPEAT,
+                   filteredModifierFlags.isDisjoint(with: [.control, .command]),
+                   TerminalIMEComposition.shouldDeferKey(
+                       characters: key.characters,
+                       hasMarkedText: inputHandler.hasMarkedText,
+                       inputModeUsesComposition: TerminalIMEComposition
+                           .languageUsesComposition(textInputMode?.primaryLanguage)
+                   )
+                {
+                    TerminalDebugLog.log(
+                        .input,
+                        "uikit key deferred to input method code=\(key.keyCode.rawValue) marked=\(inputHandler.hasMarkedText) lang=\(textInputMode?.primaryLanguage ?? "nil")"
+                    )
+                    var composingEvent = ghostty_input_key_s()
+                    composingEvent.action = action
+                    composingEvent.mods = mods.ghosttyMods
+                    composingEvent.keycode = TerminalHardwareKeyRouter.appKitKeyCodeForUIKit(
+                        usage: UInt16(key.keyCode.rawValue)
+                    )
+                    composingEvent.composing = true
+                    _ = surface.sendKeyEvent(composingEvent)
+                    return
+                }
+            #endif
+
             if action == GHOSTTY_ACTION_PRESS,
                shouldSuppressUIKeyInput(for: key, isCommandModified: isCommandModified)
             {
