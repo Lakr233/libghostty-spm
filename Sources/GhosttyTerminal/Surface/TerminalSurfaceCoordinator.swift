@@ -383,6 +383,11 @@ final class TerminalSurfaceCoordinator {
 
     func setApplicationActive(_ active: Bool) {
         guard isApplicationActive != active else {
+            // Same state, but not necessarily the same surface: one built
+            // between two syncs still wears the occlusion stamped at its
+            // birth. Re-stamp — a surface born occluded that never hears
+            // otherwise skips every draw and shows as a blank pane.
+            surface?.setOcclusion(effectiveSurfaceVisible)
             if active {
                 renderImmediately()
             } else {
