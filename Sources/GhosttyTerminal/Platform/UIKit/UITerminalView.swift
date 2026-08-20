@@ -54,6 +54,13 @@
             var softwareKeyboardVisible = false
             var pendingKeyboardDismissOnTouchEnd = false
             var touchDidScrollDuringCurrentTouch = false
+            /// Hardware keys handed to the input method this runloop turn.
+            /// The text input system claims them by calling any UITextInput
+            /// mutation; whatever is still here when the turn ends gets
+            /// replayed to the surface — the input method was not actually
+            /// listening (see +Keyboard).
+            var pendingInputMethodKeys: [DeferredInputMethodKey] = []
+            var pendingInputMethodFlushScheduled = false
         #endif
 
         #if !targetEnvironment(macCatalyst)
