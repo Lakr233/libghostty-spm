@@ -38,6 +38,14 @@ struct TerminalViewRepresentable {
             view.configuration = configuration
         }
 
+        // Forward only changes: stamping unconditionally would revert an
+        // imperative `setSurfaceVisible` call on every SwiftUI update and
+        // pay a per-update C call for nothing.
+        if view.core.hostDeclaredDisplayVisible != context.isSurfaceVisible {
+            view.core.hostDeclaredDisplayVisible = context.isSurfaceVisible
+            view.setSurfaceVisible(context.isSurfaceVisible)
+        }
+
         #if canImport(UIKit) && !targetEnvironment(macCatalyst)
             let accessoryItems = context.inputAccessoryItems
                 ?? TerminalInputAccessoryItem.defaultItems
