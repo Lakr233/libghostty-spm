@@ -56,8 +56,26 @@ public final class TerminalController {
     var renderedConfigContents: String = TerminalController.defaultRenderedConfig
 
     public internal(set) var lastConfigurationIssue: String?
-    var onWakeup: (() -> Void)?
-    var shouldProcessWakeup: (() -> Bool)?
+    /// One surface's interest in a wakeup. Every surface shares this
+    /// controller, so a single handler is not enough.
+    struct WakeupObserver {
+        let shouldProcess: () -> Bool
+        let onWakeup: () -> Void
+    }
+
+    private var wakeupObservers: [ObjectIdentifier: WakeupObserver] = [:]
+
+    func addWakeupObserver(
+        _ key: ObjectIdentifier,
+        shouldProcess: @escaping () -> Bool,
+        onWakeup: @escaping () -> Void
+    ) {
+        wakeupObservers[key] = WakeupObserver(shouldProcess: shouldProcess, onWakeup: onWakeup)
+    }
+
+    func removeWakeupObserver(_ key: ObjectIdentifier) {
+        wakeupObservers.removeValue(forKey: key)
+    }
 
     // MARK: - Config Resolution State
 
@@ -288,13 +306,15 @@ public final class TerminalController {
     }
 
     func handleWakeup() {
-        guard shouldProcessWakeup?() ?? true else {
+        let observers = Array(wakeupObservers.values)
+        // One detached surface must not stop the tick for the others.
+        guard observers.isEmpty || observers.contains(where: { $0.shouldProcess() }) else {
             TerminalDebugLog.log(.lifecycle, "wakeup suspended")
             return
         }
 
         tick()
-        onWakeup?()
+        for observer in observers { observer.onWakeup() }
     }
 
     private static func initializeRuntimeIfNeeded() {
