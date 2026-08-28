@@ -56,18 +56,61 @@ private enum TerminalCallbacks {
         }
     }
 
+    /// A program wrote the clipboard (OSC 52), or a copy binding did.
+    ///
+    /// `confirm` is ghostty's `clipboard-write = ask`: the write must not
+    /// land until the host has asked. That goes through the same
+    /// confirmation delegate as a protected read; a host without one denies
+    /// it, as it does the read. The default configuration allows writes
+    /// outright, and those land immediately.
     static func writeClipboard(
-        userdata _: UnsafeMutableRawPointer?,
-        clipboard _: ghostty_clipboard_e,
+        userdata: UnsafeMutableRawPointer?,
+        clipboard: ghostty_clipboard_e,
         contents: UnsafePointer<ghostty_clipboard_content_s>?,
         contentsLen: Int,
-        confirm _: Bool
+        confirm: Bool
     ) {
-        guard contentsLen > 0 else { return }
-        guard let content = contents?.pointee else { return }
-        guard let data = content.data else { return }
+        // The selection clipboard is advertised (`supports_selection_clipboard`)
+        // so that `copy-on-select` writes there and not to the one pasteboard
+        // the user has — otherwise every drag, and every double-click a tap
+        // lands within ghostty's click interval, would replace it. Nothing
+        // exposes a primary selection, so those writes go nowhere.
+        guard clipboard == GHOSTTY_CLIPBOARD_STANDARD else { return }
+        guard contentsLen > 0, let contents else { return }
+        let entries = UnsafeBufferPointer(start: contents, count: contentsLen)
+        // Several representations may arrive together; the pasteboard here
+        // only carries text, so the text/plain one wins, else the first.
+        let chosen = entries.first { $0.mime.map { String(cString: $0) } == "text/plain" }
+            ?? entries[0]
+        guard let data = chosen.data else { return }
         let string = String(cString: data)
+        TerminalDebugLog.log(
+            .input,
+            "clipboard write bytes=\(string.utf8.count) confirm=\(confirm)"
+        )
 
+        guard confirm else {
+            terminalRunOnMain { setPasteboardString(string) }
+            return
+        }
+        guard let userdata else { return }
+        let bridge = Unmanaged<TerminalCallbackBridge>
+            .fromOpaque(userdata)
+            .takeUnretainedValue()
+        terminalRunOnMain {
+            bridge.handleClipboardConfirmation(contents: string, kind: .osc52Write) { allowed in
+                TerminalDebugLog.log(
+                    .input,
+                    allowed ? "clipboard write allowed" : "clipboard write denied"
+                )
+                guard allowed else { return }
+                setPasteboardString(string)
+            }
+        }
+    }
+
+    @MainActor
+    private static func setPasteboardString(_ string: String) {
         #if canImport(UIKit)
             UIPasteboard.general.string = string
         #elseif canImport(AppKit)
@@ -79,7 +122,7 @@ private enum TerminalCallbacks {
 
     static func readClipboard(
         userdata: UnsafeMutableRawPointer?,
-        clipboard _: ghostty_clipboard_e,
+        clipboard: ghostty_clipboard_e,
         opaquePtr: UnsafeMutableRawPointer?
     ) -> Bool {
         guard let userdata, let opaquePtr else { return false }
@@ -88,26 +131,37 @@ private enum TerminalCallbacks {
             .fromOpaque(userdata)
             .takeUnretainedValue()
         guard let surface = bridge.rawSurface else { return false }
+        // Only the standard clipboard exists here: nothing exposes a
+        // primary selection, so `paste_from_selection` has nothing to read.
+        guard clipboard == GHOSTTY_CLIPBOARD_STANDARD else { return false }
 
-        #if canImport(UIKit)
-            let string = UIPasteboard.general.string
-        #elseif canImport(AppKit)
-            let string = NSPasteboard.general.string(forType: .string)
-        #endif
-
-        guard let string else {
+        // Text and file URLs only. This also serves a program's OSC 52 read,
+        // which must not write files as a side effect; a host paste that
+        // finds image or document data materialises it itself
+        // (`UITerminalView.pasteFromPasteboard`).
+        guard let text = TerminalPasteboardContent.text() else {
             TerminalDebugLog.log(.input, "clipboard paste read empty")
             return false
         }
+        completeClipboardRequest(surface, text: text, opaquePtr: opaquePtr, confirmed: false)
+        return true
+    }
+
+    /// Hands ghostty the text a clipboard request resolved to (empty when
+    /// the pasteboard had nothing, or the host denied it).
+    private static func completeClipboardRequest(
+        _ surface: ghostty_surface_t,
+        text: String,
+        opaquePtr: UnsafeMutableRawPointer,
+        confirmed: Bool
+    ) {
         TerminalDebugLog.log(
             .input,
-            "clipboard paste read bytes=\(string.utf8.count) lines=\(TerminalInputText.lineCount(in: string))"
+            "clipboard request complete bytes=\(text.utf8.count) lines=\(TerminalInputText.lineCount(in: text)) confirmed=\(confirmed)"
         )
-        string.withCString { cString in
-            ghostty_surface_complete_clipboard_request(surface, cString, opaquePtr, false)
+        text.withCString { cString in
+            ghostty_surface_complete_clipboard_request(surface, cString, opaquePtr, confirmed)
         }
-        TerminalDebugLog.log(.input, "clipboard paste complete")
-        return true
     }
 
     static func confirmReadClipboard(
@@ -138,19 +192,11 @@ private enum TerminalCallbacks {
                 kind: kind
             ) { allowed in
                 guard bridge.rawSurface == surface else { return }
-                let completedText = allowed ? text : ""
-                completedText.withCString { cString in
-                    ghostty_surface_complete_clipboard_request(
-                        surface,
-                        cString,
-                        opaquePtr,
-                        true
-                    )
-                }
                 TerminalDebugLog.log(
                     .input,
                     allowed ? "clipboard request allowed" : "clipboard request denied"
                 )
+                completeClipboardRequest(surface, text: allowed ? text : "", opaquePtr: opaquePtr, confirmed: true)
             }
         }
     }

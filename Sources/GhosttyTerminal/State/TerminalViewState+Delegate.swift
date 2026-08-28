@@ -19,7 +19,8 @@ extension TerminalViewState:
     TerminalSurfaceScrollbarDelegate,
     TerminalSurfaceCommandFinishedDelegate,
     TerminalSurfaceLifecycleDelegate,
-    TerminalSurfaceTextSelectionRequestDelegate
+    TerminalSurfaceTextSelectionRequestDelegate,
+    TerminalSurfaceClipboardConfirmationDelegate
 {
     public func terminalDidChangeTitle(_ title: String) {
         self.title = title
@@ -63,6 +64,19 @@ extension TerminalViewState:
 
     public func terminalDidRequestTextSelection(_ request: TerminalTextSelectionRequest) {
         onTextSelectionRequest?(request)
+    }
+
+    public func terminalDidRequestClipboardConfirmation(_ request: TerminalClipboardConfirmationRequest) {
+        guard let onClipboardConfirmationRequest else {
+            // No host UI to ask. A paste the user started is theirs to
+            // make — the host's Paste button always pasted before it ran
+            // through the binding, and dropping it silently is worse than
+            // what paste protection guards against. A program's own read or
+            // write of the clipboard stays denied.
+            request.respond(allow: request.kind == .paste)
+            return
+        }
+        onClipboardConfirmationRequest(request)
     }
 
     public func terminalDidAttachSurface(_ surface: TerminalSurface) {
