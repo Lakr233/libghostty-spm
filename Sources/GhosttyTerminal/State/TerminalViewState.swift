@@ -58,24 +58,18 @@ public final class TerminalViewState: ObservableObject {
     /// sees. Defaults to true.
     @Published public var isSurfaceVisible: Bool = true
 
-    /// Whether a clean tap on the terminal toggles the software keyboard
-    /// (iPhone, iPad direct touch). Hosts with a "keyboard lock" set this
-    /// false: a tap still reaches the program as a click, but no longer
-    /// summons or dismisses the keyboard. Hardware keyboards, the focus
-    /// APIs, and platforms without a software keyboard are unaffected.
-    /// Defaults to true.
-    @Published public var isKeyboardTapToggleEnabled: Bool = true
-
     @Published public var configuration: TerminalSurfaceOptions = .init()
     public var onClose: ((Bool) -> Void)?
     @Published public internal(set) var controller: TerminalController
 
-    #if canImport(UIKit) && !targetEnvironment(macCatalyst)
-        /// Items of the software keyboard's input accessory bar, in order.
-        /// `nil` shows `TerminalInputAccessoryItem.defaultItems`; an empty
-        /// array hides the bar. Applied to the platform view by the SwiftUI
-        /// representable.
-        @Published public var inputAccessoryItems: [TerminalInputAccessoryItem]?
+    #if canImport(UIKit)
+        #if !targetEnvironment(macCatalyst)
+            /// Items of the software keyboard's input accessory bar, in order.
+            /// `nil` shows `TerminalInputAccessoryItem.defaultItems`; an empty
+            /// array hides the bar. Applied to the platform view by the SwiftUI
+            /// representable.
+            @Published public var inputAccessoryItems: [TerminalInputAccessoryItem]?
+        #endif
     #endif
 
     /// Host hook for the iOS long-press text-selection flow. Setting this is

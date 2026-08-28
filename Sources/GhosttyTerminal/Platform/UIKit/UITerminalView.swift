@@ -66,12 +66,18 @@
                 }
             }
 
-            /// Whether a clean tap toggles the software keyboard. When false
-            /// the tap still lands on the program as a click
-            /// (`sendTapClick`); only the keyboard raise/dismiss is
-            /// suppressed. Hosts set it through
-            /// ``TerminalViewState/isKeyboardTapToggleEnabled``.
-            open var isKeyboardTapToggleEnabled = true
+            /// Toggles the software keyboard the way a clean tap does: the
+            /// touch path calls this after the tap's click has been sent.
+            /// Declared in the class body so a host's `makePlatformView`
+            /// subclass can override it — a keyboard lock overrides to do
+            /// nothing, and the click still lands.
+            open func toggleSoftwareKeyboard() {
+                if softwareKeyboard.isVisible {
+                    resignFirstResponder()
+                } else {
+                    becomeFirstResponder()
+                }
+            }
         #endif
 
         open weak var delegate: (any TerminalSurfaceViewDelegate)? {

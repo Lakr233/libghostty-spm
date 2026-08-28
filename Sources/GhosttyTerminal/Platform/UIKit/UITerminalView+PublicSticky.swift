@@ -22,7 +22,8 @@
 //  `consumeForNextKey()` codepath that `insertText` already respects.
 //
 
-#if canImport(UIKit) && !targetEnvironment(macCatalyst)
+#if canImport(UIKit)
+    #if !targetEnvironment(macCatalyst)
     import Foundation
     import UIKit
 
@@ -104,4 +105,5 @@
             }
         }
     }
+    #endif
 #endif

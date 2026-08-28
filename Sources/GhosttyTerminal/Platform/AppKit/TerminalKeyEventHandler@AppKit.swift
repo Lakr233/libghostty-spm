@@ -11,7 +11,7 @@
 //  drift from upstream keyboard/IME semantics.
 //
 
-#if canImport(AppKit) && !canImport(UIKit)
+#if !canImport(UIKit) && canImport(AppKit)
     import AppKit
     import GhosttyKit
 

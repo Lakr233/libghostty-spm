@@ -1,4 +1,4 @@
-#if canImport(AppKit) && !canImport(UIKit)
+#if !canImport(UIKit) && canImport(AppKit)
     import Carbon.HIToolbox
 
     enum KeyboardLayout {

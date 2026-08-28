@@ -85,28 +85,30 @@ struct TerminalInputTextTests {
     }
 }
 
-#if canImport(UIKit) && !targetEnvironment(macCatalyst)
-    @MainActor
-    struct TerminalSoftwareReturnStickyModifierTests {
-        @Test
-        func `armed control is consumed by software return`() {
-            let state = TerminalStickyModifierState()
-            state.toggle(.ctrl)
+#if canImport(UIKit)
+    #if !targetEnvironment(macCatalyst)
+        @MainActor
+        struct TerminalSoftwareReturnStickyModifierTests {
+            @Test
+            func `armed control is consumed by software return`() {
+                let state = TerminalStickyModifierState()
+                state.toggle(.ctrl)
 
-            #expect(state.ctrl == .armed)
-            #expect(state.consumeForNextKey() == .ctrl)
-            #expect(state.ctrl == .inactive)
+                #expect(state.ctrl == .armed)
+                #expect(state.consumeForNextKey() == .ctrl)
+                #expect(state.ctrl == .inactive)
+            }
+
+            @Test
+            func `locked control remains locked after software return`() {
+                let state = TerminalStickyModifierState()
+                state.toggle(.ctrl)
+                state.toggle(.ctrl)
+
+                #expect(state.ctrl == .locked)
+                #expect(state.consumeForNextKey() == .ctrl)
+                #expect(state.ctrl == .locked)
+            }
         }
-
-        @Test
-        func `locked control remains locked after software return`() {
-            let state = TerminalStickyModifierState()
-            state.toggle(.ctrl)
-            state.toggle(.ctrl)
-
-            #expect(state.ctrl == .locked)
-            #expect(state.consumeForNextKey() == .ctrl)
-            #expect(state.ctrl == .locked)
-        }
-    }
+    #endif
 #endif

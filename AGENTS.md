@@ -71,7 +71,47 @@ Key types: `TerminalViewState` (ObservableObject, SwiftUI entry point), `Termina
 
 ### Platform Branching
 
-Use `#if canImport(UIKit)` FIRST, then `#elseif canImport(AppKit)` — Catalyst imports both UIKit and AppKit. AppKit-only files guard with `#if canImport(AppKit) && !canImport(UIKit)`; iOS-only (not Catalyst) code with `#if canImport(UIKit) && !targetEnvironment(macCatalyst)`.
+**The order is the rule: `canImport(UIKit)` is always asked first.** Mac
+Catalyst imports UIKit *and* AppKit, so a chain that leads with AppKit sends
+Catalyst down the AppKit branch. Write guards in exactly these shapes:
+
+```swift
+// Both platforms have code.
+#if canImport(UIKit)
+    ...
+#elseif canImport(AppKit)
+    ...
+#endif
+
+// UIKit only, with a Catalyst exclusion. `targetEnvironment(...)` is never
+// the head of a chain — Catalyst is a UIKit platform, so it is only ever a
+// nested check inside the UIKit branch.
+#if canImport(UIKit)
+    #if !targetEnvironment(macCatalyst)
+        ...
+    #endif
+#endif
+
+// AppKit only. When the UIKit branch would be empty, invert instead of
+// leaving it there.
+#if !canImport(UIKit) && canImport(AppKit)
+    ...
+#endif
+```
+
+Two omissions keep the noise down:
+
+- An **empty branch is omitted**, never written out. An empty
+  `#elseif canImport(AppKit)` is dropped; an empty leading UIKit branch
+  becomes `#if !canImport(UIKit) && canImport(AppKit)`.
+- **No file carries an `#else` / `#error` arm.** The unsupported-platform
+  assertion lives once, in `Platform/PlatformSupport.swift`, and every other
+  file simply compiles to nothing there.
+
+Swift spells the middle branch **`#elseif`**. C's `#elif` parses as an
+expression and fails with "consecutive statements on a line must be separated
+by ';'" pointing at the directive — an entire guard sweep once shipped broken
+that way, so grep for it before pushing.
 
 ### Host-Managed I/O
 
@@ -83,7 +123,7 @@ All example apps run in App Sandbox. Use `GHOSTTY_SURFACE_IO_BACKEND_HOST_MANAGE
 
 1. **Hardware keys** → `pressesBegan`/`pressesEnded` in `+Keyboard.swift` → `handleKeyPress` builds `ghostty_input_key_s` (HID usage translated to an AppKit keycode by `TerminalHardwareKeyRouter.appKitKeyCodeForUIKit`) → `surface.sendKeyEvent()`. Sets `hardwareKeyboard.keyHandled = true` (`HardwareKeyboardState`) to suppress the duplicate `insertText`/`deleteBackward` that UIKit would otherwise deliver. Ctrl combos never reach `pressesBegan` — the text-input system consumes them first, on iPadOS and Catalyst alike — so `keyCommands` registers a `UIKeyCommand` for every Ctrl+letter/digit/symbol with `wantsPriorityOverSystemBehavior`; `handleControlKeyCommand` sends it as a `TerminalKeyPress` on the key path, and `claimControlKeyDelivery` dedupes per runloop turn against systems that deliver both the command and the press. On iOS (not Catalyst) a printable press under a composing input mode (`TerminalIMEComposition.shouldDeferKey`) is loaned to the input method as a `DeferredInputMethodKey`; any UITextInput mutation claims it (`claimPendingInputMethodKeys`), and an unclaimed one is forwarded to `super` or replayed to the surface.
 2. **Software keyboard** → UIKit calls `insertText(_:)` / `deleteBackward()` via UIKeyInput. `TerminalSoftwareKeyCommitRouter.route` (`Shared/TerminalInputText.swift`) reads the `hardwareKeyboard.keyHandled` flag to drop a hardware duplicate and turns a lone unmarked `"\n"`/`"\r"` into a synthetic Return key event (`sendSyntheticKey(usage: 0x28)` on iOS, `sendReturnKey()` on Catalyst). Other text is re-encoded as a key event (`sendTypedText`), **not** handed to `surface.sendText` — see "Key Path vs Text Path" below.
-3. **Input accessory bar** (iOS only, excludes Catalyst) → `TerminalInputAccessoryView` provides a toolbar above the software keyboard with Esc, Tab, arrow keys, modifier keys (Ctrl/Alt/Cmd), symbol keys, and Paste. The layout is `UITerminalView.inputAccessoryItems: [TerminalInputAccessoryItem]` (`defaultItems`; an empty array removes the bar). Modifier keys support **sticky states**: tap to arm (consumed after next key), double-tap to lock (persists until toggled off). Sticky modifier state is tracked by `TerminalStickyModifierState`; `+PublicSticky.swift` exposes it (`toggleStickyModifier`, `stickyActivation(for:)`, `resetStickyModifiers`, `setStickyModifierChangeHandler`) for hosts that draw their own bar. Actions are dispatched via `UITerminalView+InputAccessory.swift` (`handleInputBarKey`: keys go through `sendSyntheticKey`, symbols through `handleStickyTextInput`, Paste through `pasteFromPasteboard`). Button colors are configurable via `TerminalInputAccessoryStyle` (regular/active background and foreground), exposed as `UITerminalView.inputAccessoryStyle`. A clean direct-touch tap toggles the software keyboard; `UITerminalView.isKeyboardTapToggleEnabled` / `TerminalViewState.isKeyboardTapToggleEnabled` (forwarded by the representable as a stored input, like `isSurfaceVisible`) turns the toggle off for host keyboard locks — the tap's click still lands on the program.
+3. **Input accessory bar** (iOS only, excludes Catalyst) → `TerminalInputAccessoryView` provides a toolbar above the software keyboard with Esc, Tab, arrow keys, modifier keys (Ctrl/Alt/Cmd), symbol keys, and Paste. The layout is `UITerminalView.inputAccessoryItems: [TerminalInputAccessoryItem]` (`defaultItems`; an empty array removes the bar). Modifier keys support **sticky states**: tap to arm (consumed after next key), double-tap to lock (persists until toggled off). Sticky modifier state is tracked by `TerminalStickyModifierState`; `+PublicSticky.swift` exposes it (`toggleStickyModifier`, `stickyActivation(for:)`, `resetStickyModifiers`, `setStickyModifierChangeHandler`) for hosts that draw their own bar. Actions are dispatched via `UITerminalView+InputAccessory.swift` (`handleInputBarKey`: keys go through `sendSyntheticKey`, symbols through `handleStickyTextInput`, Paste through `pasteFromPasteboard`). Button colors are configurable via `TerminalInputAccessoryStyle` (regular/active background and foreground), exposed as `UITerminalView.inputAccessoryStyle`. A clean direct-touch tap sends its click, then calls `toggleSoftwareKeyboard()` — an `open func` declared in the class body (not an extension) precisely so a host's `makePlatformView` subclass can override it; a keyboard lock overrides it to do nothing, and the tap's click still lands on the program.
 4. **IME / marked text** → `setMarkedText` / `unmarkText` delegate to `TerminalTextInputHandler`, which keeps the composition in a `TerminalMarkedTextState` and calls `surface.preedit()` for inline composition preview. Committed text goes through `insertText`. Sticky modifiers are respected during IME composition (`handleStickyMarkedText` / `handleStickyCommittedText`).
 5. **Text positioning** → `TerminalTextPosition` / `TerminalTextRange` (UITextPosition/UITextRange subclasses) provide minimal cursor geometry. `caretRect`/`firstRect` use `surface.imePoint()` for IME candidate window placement.
 
