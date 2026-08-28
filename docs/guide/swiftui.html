@@ -68,12 +68,17 @@ struct TerminalScreen: View {
 </code></pre>
 
 <h2 id="input">Input</h2>
-<p>Call <code>send(_:)</code> after the surface attaches. The method returns <code>true</code> when Ghostty accepts the text.</p>
+<p>There are two ways in, and they are not interchangeable. <code>sendKey(_:)</code> presses a key: the event takes libghostty's key path, so the terminal's key encoding applies (legacy, modifyOtherKeys, kitty). <code>paste(text:)</code> is the text path: a program that enabled bracketed paste receives it framed as a paste, so a <code>\r</code> in it lands in the shell's edit line instead of running the command. Both return <code>true</code> when Ghostty accepts the input; call them after the surface attaches.</p>
 <pre><code class="language-swift">@discardableResult
-func sendCommand(_ command: String) -> Bool {
-    terminal.send(command + "\r")
+func run(_ command: String) -> Bool {
+    terminal.paste(text: command) && terminal.sendKey(.enter)
 }
+
+terminal.sendKey(.c, modifiers: .ctrl)              // interrupt
+terminal.sendKey(.tab, modifiers: .shift)           // back-tab
+terminal.sendKey(TerminalKeyPress(typing: "~")!)    // Shift+backquote on a US layout
 </code></pre>
+<p><code>TerminalKey</code> names every key of libghostty's set, after the W3C UI Events <code>code</code> values; keys that have no macOS keycode (media keys, numpad extras) report <code>hasPlatformKeycode == false</code> and are refused. <code>send(_:)</code> is the deprecated name of <code>paste(text:)</code>.</p>
 
 <h2 id="configuration">Configuration</h2>
 <p>Use fluent configuration for common Ghostty settings, and <code>custom(_:_:)</code> for additional Ghostty config keys.</p>

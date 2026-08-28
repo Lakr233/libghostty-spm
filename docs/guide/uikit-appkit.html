@@ -69,6 +69,13 @@ terminalView.delegate = coordinator
 }
 </code></pre>
 
+<h2 id="programmatic-input">Programmatic input</h2>
+<p>Both platform views press keys through <code>sendKey(_:)</code> and paste text through <code>paste(text:)</code>. A key press takes libghostty's key path and is encoded the way the terminal asked for; a paste takes the text path and is framed as a paste when the program enabled bracketed paste — so Enter, Tab, and Ctrl chords are keys, never text. <code>sendText(_:)</code> is the deprecated name of <code>paste(text:)</code>.</p>
+<pre><code class="language-swift">terminalView.paste(text: "ls -la")
+terminalView.sendKey(.enter)
+terminalView.sendKey(.c, modifiers: .ctrl)
+</code></pre>
+
 <h2 id="ios-input">iOS input</h2>
 <p><code>UITerminalView</code> conforms to <code>UITextInput</code>. Hardware keys enter through <code>pressesBegan</code>, software keyboard text enters through <code>insertText</code>, and marked text flows through the shared IME handler.</p>
 <p>On iOS, the input accessory bar provides Esc, Tab, arrows, symbols, Paste, and sticky Ctrl/Alt/Cmd modifiers. Configure colors through <code>inputAccessoryStyle</code>.</p>

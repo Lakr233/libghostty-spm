@@ -21,12 +21,42 @@
             return window.makeFirstResponder(self)
         }
 
-        /// Send raw UTF-8 text directly to the underlying pty (bypassing
-        /// key translation). Use this for synthetic input like `\x1b[Z`
-        /// (Shift+Tab / CSI Z) or multi-line paste-style injections.
-        /// No-op when the surface has not been created yet.
+        /// Paste text into the terminal. This is the text path: a program
+        /// that enabled bracketed paste receives it framed as a paste, so
+        /// escape sequences and a `\r` in it are pasted characters, not
+        /// keys. Keystrokes — Shift+Tab, Enter, Ctrl+C — go through
+        /// ``sendKey(_:)``. False when the surface has not been created yet.
+        @discardableResult
+        public func paste(text: String) -> Bool {
+            surface?.sendText(text) ?? false
+        }
+
+        /// The old name of ``paste(text:)``. It never bypassed key
+        /// translation — the text path is a paste, and an escape sequence
+        /// sent through it is pasted, not pressed.
+        @available(*, deprecated, renamed: "paste(text:)", message: "The text path is a paste; press keys with sendKey(_:).")
         public func sendText(_ text: String) {
-            surface?.sendText(text)
+            paste(text: text)
+        }
+
+        /// Presses and releases a key, as if typed on a hardware keyboard —
+        /// see ``TerminalSurface/sendKey(_:)``. An open IME composition is
+        /// committed first, as it would be ahead of a hardware key. False
+        /// with no surface yet.
+        @discardableResult
+        public func sendKey(_ press: TerminalKeyPress) -> Bool {
+            guard let surface else { return false }
+            if hasMarkedText() {
+                unmarkText()
+            }
+            return surface.sendKey(press)
+        }
+
+        /// ``sendKey(_:)`` for a key and its modifiers: `sendKey(.enter)`,
+        /// `sendKey(.tab, modifiers: .shift)`.
+        @discardableResult
+        public func sendKey(_ key: TerminalKey, modifiers: TerminalInputModifiers = []) -> Bool {
+            sendKey(TerminalKeyPress(key, modifiers: modifiers))
         }
 
         /// Invoke a named Ghostty binding action (e.g. "copy_to_clipboard",

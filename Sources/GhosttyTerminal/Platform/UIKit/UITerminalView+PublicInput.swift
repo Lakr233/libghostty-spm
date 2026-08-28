@@ -20,6 +20,40 @@
             return becomeFirstResponder()
         }
 
+        /// Paste text into the terminal. This is the text path: a program
+        /// that enabled bracketed paste receives it framed as a paste, so a
+        /// `\r` in it is a pasted character, not Enter. Keystrokes go
+        /// through ``sendKey(_:)``. False with no surface yet.
+        @discardableResult
+        public func paste(text: String) -> Bool {
+            surface?.sendText(text) ?? false
+        }
+
+        /// Presses and releases a key, as if typed on a hardware keyboard —
+        /// see ``TerminalSurface/sendKey(_:)``. An open IME composition is
+        /// committed first, and armed sticky Ctrl/Alt/Cmd apply to the key
+        /// and are spent by it, exactly as for a tap on the bundled
+        /// accessory bar. False with no surface yet.
+        @discardableResult
+        public func sendKey(_ press: TerminalKeyPress) -> Bool {
+            guard let surface else { return false }
+            if inputHandler.hasMarkedText {
+                inputHandler.unmarkText()
+            }
+            var press = press
+            #if !targetEnvironment(macCatalyst)
+                press.modifiers.formUnion(stickyModifiers.consumeForNextKey())
+            #endif
+            return surface.sendKey(press)
+        }
+
+        /// ``sendKey(_:)`` for a key and its modifiers: `sendKey(.enter)`,
+        /// `sendKey(.c, modifiers: .ctrl)`.
+        @discardableResult
+        public func sendKey(_ key: TerminalKey, modifiers: TerminalInputModifiers = []) -> Bool {
+            sendKey(TerminalKeyPress(key, modifiers: modifiers))
+        }
+
         /// Invoke a named Ghostty binding action (e.g. "copy_to_clipboard",
         /// "clear_screen"). Returns true when the action dispatched.
         @discardableResult
