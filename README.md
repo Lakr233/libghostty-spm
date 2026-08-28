@@ -105,6 +105,37 @@ which records prompt boundaries. A host-managed backend must preserve or emit
 equivalent OSC 133 prompt markers. Arbitrary Ghostty actions remain available
 through `performBindingAction(_:)`.
 
+### Pasting and dropping files
+
+A paste reads the pasteboard the way Ghostty's macOS app does: URLs first —
+a file URL as its shell-escaped path, any other URL verbatim — then the
+string. A file copied in Finder or Files therefore pastes its path, never the
+display name that sits beside it on the pasteboard. Image or document data
+with no path of its own (a screenshot, a photo, a file copied out of Files)
+is written to a file first and the file's escaped path is pasted.
+
+Dropping onto the terminal works the same way on iOS and Mac Catalyst: files
+and images are copied into the staging directory and their escaped paths are
+pasted; a dropped folder, link, or text pastes as text. Everything a drop
+delivers travels the text path, like a paste — never as keystrokes.
+
+Staged files live under `TerminalFileStaging.directory`, a `ghostty-paste`
+folder in the app's temporary directory by default. A host whose shell cannot
+read the app container points it somewhere both can reach before the first
+paste or drop. Files stay until `TerminalFileStaging.staleFileAge` (24 hours)
+has passed — swept whenever a new file is written, or on
+`TerminalFileStaging.removeStaleFiles()` — and a host that knows nothing can
+refer to them any more (its last shell ended, the app is quitting together
+with its shells) calls `TerminalFileStaging.removeAllFiles()`.
+
+```swift
+// A host that ends every shell when it quits.
+func applicationWillTerminate(_: UIApplication) {
+    endAllSessions()
+    TerminalFileStaging.removeAllFiles()
+}
+```
+
 ## Notes
 
 - `TerminalViewState` is the SwiftUI state container.
