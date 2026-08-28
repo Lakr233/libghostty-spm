@@ -156,6 +156,7 @@
 
         func setupPlatformInput() {
             addInteraction(selectionContextMenuInteraction)
+            setupDropInput()
             addGestureRecognizer(TerminalScrollWheelGestureRecognizer(
                 target: self,
                 action: #selector(handleScrollWheelGesture(_:))

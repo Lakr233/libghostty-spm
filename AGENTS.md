@@ -90,7 +90,8 @@ Files in `Platform/UIKit/`:
 - `UITerminalView+UITextInput.swift` — full UITextInput conformance (UIKeyInput, marked text, positions, geometry)
 - `UITerminalView+Keyboard.swift` — hardware key handling via UIPress, modifier translation
 - `UITerminalView+InputAccessory.swift` — input accessory bar integration, key actions, sticky modifier dispatch
-- `UITerminalView+Interaction.swift` — touch scrolling, momentum scroll via CADisplayLink, Catalyst pointer/mouse
+- `UITerminalView+Interaction.swift` — touch scrolling, momentum scroll via CADisplayLink, Catalyst pointer/mouse, copy/paste actions
+- `UITerminalView+Drop.swift` — drag and drop: files staged to paths, text and links as text (see "Key Path vs Text Path")
 - `UITerminalView+Lifecycle.swift` — display scale, sublayer frames, focus, color scheme
 - `TerminalInputAccessoryView.swift` — input accessory bar UIView (blur background, scrollable button layout)
 - `TerminalInputAccessoryStyle.swift` — configurable button colors for the accessory bar (regular/active background and foreground)
@@ -173,17 +174,39 @@ Where this lives today, in `Platform/UIKit`:
   `canPerformAction` gates it on `TerminalPasteboardContent.hasContent()`.
 
 `readClipboard` reads through `TerminalPasteboardContent.text` on both
-platforms: AppKit follows upstream's `getOpinionatedStringContents` (URLs,
-file URLs as shell-escaped paths, then the string); UIKit takes the string,
-else file URLs as escaped paths. It has no side effects, because the same
-callback serves a program's OSC 52 read. Image or document data with no path
-(a screenshot, a file copied out of Files — what a phone's clipboard holds far
-more often than a desktop's) is the host button's business alone:
-`pasteFromPasteboard` calls `TerminalPasteboardContent.files`, which writes it
-under `TerminalPasteboardContent.fileDirectory` and sends the escaped paths on
-the text path. Only the standard clipboard is read or written; selection
-clipboard traffic (`copy-on-select`) is dropped so a drag never replaces the
-user's pasteboard.
+platforms, and both apply upstream's `getOpinionatedStringContents` rule
+(`text(string:urls:)`, shared and unit-tested): URLs first — a file URL as
+its shell-escaped path, any other verbatim — then the string. The order is
+load-bearing: a file copied in Finder or Files carries its URL *and* its
+display name as the string, and UIKit once took the string first, so a
+copied screenshot pasted "Screenshot … AM" instead of a path. The reader has
+no side effects, because the same callback serves a program's OSC 52 read.
+Image or document data with no path (a screenshot, a file copied out of
+Files — what a phone's clipboard holds far more often than a desktop's) is
+the host button's business alone: `pasteFromPasteboard` calls
+`TerminalPasteboardContent.files`, which stages it through
+`TerminalFileStaging` and sends the escaped paths on the text path. Only the
+standard clipboard is read or written; selection clipboard traffic
+(`copy-on-select`) is dropped so a drag never replaces the user's pasteboard.
+
+Drops (`UITerminalView+Drop.swift`, a `UIDropInteraction`, iOS and Catalyst)
+go the same way: files and images are staged and their escaped paths sent on
+the text path; a folder, link, or text is sent as text
+(`TerminalPasteboardContent.text(string:urls:)` again). A drop never becomes
+keystrokes, and paste protection is not consulted for it — a drop is the
+user's own act, like the accessory bar's Paste button.
+
+`TerminalFileStaging` (`Platform/Shared`, Foundation-only so `swift test`
+covers it on macOS) owns the staged files: `directory` (default
+`<tmp>/ghostty-paste`; `TerminalPasteboardContent.fileDirectory` forwards to
+it), `staleFileAge` (24 h), the naming (`fileName`, `uniqueURL`), the
+world-readable write (`store`, 0644 — the shell may not be the app's user),
+and the two cleanups. A staged file belongs to the shell that got its path
+and nothing in the library knows when that shell is done, so cleanup is
+time-based by default (`prepareDirectory` sweeps stale files before every
+paste or drop; `removeStaleFiles()` on demand) and total only on the host's
+say-so: `removeAllFiles()` when its last shell ends or the app quits with
+its shells.
 
 Synthetic key events (`sendControlByte`, `sendModifiedTextKey`) must carry
 `unshifted_codepoint`. The legacy encoder recovers the letter from the keycode,
