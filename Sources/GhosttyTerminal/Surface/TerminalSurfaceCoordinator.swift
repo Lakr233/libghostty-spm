@@ -77,13 +77,17 @@ final class TerminalSurfaceCoordinator {
     /// Held only while frames are owed. The engine's wakeups arrive at PTY
     /// speed, not display speed; rendering straight from them draws far more
     /// often than the screen can show and starves input handling under heavy
-    /// output. The link paces draws to vsync (60 fps cap) instead, and is
-    /// released after a stretch of idle frames so a quiet terminal costs no
-    /// per-frame wakeups at all. All instances share one platform link.
+    /// output. The link paces draws to vsync instead, and is released after
+    /// a stretch of idle frames so a quiet terminal costs no per-frame
+    /// wakeups at all. All instances share one platform link.
+    ///
+    /// The range floors at 60: letting the system drop to 30 while output
+    /// streams read as flicker on a scrolling screen. ProMotion displays may
+    /// go to 120.
     private var displayLink: DisplayLink?
     private var idleFrameCount = 0
     private static let displayLinkFrameRateRange = DisplayLinkFrameRateRange(
-        minimum: 30, maximum: 60, preferred: 60
+        minimum: 60, maximum: 120, preferred: 120
     )
     private static let idleFramesBeforeRelease = 30
 
