@@ -186,13 +186,16 @@ final class TerminalSurfaceCoordinator {
         // thread on its next push. Only a detached surface or a
         // backgrounded app suspends ticks — visibility gates rendering
         // alone (canRenderFrame).
-        controller.shouldProcessWakeup = { [weak self] in
-            guard let self else { return false }
-            return isApplicationActive && isAttached()
-        }
-        controller.onWakeup = { [weak self] in
-            self?.requestImmediateTick()
-        }
+        controller.addWakeupObserver(
+            ObjectIdentifier(self),
+            shouldProcess: { [weak self] in
+                guard let self else { return false }
+                return isApplicationActive && isAttached()
+            },
+            onWakeup: { [weak self] in
+                self?.requestImmediateTick()
+            }
+        )
         TerminalDebugLog.log(.lifecycle, "surface rebuild succeeded")
         (delegate as? any TerminalSurfaceLifecycleDelegate)?
             .terminalDidAttachSurface(newSurface)
@@ -503,8 +506,7 @@ final class TerminalSurfaceCoordinator {
         if let session = configuration.inMemorySession {
             session.clearSurface(ifMatches: surface?.rawValue)
         }
-        controller?.onWakeup = nil
-        controller?.shouldProcessWakeup = nil
+        controller?.removeWakeupObserver(ObjectIdentifier(self))
         bridge.rawSurface = nil
         let hadSurface = surface != nil
         surface?.setFocus(false)
