@@ -5,7 +5,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 if [ ! -f .root ]; then
-    echo "[*] malformed project structure"
+    echo "[!] repository root not found. Run this script from a libghostty-spm checkout."
     exit 1
 fi
 
@@ -19,7 +19,7 @@ if [ -z "$PACKAGE_TAG" ] || [ -z "$STORAGE_TAG" ]; then
 fi
 
 if ! command -v gh >/dev/null 2>&1; then
-    echo "[!] gh not found"
+    echo "[!] GitHub CLI not found. Install it and try again."
     exit 1
 fi
 

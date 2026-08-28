@@ -5,7 +5,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 if [ ! -f .root ]; then
-    echo "[*] malformed project structure"
+    echo "[!] repository root not found. Run this script from a libghostty-spm checkout."
     exit 1
 fi
 
@@ -74,18 +74,18 @@ while [ $# -gt 0 ]; do
 done
 
 if ! command -v zig >/dev/null 2>&1; then
-    echo "[!] zig not found"
+    echo "[!] Zig not found. Install it and try again."
     exit 1
 fi
 
 if [ ! -d "$SOURCE_DIR" ]; then
-    echo "[*] ghostty source not found, cloning into $SOURCE_DIR"
+    echo "[*] Ghostty source not found, cloning into $SOURCE_DIR…"
     mkdir -p "$(dirname "$SOURCE_DIR")"
     git clone https://github.com/ghostty-org/ghostty "$SOURCE_DIR"
 fi
 
 if [ -n "$GHOSTTY_REF" ]; then
-    echo "[*] checking out ghostty ref: $GHOSTTY_REF"
+    echo "[*] checking out Ghostty ref: $GHOSTTY_REF…"
     git -C "$SOURCE_DIR" fetch --tags origin
     git -C "$SOURCE_DIR" checkout "$GHOSTTY_REF"
 fi
@@ -98,7 +98,7 @@ rm -rf "$ARTIFACTS_DIR" "$XCFRAMEWORK_PATH" "$XCFRAMEWORK_ZIP"
 mkdir -p "$ARTIFACTS_DIR" "$(dirname "$XCFRAMEWORK_PATH")"
 
 echo "[*] zig version: $(zig version)"
-echo "[*] ghostty source: $SOURCE_DIR"
+echo "[*] Ghostty source: $SOURCE_DIR"
 echo "[*] platform groups: $PLATFORMS"
 
 OLD_IFS=$IFS

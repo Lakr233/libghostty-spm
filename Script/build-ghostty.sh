@@ -5,7 +5,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 if [ ! -f .root ]; then
-    echo "[*] malformed project structure"
+    echo "[!] repository root not found. Run this script from a libghostty-spm checkout."
     exit 1
 fi
 
@@ -22,17 +22,17 @@ if [ -z "$SOURCE_DIR" ] || [ -z "$ZIG_TARGET" ] || [ -z "$OUTPUT_DIR" ]; then
 fi
 
 if [ ! -d "$SOURCE_DIR" ]; then
-    echo "[!] ghostty source directory not found: $SOURCE_DIR"
+    echo "[!] Ghostty source directory not found: $SOURCE_DIR"
     exit 1
 fi
 
 if [ ! -f "$SOURCE_DIR/include/ghostty.h" ]; then
-    echo "[!] ghostty header not found: $SOURCE_DIR/include/ghostty.h"
+    echo "[!] Ghostty header not found: $SOURCE_DIR/include/ghostty.h"
     exit 1
 fi
 
 if ! command -v zig >/dev/null 2>&1; then
-    echo "[!] zig not found"
+    echo "[!] Zig not found. Install it and try again."
     exit 1
 fi
 
@@ -43,7 +43,7 @@ GLOBAL_CACHE_DIR="${ZIG_GLOBAL_CACHE_DIR:-$CACHE_ROOT/zig-global}"
 LOCAL_CACHE_DIR="$CACHE_ROOT/$ZIG_TARGET/zig-local"
 MODULE_CACHE_DIR="${CLANG_MODULE_CACHE_ROOT:-$CACHE_ROOT/clang-module-cache}/$ZIG_TARGET"
 
-echo "[*] building ghostty static library"
+echo "[*] building Ghostty static library…"
 echo "    target: $ZIG_TARGET"
 echo "    source: $SOURCE_DIR"
 echo "    output: $OUTPUT_DIR"
@@ -113,8 +113,8 @@ fi
 if [ -z "$LIBRARY_PATH" ]; then
     echo "[!] failed to locate built libghostty archive in $LOCAL_CACHE_DIR"
     if [[ "$ZIG_TARGET" == *macos* || "$ZIG_TARGET" == *ios* || "$ZIG_TARGET" == *tvos* || "$ZIG_TARGET" == *visionos* || "$ZIG_TARGET" == *watchos* ]]; then
-        echo "[!] note: upstream Ghostty does not install Darwin libghostty for app-runtime=none unless extra build wiring is triggered"
-        echo "[!] try again with ZIG_BUILD_EXTRA_ARGS='-Demit-xcframework=true' if you want to force Darwin libghostty build graph execution"
+        echo "[!] upstream Ghostty does not build Darwin libghostty by default"
+        echo "[!] retry with ZIG_BUILD_EXTRA_ARGS='-Demit-xcframework=true'"
     fi
     find "$LOCAL_CACHE_DIR" -maxdepth 3 -type f | sort | tail -n 50
     exit 1
@@ -131,7 +131,7 @@ xcrun libtool -static -no_warning_for_no_symbols \
     -o "$OUTPUT_DIR/lib/libghostty.a" \
     "$LIBRARY_PATH" \
     "$COMPAT_OBJECT"
-echo "[*] appended libc++ verbose abort compatibility object"
+echo "[*] added libc++ compatibility for older Apple OS versions"
 
 mkdir -p "$OUTPUT_DIR/include/libghostty"
 cp "$SOURCE_DIR/include/ghostty.h" "$OUTPUT_DIR/include/libghostty/ghostty.h"

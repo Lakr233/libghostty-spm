@@ -5,7 +5,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 if [ ! -f .root ]; then
-    echo "[-] malformed project structure"
+    echo "[-] repository root not found. Run this script from a libghostty-spm checkout."
     exit 1
 fi
 
@@ -14,14 +14,14 @@ usage() {
 Usage: ./Script/tag-release.sh [options]
 
 Options:
-  --push                push the new tag to origin after creating it
-  --suffix <value>      override the ci-style release suffix
-  -h, --help            show this help
+  --push                Push the new tag to origin after creating it.
+  --suffix <value>      Override the CI-style release suffix.
+  -h, --help            Show this help.
 
 Notes:
-  - release tags follow the ci pattern: 1.0.<suffix>
-  - this script tags swift source releases only
-  - this script does not create storage.* tags or update binaries
+  - Release tags follow the CI pattern: 1.0.<suffix>
+  - This script tags Swift source releases only.
+  - This script does not create storage.* tags or update binaries.
 EOF
 }
 

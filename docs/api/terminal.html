@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light dark">
-<title>GhosttyKit · API · Terminal surface</title>
+<title>GhosttyKit · API · Terminal Surface</title>
 <link rel="stylesheet" href="../styles.css">
 <link rel="stylesheet"
       href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.10.0/styles/github.min.css"
@@ -28,7 +28,7 @@
 </nav>
 
 <main>
-<h1>Terminal surface</h1>
+<h1>Terminal Surface</h1>
 <nav class="on-this-page" aria-label="On this page">
   <strong>On this page:</strong>
   <a href="#TerminalViewState">TerminalViewState</a>
@@ -76,7 +76,7 @@ public final class TerminalViewState: ObservableObject {
     public func setTerminalConfiguration(_ configuration: TerminalConfiguration) -&gt; Bool
 }
 </code></pre>
-<p class="muted"><code>controller</code> exposes a projected publisher for source compatibility, but controller-owned configuration changes are observable through <code>TerminalViewState</code> mutation methods. SwiftUI integrations should mutate through the view state rather than the controller directly.</p>
+<p class="muted"><code>controller</code> exposes a projected publisher for source compatibility. SwiftUI integrations should observe configuration changes through <code>TerminalViewState</code> and mutate the view state rather than the controller.</p>
 
 <h2 id="TerminalSurfaceView">TerminalSurfaceView</h2>
 <pre><code class="language-swift">public struct TerminalSurfaceView: View {
@@ -164,7 +164,7 @@ public final class TerminalController {
 </code></pre>
 
 <nav class="pager" aria-label="Sibling pages">
-  <a class="prev" href="index.html">API hub</a>
+  <a class="prev" href="index.html">API Reference</a>
   <a class="parent" href="index.html">↑ API</a>
   <a class="next" href="configuration.html">Configuration</a>
 </nav>

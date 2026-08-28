@@ -64,7 +64,7 @@ private enum SandboxShellStyle {
     static let welcomeMessage = """
     \r\n  \(emphasis)\(accent)GhosttyKit Sandbox Demo\(reset)\r
     \r\n  This terminal runs inside App Sandbox.\r
-      \(accent)No subprocesses are spawned.\(reset)\r
+      \(accent)No real processes are started.\(reset)\r
       Type '\(highlight)help\(reset)' for available commands.\r\n\r\n
     """
 }

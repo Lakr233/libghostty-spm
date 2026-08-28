@@ -31,7 +31,7 @@
 <h1>Build</h1>
 <p class="lede">Local package checks, binary rebuild flow, theme generation, and GitHub Pages publishing setup.</p>
 
-<h2 id="package">Package checks</h2>
+<h2 id="package">Package Checks</h2>
 <pre><code class="language-bash">swift build
 swift test
 ./Script/test.sh
@@ -50,20 +50,20 @@ swift test
 
 <p>The build scripts apply patches from <code>Patches/ghostty</code>, build target libraries with Zig, merge them into <code>GhosttyKit.xcframework</code>, and update release artifacts.</p>
 
-<h2 id="manifest">Release manifest</h2>
+<h2 id="manifest">Release Manifest</h2>
 <pre><code class="language-bash">./Script/build-manifest.sh
 </code></pre>
 <p>When products, targets, or binary metadata change, keep <code>Package.swift</code>, <code>Package.local.swift</code>, and <code>Package.swift.template</code> aligned.</p>
 
-<h2 id="themes">Theme generation</h2>
+<h2 id="themes">Theme Generation</h2>
 <pre><code class="language-bash">./Script/generate-themes.sh
 </code></pre>
 <p>This regenerates <code>Sources/GhosttyTheme/Themes</code> from iTerm2-Color-Schemes.</p>
 
 <h2 id="pages">GitHub Pages</h2>
-<p>The documentation site is a static site under <code>docs/</code>, matching the SSHKit Pages layout. <code>.github/workflows/pages.yml</code> publishes it with GitHub Actions on every <code>main</code> push that changes docs. <code>docs/.nojekyll</code> keeps GitHub Pages serving files exactly as written.</p>
+<p>The documentation site is a static site under <code>docs/</code>. <code>.github/workflows/pages.yml</code> publishes it with GitHub Actions on every <code>main</code> push that changes docs. <code>docs/.nojekyll</code> keeps GitHub Pages serving files exactly as written.</p>
 
-<h2 id="local">Local preview</h2>
+<h2 id="local">Local Preview</h2>
 <pre><code class="language-bash">cd docs
 python3 -m http.server 8000
 </code></pre>

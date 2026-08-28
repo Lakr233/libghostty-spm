@@ -5,7 +5,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 if [ ! -f .root ]; then
-    echo "[*] malformed project structure"
+    echo "[!] repository root not found. Run this script from a libghostty-spm checkout."
     exit 1
 fi
 
@@ -18,7 +18,7 @@ if [ -z "$XCFRAMEWORK_PATH_ZIP" ] || [ -z "$DOWNLOAD_URL" ]; then
 fi
 
 if [ ! -f "$XCFRAMEWORK_PATH_ZIP" ]; then
-    echo "[!] $XCFRAMEWORK_PATH_ZIP not found"
+    echo "[!] xcframework zip not found: $XCFRAMEWORK_PATH_ZIP"
     exit 1
 fi
 

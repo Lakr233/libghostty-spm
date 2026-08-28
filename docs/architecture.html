@@ -42,13 +42,13 @@ GhosttyTheme    Swift      Theme catalog and TerminalConfiguration conversion he
    |
 ShellCraftKit   Swift      Sandboxed command engine backed by InMemoryTerminalSession.</code></pre>
 
-<h2 id="controller">Controller and surface</h2>
+<h2 id="controller">Controller and Surface</h2>
 <p><code>TerminalController</code> is the source of truth for Ghostty app lifecycle and resolved configuration. It composes the base config source, per-session <code>TerminalConfiguration</code>, active <code>TerminalTheme</code>, and current color scheme into one rendered Ghostty config.</p>
 <p>A platform view asks the controller to create a <code>TerminalSurface</code>. The surface owns the bridge to Ghostty&rsquo;s renderer, callback table, display link, and host-managed I/O hooks.</p>
 
-<h2 id="platforms">Platform views</h2>
+<h2 id="platforms">Platform Views</h2>
 <table>
-<thead><tr><th>Platform</th><th>Type</th><th>Input model</th></tr></thead>
+<thead><tr><th>Platform</th><th>Type</th><th>Input Model</th></tr></thead>
 <tbody>
 <tr><td>iOS / Catalyst</td><td><code>UITerminalView</code></td><td><code>UITextInput</code>, hardware presses, touch scrolling, input accessory bar.</td></tr>
 <tr><td>macOS</td><td><code>AppTerminalView</code></td><td><code>NSTextInputClient</code>, key events, mouse and scroll events.</td></tr>
@@ -59,7 +59,7 @@ ShellCraftKit   Swift      Sandboxed command engine backed by InMemoryTerminalSe
 <h2 id="io">Host-managed I/O</h2>
 <p>Example apps use <code>GHOSTTY_SURFACE_IO_BACKEND_HOST_MANAGED</code>. Ghostty produces user input bytes through callbacks, and the host feeds output bytes back through <code>ghostty_surface_write_buffer</code>. <code>InMemoryTerminalSession</code> owns this bridge for Swift callers.</p>
 
-<h2 id="ios-input">iOS input chain</h2>
+<h2 id="ios-input">iOS Input Chain</h2>
 <ol>
 <li>Hardware keys arrive through <code>pressesBegan</code> and are translated into <code>ghostty_input_key_s</code>.</li>
 <li>Software keyboard text arrives through <code>insertText(_:)</code> and deletion through <code>deleteBackward()</code>.</li>
@@ -68,9 +68,9 @@ ShellCraftKit   Swift      Sandboxed command engine backed by InMemoryTerminalSe
 <li>Long-press selection requests are delegated to the host with a viewport snapshot.</li>
 </ol>
 
-<h2 id="trimmed-build">Trimmed build</h2>
+<h2 id="trimmed-build">Trimmed Build</h2>
 <table>
-<thead><tr><th>Component</th><th>Bundled state</th><th>Reason</th></tr></thead>
+<thead><tr><th>Component</th><th>Bundled State</th><th>Reason</th></tr></thead>
 <tbody>
 <tr><td>Terminal core</td><td>Included</td><td>VT parser, state machine, grid.</td></tr>
 <tr><td>Metal renderer</td><td>Included</td><td>CAMetalLayer / IOSurface rendering.</td></tr>
@@ -83,7 +83,7 @@ ShellCraftKit   Swift      Sandboxed command engine backed by InMemoryTerminalSe
 </tbody>
 </table>
 
-<h2 id="rules">Architecture rules</h2>
+<h2 id="rules">Architecture Rules</h2>
 <ul>
 <li><code>TerminalController</code> owns the Ghostty app object and config resolution.</li>
 <li>Platform views own native input and layer sizing.</li>
