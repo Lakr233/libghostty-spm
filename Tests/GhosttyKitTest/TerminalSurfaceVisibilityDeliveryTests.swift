@@ -6,8 +6,6 @@ import Testing
     import UIKit
 #elseif canImport(AppKit)
     import AppKit
-#else
-    #error("unsupported platform")
 #endif
 
 /// Mounts two surfaces the way a tabbed host does — every tab stays in the

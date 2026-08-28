@@ -3,7 +3,8 @@
 //  libghostty-spm
 //
 
-#if canImport(UIKit) && !targetEnvironment(macCatalyst)
+#if canImport(UIKit)
+    #if !targetEnvironment(macCatalyst)
     import UIKit
 
     /// Pinch-zoom font sizing state; behavior lives in +PinchZoom.
@@ -85,4 +86,5 @@
             }
         }
     }
+    #endif
 #endif

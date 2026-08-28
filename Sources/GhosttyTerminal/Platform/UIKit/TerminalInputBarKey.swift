@@ -3,7 +3,8 @@
 //  libghostty-spm
 //
 
-#if canImport(UIKit) && !targetEnvironment(macCatalyst)
+#if canImport(UIKit)
+    #if !targetEnvironment(macCatalyst)
     public enum TerminalInputAccessoryItem: Equatable, Sendable {
         case esc
         case ctrl
@@ -92,4 +93,5 @@
         case symbol(String)
         case paste
     }
+    #endif
 #endif

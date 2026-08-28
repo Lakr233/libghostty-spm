@@ -3,7 +3,7 @@
 //  libghostty-spm
 //
 
-#if canImport(AppKit) && !canImport(UIKit)
+#if !canImport(UIKit) && canImport(AppKit)
     import AppKit
 
     public extension AppTerminalView {

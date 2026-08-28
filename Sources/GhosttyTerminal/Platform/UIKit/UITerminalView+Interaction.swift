@@ -130,15 +130,10 @@
                         // keyboard causes, and the shell sees the
                         // click-to-move at its prompt either way.
                         sendTapClick(at: touch.location(in: self))
-                        // Tap-to-toggle can be host-disabled (a keyboard
-                        // lock); the click above still lands either way.
-                        if isKeyboardTapToggleEnabled {
-                            if softwareKeyboard.isVisible {
-                                resignFirstResponder()
-                            } else {
-                                becomeFirstResponder()
-                            }
-                        }
+                        // Overridable: a host keyboard lock overrides
+                        // `toggleSoftwareKeyboard()` to swallow the toggle;
+                        // the click above still lands either way.
+                        toggleSoftwareKeyboard()
                     }
                 }
             #endif

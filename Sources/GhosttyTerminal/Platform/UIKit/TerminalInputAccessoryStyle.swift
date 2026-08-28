@@ -3,7 +3,8 @@
 //  libghostty-spm
 //
 
-#if canImport(UIKit) && !targetEnvironment(macCatalyst)
+#if canImport(UIKit)
+    #if !targetEnvironment(macCatalyst)
     import UIKit
 
     public struct TerminalInputAccessoryStyle: Sendable {
@@ -26,4 +27,5 @@
 
         public static let `default` = TerminalInputAccessoryStyle()
     }
+    #endif
 #endif

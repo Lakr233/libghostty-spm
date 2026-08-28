@@ -3,7 +3,8 @@
 //  libghostty-spm
 //
 
-#if canImport(UIKit) && !targetEnvironment(macCatalyst)
+#if canImport(UIKit)
+    #if !targetEnvironment(macCatalyst)
     import Foundation
 
     @MainActor
@@ -78,4 +79,5 @@
             }
         }
     }
+    #endif
 #endif

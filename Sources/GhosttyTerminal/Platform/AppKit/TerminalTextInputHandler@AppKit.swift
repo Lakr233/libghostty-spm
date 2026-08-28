@@ -11,7 +11,7 @@
 //  filtering, so composition behavior stays consistent with upstream.
 //
 
-#if canImport(AppKit) && !canImport(UIKit)
+#if !canImport(UIKit) && canImport(AppKit)
     import AppKit
     import GhosttyKit
 
