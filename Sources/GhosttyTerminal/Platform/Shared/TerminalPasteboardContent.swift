@@ -68,11 +68,29 @@ public enum TerminalPasteboardContent {
         /// The pasteboard as text — see ``text(string:urls:)``. No side
         /// effects.
         static func text(from pasteboard: UIPasteboard = .general) -> String? {
-            let urls = pasteboard.hasURLs ? (pasteboard.urls ?? []) : []
+            let general = pasteboard.hasURLs ? (pasteboard.urls ?? []) : []
+            // `hasURLs`/`urls` cover `public.url`; a file copied in Finder
+            // (Catalyst) or Files lands as `public.file-url`, which they do
+            // not report, so that representation is read on its own.
+            let files = general.contains(where: \.isFileURL) ? [] : fileURLs(in: pasteboard)
+            let urls = files + general
             if !urls.isEmpty {
-                TerminalDebugLog.log(.input, "paste resolved \(urls.count) url(s)")
+                TerminalDebugLog.log(.input, "paste resolved \(urls.count) url(s), \(files.count) file url(s)")
             }
             return text(string: pasteboard.hasStrings ? pasteboard.string : nil, urls: urls)
+        }
+
+        /// Every item's `public.file-url`, whatever form the pasteboard
+        /// stored it in.
+        static func fileURLs(in pasteboard: UIPasteboard) -> [URL] {
+            pasteboard.items.compactMap { item -> URL? in
+                guard let value = item[UTType.fileURL.identifier] else { return nil }
+                if let url = value as? URL { return url }
+                if let data = value as? Data { return URL(dataRepresentation: data, relativeTo: nil) }
+                if let string = value as? String { return URL(string: string) }
+                return nil
+            }
+            .filter(\.isFileURL)
         }
 
         /// Image or document data on the pasteboard, staged under
