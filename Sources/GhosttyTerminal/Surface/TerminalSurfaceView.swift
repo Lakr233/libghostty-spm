@@ -32,6 +32,7 @@ public struct TerminalSurfaceView: View {
             controller: context.controller,
             configuration: context.configuration,
             isSurfaceVisible: context.isSurfaceVisible,
+            isKeyboardTapToggleEnabled: context.isKeyboardTapToggleEnabled,
             focusBinding: focusBinding
         )
         .background(.clear)

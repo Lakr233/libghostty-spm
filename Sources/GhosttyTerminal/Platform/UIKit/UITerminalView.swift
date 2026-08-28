@@ -65,6 +65,13 @@
                     reloadInputViews()
                 }
             }
+
+            /// Whether a clean tap toggles the software keyboard. When false
+            /// the tap still lands on the program as a click
+            /// (`sendTapClick`); only the keyboard raise/dismiss is
+            /// suppressed. Hosts set it through
+            /// ``TerminalViewState/isKeyboardTapToggleEnabled``.
+            open var isKeyboardTapToggleEnabled = true
         #endif
 
         open weak var delegate: (any TerminalSurfaceViewDelegate)? {

@@ -35,6 +35,19 @@ public final class TerminalViewState: ObservableObject {
     /// The platform view currently presenting this state, set by the SwiftUI
     /// representable. Weak: the state outlives detached views.
     weak var attachedView: TerminalView?
+
+    /// The platform view currently presenting this state, for host work that
+    /// needs the real view — a rendered ``TerminalView/snapshotImage()``,
+    /// coordinate math. `nil` while no view presents this state; weak like
+    /// `attachedView`, because the state outlives detached views.
+    public var attachedPlatformView: TerminalView? { attachedView }
+
+    /// Factory for the platform view the SwiftUI representable creates.
+    /// Hosts that need their own view behavior — an interaction lock,
+    /// custom hit testing — return a `TerminalView` subclass here; `nil`
+    /// (the default) instantiates the base class. Read once, when the
+    /// surface view is made: set it before the surface first appears.
+    public var makePlatformView: (@MainActor () -> TerminalView)?
     private var pendingFocusRequest = false
 
     /// Whether the attached surface should keep drawing. Hosts that keep
@@ -44,6 +57,14 @@ public final class TerminalViewState: ObservableObject {
     /// is released, instead of every mounted tab drawing frames nobody
     /// sees. Defaults to true.
     @Published public var isSurfaceVisible: Bool = true
+
+    /// Whether a clean tap on the terminal toggles the software keyboard
+    /// (iPhone, iPad direct touch). Hosts with a "keyboard lock" set this
+    /// false: a tap still reaches the program as a click, but no longer
+    /// summons or dismisses the keyboard. Hardware keyboards, the focus
+    /// APIs, and platforms without a software keyboard are unaffected.
+    /// Defaults to true.
+    @Published public var isKeyboardTapToggleEnabled: Bool = true
 
     @Published public var configuration: TerminalSurfaceOptions = .init()
     public var onClose: ((Bool) -> Void)?

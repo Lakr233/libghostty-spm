@@ -15,7 +15,7 @@
         }
 
         func makeUIView(context viewContext: Context) -> TerminalView {
-            let view = TerminalView(frame: .zero)
+            let view = context.makePlatformView?() ?? TerminalView(frame: .zero)
             configureView(view, initial: true)
             viewContext.coordinator.attach(to: view, focusBinding: focusBinding)
             Self.synchronizeFocus(view, with: focusBinding)
