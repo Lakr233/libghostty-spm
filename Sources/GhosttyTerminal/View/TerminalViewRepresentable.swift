@@ -23,6 +23,8 @@ struct TerminalViewRepresentable {
     /// class reference is invisible to that comparison, and the update pass
     /// was skipped even for the visible surface.
     let isSurfaceVisible: Bool
+    /// Stored for the same reason as `isSurfaceVisible`.
+    let isKeyboardTapToggleEnabled: Bool
     let focusBinding: TerminalFocusBinding?
 
     func configureView(_ view: TerminalView, initial: Bool) {
@@ -57,6 +59,10 @@ struct TerminalViewRepresentable {
                 ?? TerminalInputAccessoryItem.defaultItems
             if view.inputAccessoryItems != accessoryItems {
                 view.inputAccessoryItems = accessoryItems
+            }
+
+            if view.isKeyboardTapToggleEnabled != isKeyboardTapToggleEnabled {
+                view.isKeyboardTapToggleEnabled = isKeyboardTapToggleEnabled
             }
         #endif
     }

@@ -170,6 +170,29 @@ func applicationWillTerminate(_: UIApplication) {
 }
 ```
 
+### Keyboard Tap Toggle and Surface Snapshots
+
+On iPhone and iPad a clean tap toggles the software keyboard. A host with a
+"keyboard lock" turns that off with
+`TerminalViewState.isKeyboardTapToggleEnabled = false` (also on
+`UITerminalView`): the tap still reaches the program as a click — only the
+keyboard raise/dismiss is suppressed. Hardware keyboards, the focus APIs, and
+platforms without a software keyboard are unaffected.
+
+`TerminalView.snapshotImage()` renders the surface's current on-screen
+contents into a `UIImage`/`NSImage`, and
+`TerminalViewState.attachedPlatformView` hands the presenting view to hosts
+that hold only the state. On UIKit the snapshot is a render-server pass
+(`drawHierarchy`), so the Metal layer's presented frame is included; on AppKit
+it is `cacheDisplay`, best-effort for Metal content.
+
+Hosts that need their own view behavior — an interaction lock, custom hit
+testing — set `TerminalViewState.makePlatformView` to return a `TerminalView`
+subclass before the surface first appears; the SwiftUI representable
+instantiates it instead of the base class. Blocking policy belongs in such a
+subclass (refuse `hitTest` and first responder), never in the byte stream:
+output keeps flowing and rendering regardless.
+
 ## Notes
 
 - `TerminalViewState` is the SwiftUI state container.
