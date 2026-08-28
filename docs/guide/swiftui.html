@@ -56,7 +56,7 @@ struct TerminalScreen: View {
 <p>Observable properties include <code>title</code>, <code>surfaceSize</code>, <code>isFocused</code>, <code>bellCount</code>, <code>lastBellAt</code>, desktop notification metadata, <code>workingDirectory</code>, and command-finished metadata.</p>
 
 <h2 id="view">View</h2>
-<p><code>TerminalSurfaceView</code> embeds the platform terminal view and adopts the current SwiftUI color scheme. iOS 15, macOS 13, and Mac Catalyst 15 are the SwiftUI floor for this wrapper.</p>
+<p><code>TerminalSurfaceView</code> embeds the platform terminal view and adopts the current SwiftUI color scheme. This wrapper requires iOS 15, macOS 13, or Mac Catalyst 15.</p>
 <pre><code class="language-swift">TerminalSurfaceView(context: terminal)
     .onAppear {
         terminal.configuration = TerminalSurfaceOptions(
@@ -68,7 +68,7 @@ struct TerminalScreen: View {
 </code></pre>
 
 <h2 id="input">Input</h2>
-<p>There are two ways in, and they are not interchangeable. <code>sendKey(_:)</code> presses a key: the event takes libghostty's key path, so the terminal's key encoding applies (legacy, modifyOtherKeys, kitty). <code>paste(text:)</code> is the text path: a program that enabled bracketed paste receives it framed as a paste, so a <code>\r</code> in it lands in the shell's edit line instead of running the command. Both return <code>true</code> when Ghostty accepts the input; call them after the surface attaches.</p>
+<p>Input takes two paths, and they are not interchangeable. <code>sendKey(_:)</code> presses a key: the event takes libghostty's key path, so the terminal's key encoding applies (legacy, modifyOtherKeys, kitty). <code>paste(text:)</code> is the text path: a program that enabled bracketed paste receives it framed as a paste, so a <code>\r</code> in it lands in the shell's edit line instead of running the command. Both return <code>true</code> when Ghostty accepts the input; call them after the surface attaches.</p>
 <pre><code class="language-swift">@discardableResult
 func run(_ command: String) -> Bool {
     terminal.paste(text: command) && terminal.sendKey(.enter)
@@ -78,7 +78,7 @@ terminal.sendKey(.c, modifiers: .ctrl)              // interrupt
 terminal.sendKey(.tab, modifiers: .shift)           // back-tab
 terminal.sendKey(TerminalKeyPress(typing: "~")!)    // Shift+backquote on a US layout
 </code></pre>
-<p><code>TerminalKey</code> names every key of libghostty's set, after the W3C UI Events <code>code</code> values; keys that have no macOS keycode (media keys, numpad extras) report <code>hasPlatformKeycode == false</code> and are refused. <code>send(_:)</code> is the deprecated name of <code>paste(text:)</code>.</p>
+<p><code>TerminalKey</code> covers libghostty's full key set and uses the W3C UI Events <code>code</code> names. Keys with no macOS keycode (media keys, numpad extras) report <code>hasPlatformKeycode == false</code> and are rejected. <code>send(_:)</code> is the deprecated name of <code>paste(text:)</code>.</p>
 
 <h2 id="configuration">Configuration</h2>
 <p>Use fluent configuration for common Ghostty settings, and <code>custom(_:_:)</code> for additional Ghostty config keys.</p>

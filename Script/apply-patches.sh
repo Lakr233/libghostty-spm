@@ -5,7 +5,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 if [ ! -f .root ]; then
-    echo "[-] malformed project structure"
+    echo "[-] repository root not found. Run this script from a libghostty-spm checkout."
     exit 1
 fi
 
@@ -18,7 +18,7 @@ if [ -z "$SOURCE_DIR" ]; then
 fi
 
 if [ ! -d "$SOURCE_DIR" ]; then
-    echo "[-] ghostty source directory not found: $SOURCE_DIR"
+    echo "[-] Ghostty source directory not found: $SOURCE_DIR"
     exit 1
 fi
 

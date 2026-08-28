@@ -40,7 +40,7 @@ Then add the product you need:
 
 ## Usage
 
-The example apps are the best starting point for real integration:
+Start from the example apps:
 
 - `Example/GhosttyTerminalApp/` — macOS AppKit demo with delegate callbacks
 - `Example/MobileGhosttyApp/` — iOS UIKit demo with keyboard, safe area, themes, and text selection
@@ -75,8 +75,8 @@ struct ContentView: View {
 ```
 
 A host that keeps several surfaces mounted at once (tabs hidden behind
-`opacity(0)`) sets `terminal.isSurfaceVisible = false` on the hidden ones:
-the surface keeps its grid, scrollback, and session, only rendering stops.
+`opacity(0)`) sets `terminal.isSurfaceVisible = false` on the hidden ones.
+The surface keeps its grid, scrollback, and session; only rendering stops.
 
 ### UIKit / AppKit
 
@@ -93,7 +93,7 @@ terminalView.configuration = TerminalSurfaceOptions(
 
 `TerminalView` is a type alias that resolves to `UITerminalView` (iOS/Catalyst) or `AppTerminalView` (macOS).
 
-### Keys and pasted text
+### Keys and Pasted Text
 
 `TerminalViewState` and `TerminalView` expose the same two input paths, and
 they are not interchangeable:
@@ -114,7 +114,7 @@ in it is a pasted character, not Enter. `TerminalViewState.send(_:)` and
 reason — they never sent keystrokes. On `TerminalSurface` the text path keeps
 its primitive name, `sendText(_:)`.
 
-### Prompt and scrollback navigation
+### Prompt and Scrollback Navigation
 
 `TerminalViewState`, `TerminalView`, and `TerminalSurface` expose the same
 programmatic navigation APIs:
@@ -130,7 +130,7 @@ which records prompt boundaries. A host-managed backend must preserve or emit
 equivalent OSC 133 prompt markers. Arbitrary Ghostty actions remain available
 through `performBindingAction(_:)`.
 
-### Pasting and dropping files
+### Pasting and Dropping Files
 
 A paste reads the pasteboard the way Ghostty's macOS app does: URLs first —
 a file URL as its shell-escaped path, any other URL verbatim — then the
@@ -158,9 +158,9 @@ folder in the app's temporary directory by default. A host whose shell cannot
 read the app container points it somewhere both can reach before the first
 paste or drop. Files stay until `TerminalFileStaging.staleFileAge` (24 hours)
 has passed — swept whenever a new file is written, or on
-`TerminalFileStaging.removeStaleFiles()` — and a host that knows nothing can
-refer to them any more (its last shell ended, the app is quitting together
-with its shells) calls `TerminalFileStaging.removeAllFiles()`.
+`TerminalFileStaging.removeStaleFiles()`. A host calls
+`TerminalFileStaging.removeAllFiles()` once no shell can reach the staged
+files — its last shell ended, or the app is quitting together with its shells.
 
 ```swift
 // A host that ends every shell when it quits.
@@ -248,4 +248,4 @@ The bundled `libghostty` binary is built from [Ghostty](https://ghostty.org), wh
 ## Sponsor
 
 - [LookInside](https://lookinside-app.com/) helps you inspect a running iOS or macOS app UI from your Mac.
-- This project/repository is sponsored by AFK AI, INC.
+- This project is sponsored by AFK AI, INC.

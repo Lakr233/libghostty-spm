@@ -29,10 +29,10 @@
             case .alt: "Option"
             case .command: "Command"
             case .tab: "Tab"
-            case .arrowLeft: "Left"
-            case .arrowUp: "Up"
-            case .arrowDown: "Down"
-            case .arrowRight: "Right"
+            case .arrowLeft: "Left Arrow"
+            case .arrowUp: "Up Arrow"
+            case .arrowDown: "Down Arrow"
+            case .arrowRight: "Right Arrow"
             case let .symbol(symbol): symbol
             case .paste: "Paste"
             case .divider: nil

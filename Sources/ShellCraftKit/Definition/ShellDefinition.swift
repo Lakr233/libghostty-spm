@@ -116,7 +116,7 @@ public struct ShellDefinition: Sendable {
     private static let defaultWelcomeMessage = """
     \r\n  ShellCraftKit Sandbox Demo\r
     \r\n  This terminal runs inside App Sandbox.\r
-      No subprocesses are spawned.\r
+      No real processes are started.\r
       Type 'help' for available commands.\r\n\r\n
     """
 }
