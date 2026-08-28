@@ -131,8 +131,8 @@ final class MobileGhosttyAppUITests: XCTestCase {
             if isIPad {
                 tapTerminal(in: terminal)
                 tapAccessoryButton("Tab", screenshotName: "16-accessory-tab")
-                tapAccessoryButton("Esc", screenshotName: "17-accessory-esc")
-                tapAccessoryButton("Right", screenshotName: "18-accessory-right")
+                tapAccessoryButton("Escape", screenshotName: "17-accessory-esc")
+                tapAccessoryButton("Right Arrow", screenshotName: "18-accessory-right")
             }
         #endif
 
