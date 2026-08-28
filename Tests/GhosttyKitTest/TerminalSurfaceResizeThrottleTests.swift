@@ -71,7 +71,7 @@ struct TerminalSurfaceResizeThrottleTests {
 
     @Test
     func `the throttle can be configured without rebuilding the surface`() {
-        var options = TerminalSurfaceOptions()
+        let options = TerminalSurfaceOptions()
         #expect(options.resizeThrottleMilliseconds == 0)
 
         var throttled = options

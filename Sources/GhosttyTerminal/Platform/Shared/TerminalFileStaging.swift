@@ -41,6 +41,30 @@ public enum TerminalFileStaging {
         let type: UTType
     }
 
+    /// One slot per staged item, filled by whichever load completion runs.
+    /// A reference type because the completions run concurrently and share
+    /// it; the lock is what makes the sharing safe.
+    private final class Paths: @unchecked Sendable {
+        private let lock = NSLock()
+        private var values: [String?]
+
+        init(count: Int) {
+            values = .init(repeating: nil, count: count)
+        }
+
+        func set(_ path: String?, at index: Int) {
+            lock.lock()
+            values[index] = path
+            lock.unlock()
+        }
+
+        var resolved: [String] {
+            lock.lock()
+            defer { lock.unlock() }
+            return values.compactMap { $0 }
+        }
+    }
+
     // MARK: - Cleanup
 
     /// Removes staged files older than ``staleFileAge``. Cheap when the
@@ -82,8 +106,7 @@ public enum TerminalFileStaging {
                 return
             }
             let group = DispatchGroup()
-            let lock = NSLock()
-            var paths = [String?](repeating: nil, count: items.count)
+            let paths = Paths(count: items.count)
             for (index, item) in items.enumerated() {
                 group.enter()
                 // The representation is deleted when the completion
@@ -101,13 +124,11 @@ public enum TerminalFileStaging {
                     let path = store(name: name, extension: fileExtension, in: directory) {
                         try FileManager.default.copyItem(at: url, to: $0)
                     }
-                    lock.lock()
-                    paths[index] = path
-                    lock.unlock()
+                    paths.set(path, at: index)
                 }
             }
             group.notify(queue: .main) {
-                let resolved = paths.compactMap { $0 }
+                let resolved = paths.resolved
                 TerminalDebugLog.log(.input, "staged \(resolved.count)/\(items.count) file(s)")
                 terminalRunOnMain {
                     completion(resolved.isEmpty ? nil : resolved.map(TerminalShellEscape.escape).joined(separator: " "))
