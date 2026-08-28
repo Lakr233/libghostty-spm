@@ -43,7 +43,14 @@ public final class TerminalViewState: ObservableObject {
     /// scrollback, and session — only rendering stops and the display link
     /// is released, instead of every mounted tab drawing frames nobody
     /// sees. Defaults to true.
-    @Published public var isSurfaceVisible: Bool = true
+    @Published public var isSurfaceVisible: Bool = true {
+        didSet {
+            // SwiftUI can skip the update pass under an `opacity(0)` ancestor.
+            guard oldValue != isSurfaceVisible, let view = attachedView else { return }
+            view.core.hostDeclaredDisplayVisible = isSurfaceVisible
+            view.setSurfaceVisible(isSurfaceVisible)
+        }
+    }
 
     @Published public var configuration: TerminalSurfaceOptions = .init()
     public var onClose: ((Bool) -> Void)?
