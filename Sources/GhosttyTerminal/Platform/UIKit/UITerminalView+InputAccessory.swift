@@ -20,10 +20,10 @@
                 _ = handleStickyTextInput(text)
 
             case .paste:
+                // Clipboard content, so the text path (bracketed paste) —
+                // see "Key Path vs Text Path" in AGENTS.md.
                 _ = stickyModifiers.consumeForNextKey()
-                if let text = UIPasteboard.general.string, !text.isEmpty {
-                    inputHandler.insertText(text)
-                }
+                pasteFromPasteboard()
 
             case .esc:
                 let mods = stickyModifiers.consumeForNextKey()
@@ -150,11 +150,14 @@
             var event = ghostty_input_key_s()
             event.action = GHOSTTY_ACTION_PRESS
             event.mods = modifiers.ghosttyMods
-            let char = Character(UnicodeScalar(byte | 0x60))
-            let ghosttyKey = ghosttyKeyForCharacter(char)
+            let scalar = UnicodeScalar(byte | 0x60)
+            let ghosttyKey = ghosttyKeyForCharacter(Character(scalar))
             event.keycode = TerminalHardwareKeyRouter.appKitKeyCode(
                 for: ghosttyKey
             )
+            // The kitty encoder keys `CSI <cp>;<mods>u` off this and drops
+            // the press without it (see "Key Path vs Text Path" in AGENTS.md).
+            event.unshifted_codepoint = scalar.value
             _ = surface.sendKeyEvent(event)
         }
 
@@ -186,6 +189,9 @@
                 for: mapping.key
             )
             event.mods = modifiers.union(mapping.extraModifiers).ghosttyMods
+            // See `sendControlByte`: the kitty encoder keys its CSI u
+            // sequence off this, not the keycode.
+            event.unshifted_codepoint = mapping.unshifted.value
 
             if !modifiers.contains(.super_) {
                 text.withCString { ptr in
@@ -199,48 +205,54 @@
             return true
         }
 
+        /// The US-layout key that types `text`, the modifier it needs, and
+        /// what the same key types with no modifier at all — the codepoint
+        /// the kitty encoder reports.
         private func keyMapping(
             for text: String
-        ) -> (key: ghostty_input_key_e, extraModifiers: TerminalInputModifiers)? {
-            guard text.count == 1, let char = text.first else { return nil }
+        ) -> (key: ghostty_input_key_e, extraModifiers: TerminalInputModifiers, unshifted: UnicodeScalar)? {
+            guard text.count == 1, let char = text.first, let scalar = char.unicodeScalars.first else {
+                return nil
+            }
             switch char {
             case "a" ... "z":
-                return (ghosttyKeyForCharacter(char), [])
+                return (ghosttyKeyForCharacter(char), [], scalar)
             case "A" ... "Z":
-                return (ghosttyKeyForCharacter(Character(char.lowercased())), [.shift])
-            case "0": return (GHOSTTY_KEY_DIGIT_0, [])
-            case "1": return (GHOSTTY_KEY_DIGIT_1, [])
-            case "2": return (GHOSTTY_KEY_DIGIT_2, [])
-            case "3": return (GHOSTTY_KEY_DIGIT_3, [])
-            case "4": return (GHOSTTY_KEY_DIGIT_4, [])
-            case "5": return (GHOSTTY_KEY_DIGIT_5, [])
-            case "6": return (GHOSTTY_KEY_DIGIT_6, [])
-            case "7": return (GHOSTTY_KEY_DIGIT_7, [])
-            case "8": return (GHOSTTY_KEY_DIGIT_8, [])
-            case "9": return (GHOSTTY_KEY_DIGIT_9, [])
-            case "`": return (GHOSTTY_KEY_BACKQUOTE, [])
-            case "~": return (GHOSTTY_KEY_BACKQUOTE, [.shift])
-            case "-": return (GHOSTTY_KEY_MINUS, [])
-            case "_": return (GHOSTTY_KEY_MINUS, [.shift])
-            case "=": return (GHOSTTY_KEY_EQUAL, [])
-            case "+": return (GHOSTTY_KEY_EQUAL, [.shift])
-            case "[": return (GHOSTTY_KEY_BRACKET_LEFT, [])
-            case "{": return (GHOSTTY_KEY_BRACKET_LEFT, [.shift])
-            case "]": return (GHOSTTY_KEY_BRACKET_RIGHT, [])
-            case "}": return (GHOSTTY_KEY_BRACKET_RIGHT, [.shift])
-            case "\\": return (GHOSTTY_KEY_BACKSLASH, [])
-            case "|": return (GHOSTTY_KEY_BACKSLASH, [.shift])
-            case ";": return (GHOSTTY_KEY_SEMICOLON, [])
-            case ":": return (GHOSTTY_KEY_SEMICOLON, [.shift])
-            case "'": return (GHOSTTY_KEY_QUOTE, [])
-            case "\"": return (GHOSTTY_KEY_QUOTE, [.shift])
-            case ",": return (GHOSTTY_KEY_COMMA, [])
-            case "<": return (GHOSTTY_KEY_COMMA, [.shift])
-            case ".": return (GHOSTTY_KEY_PERIOD, [])
-            case ">": return (GHOSTTY_KEY_PERIOD, [.shift])
-            case "/": return (GHOSTTY_KEY_SLASH, [])
-            case "?": return (GHOSTTY_KEY_SLASH, [.shift])
-            case " ": return (GHOSTTY_KEY_SPACE, [])
+                let lowercase = Character(char.lowercased())
+                return (ghosttyKeyForCharacter(lowercase), [.shift], lowercase.unicodeScalars.first ?? scalar)
+            case "0": return (GHOSTTY_KEY_DIGIT_0, [], scalar)
+            case "1": return (GHOSTTY_KEY_DIGIT_1, [], scalar)
+            case "2": return (GHOSTTY_KEY_DIGIT_2, [], scalar)
+            case "3": return (GHOSTTY_KEY_DIGIT_3, [], scalar)
+            case "4": return (GHOSTTY_KEY_DIGIT_4, [], scalar)
+            case "5": return (GHOSTTY_KEY_DIGIT_5, [], scalar)
+            case "6": return (GHOSTTY_KEY_DIGIT_6, [], scalar)
+            case "7": return (GHOSTTY_KEY_DIGIT_7, [], scalar)
+            case "8": return (GHOSTTY_KEY_DIGIT_8, [], scalar)
+            case "9": return (GHOSTTY_KEY_DIGIT_9, [], scalar)
+            case "`": return (GHOSTTY_KEY_BACKQUOTE, [], scalar)
+            case "~": return (GHOSTTY_KEY_BACKQUOTE, [.shift], "`")
+            case "-": return (GHOSTTY_KEY_MINUS, [], scalar)
+            case "_": return (GHOSTTY_KEY_MINUS, [.shift], "-")
+            case "=": return (GHOSTTY_KEY_EQUAL, [], scalar)
+            case "+": return (GHOSTTY_KEY_EQUAL, [.shift], "=")
+            case "[": return (GHOSTTY_KEY_BRACKET_LEFT, [], scalar)
+            case "{": return (GHOSTTY_KEY_BRACKET_LEFT, [.shift], "[")
+            case "]": return (GHOSTTY_KEY_BRACKET_RIGHT, [], scalar)
+            case "}": return (GHOSTTY_KEY_BRACKET_RIGHT, [.shift], "]")
+            case "\\": return (GHOSTTY_KEY_BACKSLASH, [], scalar)
+            case "|": return (GHOSTTY_KEY_BACKSLASH, [.shift], "\\")
+            case ";": return (GHOSTTY_KEY_SEMICOLON, [], scalar)
+            case ":": return (GHOSTTY_KEY_SEMICOLON, [.shift], ";")
+            case "'": return (GHOSTTY_KEY_QUOTE, [], scalar)
+            case "\"": return (GHOSTTY_KEY_QUOTE, [.shift], "'")
+            case ",": return (GHOSTTY_KEY_COMMA, [], scalar)
+            case "<": return (GHOSTTY_KEY_COMMA, [.shift], ",")
+            case ".": return (GHOSTTY_KEY_PERIOD, [], scalar)
+            case ">": return (GHOSTTY_KEY_PERIOD, [.shift], ".")
+            case "/": return (GHOSTTY_KEY_SLASH, [], scalar)
+            case "?": return (GHOSTTY_KEY_SLASH, [.shift], "/")
+            case " ": return (GHOSTTY_KEY_SPACE, [], scalar)
             default:
                 return nil
             }

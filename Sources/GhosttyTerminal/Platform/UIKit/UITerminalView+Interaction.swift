@@ -19,6 +19,27 @@
         var suppressNextTouchEnd = false
     }
 
+    /// A pan recognizer fed by wheel and trackpad scroll events alone.
+    ///
+    /// A scroll event is neither a touch nor a pointer drag: it reaches a
+    /// pan recognizer only through `allowedScrollTypesMask`, and the touch
+    /// recognizers never see it. Refusing every other event here keeps a
+    /// finger on the touch-scroll recognizer and a pointer drag on the
+    /// selection one without the view's delegate having to tell them apart.
+    final class TerminalScrollWheelGestureRecognizer: UIPanGestureRecognizer {
+        override init(target: Any?, action: Selector?) {
+            super.init(target: target, action: action)
+            allowedScrollTypesMask = [.continuous, .discrete]
+            cancelsTouchesInView = false
+            delaysTouchesBegan = false
+            delaysTouchesEnded = false
+        }
+
+        override func shouldReceive(_ event: UIEvent) -> Bool {
+            event.type == .scroll
+        }
+    }
+
     /// Touch-scroll momentum state; behavior lives in +Interaction.
     struct MomentumScrollState {
         var displayLink: CADisplayLink?
@@ -103,6 +124,12 @@
                             .input,
                             "tap toggles keyboard visible=\(softwareKeyboard.isVisible) duration=\(String(format: "%.3f", duration))"
                         )
+                        // The tap is a click first and a keyboard toggle
+                        // second, in both directions: a TUI tracking the
+                        // mouse gets its press before the resize the
+                        // keyboard causes, and the shell sees the
+                        // click-to-move at its prompt either way.
+                        sendTapClick(at: touch.location(in: self))
                         if softwareKeyboard.isVisible {
                             resignFirstResponder()
                         } else {
@@ -129,11 +156,41 @@
 
         func setupPlatformInput() {
             addInteraction(selectionContextMenuInteraction)
-            #if targetEnvironment(macCatalyst)
-                setupCatalystScrollWheelInput()
-            #else
+            addGestureRecognizer(TerminalScrollWheelGestureRecognizer(
+                target: self,
+                action: #selector(handleScrollWheelGesture(_:))
+            ))
+            #if !targetEnvironment(macCatalyst)
                 setupTouchScrollInput()
             #endif
+        }
+
+        @objc func handleScrollWheelGesture(_ gesture: UIPanGestureRecognizer) {
+            guard pointer.activeButton == nil else { return }
+            switch gesture.state {
+            case .began:
+                stopMomentumScrolling()
+            case .changed, .ended:
+                // `.ended` still carries whatever moved since the last
+                // `.changed`.
+                break
+            default:
+                return
+            }
+
+            let translation = gesture.translation(in: self)
+            gesture.setTranslation(.zero, in: self)
+            TerminalDebugLog.log(
+                .input,
+                "scroll wheel translation=\(String(format: "%.2f", translation.x))x\(String(format: "%.2f", translation.y))"
+            )
+
+            let scrollMods = TerminalScrollModifiers(precision: true)
+            surface?.sendMouseScroll(
+                x: Double(translation.x),
+                y: Double(translation.y),
+                mods: scrollMods.rawValue
+            )
         }
 
         enum IndirectPointerPhase {
@@ -358,17 +415,41 @@
         /// as key input — which strips the bracketed-paste markers a shell
         /// relies on to tell pasted text from typing. A pasted command with
         /// newlines would run line by line instead of landing in the edit
-        /// buffer. Taking the action ourselves keeps clipboard text on
-        /// `sendText`, where ghostty wraps it for mode 2004.
+        /// buffer. Taking the action ourselves routes it through ghostty's
+        /// own paste binding (`pasteFromPasteboard`), where the text path,
+        /// the mode 2004 wrapping, and paste protection all live.
         @IBAction override open func paste(_: Any?) {
-            guard let text = UIPasteboard.general.string, !text.isEmpty else {
+            pasteFromPasteboard()
+        }
+
+        /// Every host-driven paste — the edit menu, the accessory bar's
+        /// button — of text enters through ghostty's own paste binding, the
+        /// pipeline a hardware Cmd+V already used: the `read_clipboard`
+        /// callback reads the pasteboard, and paste protection gets to ask
+        /// before an unsafe paste lands.
+        ///
+        /// A pasteboard holding only image or document data is the one case
+        /// handled here: the data is written to a file and its escaped path
+        /// goes straight to the text path. A path carries nothing paste
+        /// protection weighs (no line breaks, no control characters), and a
+        /// program's own clipboard read must never write a file — so that
+        /// work belongs to the host's button, not the callback.
+        func pasteFromPasteboard() {
+            if inputHandler.hasMarkedText {
+                inputHandler.unmarkText()
+            }
+            if TerminalPasteboardContent.text() != nil {
+                _ = surface?.performBindingAction("paste_from_clipboard")
                 return
             }
-            TerminalDebugLog.log(
-                .input,
-                "paste bytes=\(text.utf8.count) lines=\(TerminalInputText.lineCount(in: text))"
-            )
-            surface?.sendText(text)
+            TerminalPasteboardContent.files { [weak self] paths in
+                guard let self, let paths else {
+                    TerminalDebugLog.log(.input, "paste skipped: pasteboard has nothing pasteable")
+                    return
+                }
+                TerminalDebugLog.log(.input, "paste files bytes=\(paths.utf8.count)")
+                surface?.sendText(paths)
+            }
         }
 
         override open func canPerformAction(
@@ -379,7 +460,7 @@
                 return surface?.hasSelection() == true
             }
             if action == #selector(paste(_:)) {
-                return UIPasteboard.general.hasStrings
+                return TerminalPasteboardContent.hasContent()
             }
             return super.canPerformAction(action, withSender: sender)
         }
@@ -390,39 +471,7 @@
             } ?? false
         }
 
-        #if targetEnvironment(macCatalyst)
-            func setupCatalystScrollWheelInput() {
-                let gesture = UIPanGestureRecognizer(
-                    target: self,
-                    action: #selector(handleCatalystScrollWheelGesture(_:))
-                )
-                gesture.allowedScrollTypesMask = [.continuous, .discrete]
-                gesture.cancelsTouchesInView = false
-                gesture.delaysTouchesBegan = false
-                gesture.delaysTouchesEnded = false
-                addGestureRecognizer(gesture)
-            }
-
-            @objc func handleCatalystScrollWheelGesture(
-                _ gesture: UIPanGestureRecognizer
-            ) {
-                guard pointer.activeButton == nil else { return }
-
-                let translation = gesture.translation(in: self)
-                gesture.setTranslation(.zero, in: self)
-                TerminalDebugLog.log(
-                    .input,
-                    "catalyst scroll translation=\(String(format: "%.2f", translation.x))x\(String(format: "%.2f", translation.y))"
-                )
-
-                let scrollMods = TerminalScrollModifiers(precision: true)
-                surface?.sendMouseScroll(
-                    x: Double(translation.x),
-                    y: Double(translation.y),
-                    mods: scrollMods.rawValue
-                )
-            }
-        #else
+        #if !targetEnvironment(macCatalyst)
             func setupTouchScrollInput() {
                 let gesture = UIPanGestureRecognizer(
                     target: self,
@@ -448,6 +497,20 @@
                 setupIndirectPointerSelectionGesture()
                 fontZoom.currentFontSize = configuration.fontSize ?? 14
                 setupPinchZoomGesture()
+            }
+
+            /// One left click at `point`, the way a finger tap reaches the
+            /// terminal: a press and a release with no drag between them.
+            /// Any pointer-drag selection is over by definition — ghostty
+            /// clears its selection on the click.
+            func sendTapClick(at point: CGPoint) {
+                guard let surface else { return }
+                let mods = ghostty_input_mods_e(rawValue: 0)
+                surface.sendMousePos(x: point.x, y: point.y, mods: mods)
+                surface.sendMouseButton(state: GHOSTTY_MOUSE_PRESS, button: GHOSTTY_MOUSE_LEFT, mods: mods)
+                surface.sendMouseButton(state: GHOSTTY_MOUSE_RELEASE, button: GHOSTTY_MOUSE_LEFT, mods: mods)
+                pointer.lastSelectionRect = nil
+                pointer.selectionStartPoint = nil
             }
 
             func setupIndirectPointerSelectionGesture() {

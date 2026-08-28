@@ -153,16 +153,64 @@ Where this lives today, in `Platform/UIKit`:
   directly; the Kitty encoder treats an unmapped key carrying UTF-8 as a pure
   text event. Text containing newlines falls back to the text path — whatever
   produced it, a shell must not read those lines as Return presses.
-- `UITerminalView+Interaction.swift` → `paste(_:)` — clipboard only, on
-  `sendText`. This override is **load-bearing**: `UIResponder`'s default paste
-  for a `UIKeyInput` conformer calls `insertText(_:)`, which would send a
-  pasted multi-line command through the key path and run it line by line.
-  `canPerformAction` gates it on `UIPasteboard.general.hasStrings`.
-- `UITerminalView+InputAccessory.swift` → the accessory bar's Paste button,
-  also `sendText`.
+- `UITerminalView+Interaction.swift` → `paste(_:)` / `pasteFromPasteboard()` —
+  clipboard only. The override is **load-bearing**: `UIResponder`'s default
+  paste for a `UIKeyInput` conformer calls `insertText(_:)`, which would send
+  a pasted multi-line command through the key path and run it line by line.
+  It performs ghostty's `paste_from_clipboard` binding instead, so every
+  paste — edit menu, the accessory bar's Paste button, hardware Cmd+V — is
+  one pipeline: `readClipboard` in `TerminalController+Callbacks.swift`
+  resolves the pasteboard and completes the request, and paste protection
+  can ask (see Clipboard Confirmation) before an unsafe paste lands.
+  `canPerformAction` gates it on `TerminalPasteboardContent.hasContent()`.
+
+`readClipboard` reads through `TerminalPasteboardContent.text` on both
+platforms: AppKit follows upstream's `getOpinionatedStringContents` (URLs,
+file URLs as shell-escaped paths, then the string); UIKit takes the string,
+else file URLs as escaped paths. It has no side effects, because the same
+callback serves a program's OSC 52 read. Image or document data with no path
+(a screenshot, a file copied out of Files — what a phone's clipboard holds far
+more often than a desktop's) is the host button's business alone:
+`pasteFromPasteboard` calls `TerminalPasteboardContent.files`, which writes it
+under `TerminalPasteboardContent.fileDirectory` and sends the escaped paths on
+the text path. Only the standard clipboard is read or written; selection
+clipboard traffic (`copy-on-select`) is dropped so a drag never replaces the
+user's pasteboard.
+
+Synthetic key events (`sendControlByte`, `sendModifiedTextKey`) must carry
+`unshifted_codepoint`. The legacy encoder recovers the letter from the keycode,
+so shells never notice its absence; the kitty encoder keys `CSI <cp>;<mods>u`
+off it and silently drops the press without it — Ctrl+C never reached codex
+until it was set.
 
 When adding an input entry point, decide which of the two it is first, and say
 so in the code — "it's just text" is the mistake this section exists to prevent.
+
+### iOS Touch and Pointer Input
+
+- A short direct-touch tap (`touchesEnded` in `+Interaction`) is a left click
+  first (`sendTapClick`: mouse position, press, release) and a keyboard toggle
+  second, in both directions. A mouse-tracking TUI gets the press before the
+  keyboard's resize; the shell sees click-to-move at its prompt.
+- Three pan recognizers coexist: direct touches scroll with momentum,
+  indirect-pointer drags select (`handleIndirectPointerSelectionGesture`), and
+  wheel/trackpad scroll events drive `handleScrollWheelGesture` on iOS and
+  Catalyst alike. `TerminalScrollWheelGestureRecognizer` accepts scroll events
+  only (`allowedScrollTypesMask` plus `shouldReceive(_:)`): a scroll event is
+  neither a touch nor a pointer drag, so without it a mouse scrolls nothing
+  on iOS, and with it a finger or a pointer drag never lands on it.
+
+### Clipboard Confirmation
+
+Ghostty asks the host before a protected clipboard operation: an OSC 52 read
+(`clipboard-read = ask`, the default), an OSC 52 write when
+`clipboard-write = ask`, and a paste that paste protection flagged (newlines
+into a program without bracketed paste). `TerminalViewState` conforms to
+`TerminalSurfaceClipboardConfirmationDelegate` and forwards to
+`onClipboardConfirmationRequest`; while that hook is `nil` a program's read or
+write is denied silently and a paste the user started is allowed. A host that
+wants programs to read the clipboard, or a say on unsafe pastes, sets it and
+presents the request.
 
 ### iOS Long-Press Text Selection
 

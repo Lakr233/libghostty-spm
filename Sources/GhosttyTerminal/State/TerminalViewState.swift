@@ -63,6 +63,16 @@ public final class TerminalViewState: ObservableObject {
     /// ``TerminalSurfaceTextSelectionRequestDelegate``.
     public var onTextSelectionRequest: ((TerminalTextSelectionRequest) -> Void)?
 
+    /// Host hook for clipboard decisions ghostty will not make alone: a
+    /// program reading the clipboard through OSC 52 (`clipboard-read = ask`,
+    /// the default), writing it when `clipboard-write = ask`, or a paste
+    /// that paste protection flagged as unsafe. The host presents the
+    /// request and answers it with ``TerminalClipboardConfirmationRequest/respond(allow:)``.
+    /// While this is `nil`, a program's read or write is denied silently and
+    /// a paste the user started is allowed; a host that wants programs to
+    /// read the clipboard, or wants a say on unsafe pastes, sets it.
+    public var onClipboardConfirmationRequest: ((TerminalClipboardConfirmationRequest) -> Void)?
+
     /// Hands keyboard focus to the attached terminal view, imperatively.
     ///
     /// The SwiftUI `terminalFocused` bridge is best-effort: with no native
