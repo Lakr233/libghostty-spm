@@ -100,25 +100,44 @@ public final class TerminalViewState: ObservableObject {
         pendingFocusRequest = false
     }
 
-    /// Sends text to the attached surface.
+    /// Pastes text into the attached surface. This is the text path: a
+    /// program that enabled bracketed paste receives it framed as a paste,
+    /// so a `\r` in it lands in the shell's edit line instead of running
+    /// it. Keystrokes — Enter, Tab, Ctrl+C — go through ``sendKey(_:)``.
     @discardableResult
-    public func send(_ text: String) -> Bool {
+    public func paste(text: String) -> Bool {
         guard let surface else {
-            TerminalDebugLog.log(.input, "view state send ignored: missing surface")
+            TerminalDebugLog.log(.input, "view state paste ignored: missing surface")
             return false
         }
         return surface.sendText(text)
     }
 
-    /// Presses one named key on the attached surface, as if it was typed.
-    /// Unlike ``send(_:)``, a key press is never paste-framed.
+    /// The old name of ``paste(text:)``. It never sent keystrokes — the
+    /// text path is a paste — and the name led hosts to `send("ls\r")`,
+    /// which a shell with bracketed paste on does not run.
+    @available(*, deprecated, renamed: "paste(text:)", message: "The text path is a paste; press keys with sendKey(_:).")
     @discardableResult
-    public func sendKey(_ key: TerminalKeyPress) -> Bool {
+    public func send(_ text: String) -> Bool {
+        paste(text: text)
+    }
+
+    /// Presses and releases a key on the attached surface, as if typed on a
+    /// hardware keyboard — see ``TerminalSurface/sendKey(_:)``.
+    @discardableResult
+    public func sendKey(_ press: TerminalKeyPress) -> Bool {
         guard let surface else {
             TerminalDebugLog.log(.input, "view state key ignored: missing surface")
             return false
         }
-        return surface.sendKeyPress(key)
+        return surface.sendKey(press)
+    }
+
+    /// ``sendKey(_:)`` for a key and its modifiers: `sendKey(.enter)`,
+    /// `sendKey(.c, modifiers: .ctrl)`.
+    @discardableResult
+    public func sendKey(_ key: TerminalKey, modifiers: TerminalInputModifiers = []) -> Bool {
+        sendKey(TerminalKeyPress(key, modifiers: modifiers))
     }
 
     /// Invoke a named Ghostty binding action on the attached surface.

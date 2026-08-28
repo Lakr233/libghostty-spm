@@ -65,6 +65,10 @@ public final class TerminalViewState: ObservableObject {
     public var theme: TerminalTheme { get }
     public var terminalConfiguration: TerminalConfiguration { get }
 
+    public func paste(text: String) -&gt; Bool
+    public func sendKey(_ press: TerminalKeyPress) -&gt; Bool
+    public func sendKey(_ key: TerminalKey, modifiers: TerminalInputModifiers = []) -&gt; Bool
+    @available(*, deprecated, renamed: "paste(text:)")
     public func send(_ text: String) -&gt; Bool
     public func adopt(colorScheme: ColorScheme)
     public func adopt(terminalColorScheme colorScheme: TerminalColorScheme)

@@ -13,7 +13,7 @@ import GhosttyKit
     import AppKit
 #endif
 
-public struct TerminalInputModifiers: OptionSet, Sendable {
+public struct TerminalInputModifiers: OptionSet, Hashable, Sendable {
     public let rawValue: UInt32
 
     public init(rawValue: UInt32) {

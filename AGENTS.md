@@ -117,6 +117,14 @@ individual key input should be used."*
 
 **Typing goes on the key path. Only clipboard content goes on the text path.**
 
+Hosts get the same split: `sendKey(_:)` (`Surface/TerminalKeyPress.swift` —
+`TerminalKey` mirrors every `ghostty_input_key_e`, `TerminalKeyPress` adds
+modifiers and derives `text` / `unshifted_codepoint` from a US-layout table,
+and the surface sends press then release) is the key path; `paste(text:)` is the
+text path. `send(_:)` / `sendText(_:)` are deprecated names of `paste(text:)`
+because hosts read them as "type this" and sent `"ls\r"` through a paste.
+`TerminalSurface.sendText` stays the internal primitive under `paste`.
+
 Getting this backwards does not fail loudly — it produces symptoms that look
 like rendering or cursor bugs, because the shell is the thing that behaves
 differently:
@@ -153,7 +161,7 @@ Where this lives today, in `Platform/UIKit`:
   directly; the Kitty encoder treats an unmapped key carrying UTF-8 as a pure
   text event. Text containing newlines falls back to the text path — whatever
   produced it, a shell must not read those lines as Return presses.
-- `UITerminalView+Interaction.swift` → `paste(_:)` / `pasteFromPasteboard()` —
+- `UITerminalView+Interaction.swift` → `paste(text:)` / `pasteFromPasteboard()` —
   clipboard only. The override is **load-bearing**: `UIResponder`'s default
   paste for a `UIKeyInput` conformer calls `insertText(_:)`, which would send
   a pasted multi-line command through the key path and run it line by line.
