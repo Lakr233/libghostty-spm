@@ -107,32 +107,39 @@
                 return command
             }
 
+        // Catalyst included: its text-input system also swallows Ctrl+letter
+        // before `pressesBegan` (the Control press itself arrives, the letter
+        // never does), and the key command is the only route left. The
+        // per-runloop claim below dedupes against a press on systems that
+        // deliver both.
         override open var keyCommands: [UIKeyCommand]? {
-            #if targetEnvironment(macCatalyst)
-                return super.keyCommands
-            #else
-                var commands = super.keyCommands ?? []
-                commands.append(contentsOf: Self.controlKeyCommands)
-                return commands
-            #endif
+            var commands = super.keyCommands ?? []
+            commands.append(contentsOf: Self.controlKeyCommands)
+            return commands
         }
 
         @objc private func handleControlKeyCommand(_ command: UIKeyCommand) {
-            #if !targetEnvironment(macCatalyst)
-                guard let input = command.input, !input.isEmpty else { return }
-                guard claimControlKeyDelivery(
-                    input: input,
-                    modifierFlags: command.modifierFlags
-                ) else { return }
-                TerminalDebugLog.log(
-                    .input,
-                    "uikit key command input=\(TerminalDebugLog.describe(input)) mods=0x\(String(command.modifierFlags.rawValue, radix: 16))"
-                )
-                _ = sendModifiedTextKey(
-                    input,
-                    modifiers: TerminalInputModifiers(from: command.modifierFlags)
-                )
-            #endif
+            guard let input = command.input, input.count == 1,
+                  let character = input.first,
+                  let press = TerminalKeyPress(
+                      typing: character,
+                      modifiers: TerminalInputModifiers(from: command.modifierFlags)
+                  )
+            else { return }
+            guard claimControlKeyDelivery(
+                input: input,
+                modifierFlags: command.modifierFlags
+            ) else { return }
+            TerminalDebugLog.log(
+                .input,
+                "uikit key command input=\(TerminalDebugLog.describe(input)) mods=0x\(String(command.modifierFlags.rawValue, radix: 16))"
+            )
+            // A chord, not typing: it closes an open composition the way a
+            // hardware press would, and takes the shared key path.
+            if inputHandler.hasMarkedText {
+                inputHandler.unmarkText()
+            }
+            _ = surface?.sendKey(press)
         }
 
         /// Whether this path gets to deliver the combo. Whichever of
