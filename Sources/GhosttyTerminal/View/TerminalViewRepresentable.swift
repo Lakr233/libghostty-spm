@@ -17,6 +17,12 @@ struct TerminalViewRepresentable {
     let context: TerminalViewState
     let controller: TerminalController
     let configuration: TerminalSurfaceOptions
+    /// A stored input, not read off `context` in the update pass: SwiftUI
+    /// runs `updateNSView`/`updateUIView` only when the representable's own
+    /// properties differ from the previous value. A flag read through the
+    /// class reference is invisible to that comparison, and the update pass
+    /// was skipped even for the visible surface.
+    let isSurfaceVisible: Bool
     let focusBinding: TerminalFocusBinding?
 
     func configureView(_ view: TerminalView, initial: Bool) {
@@ -41,9 +47,9 @@ struct TerminalViewRepresentable {
         // Forward only changes: stamping unconditionally would revert an
         // imperative `setSurfaceVisible` call on every SwiftUI update and
         // pay a per-update C call for nothing.
-        if view.core.hostDeclaredDisplayVisible != context.isSurfaceVisible {
-            view.core.hostDeclaredDisplayVisible = context.isSurfaceVisible
-            view.setSurfaceVisible(context.isSurfaceVisible)
+        if view.core.hostDeclaredDisplayVisible != isSurfaceVisible {
+            view.core.hostDeclaredDisplayVisible = isSurfaceVisible
+            view.setSurfaceVisible(isSurfaceVisible)
         }
 
         #if canImport(UIKit) && !targetEnvironment(macCatalyst)

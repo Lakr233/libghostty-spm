@@ -31,6 +31,7 @@ public struct TerminalSurfaceView: View {
             context: context,
             controller: context.controller,
             configuration: context.configuration,
+            isSurfaceVisible: context.isSurfaceVisible,
             focusBinding: focusBinding
         )
         .background(.clear)
