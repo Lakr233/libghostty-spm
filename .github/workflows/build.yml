@@ -209,7 +209,7 @@ jobs:
         run: mv ./build/GhosttyKit.xcframework.zip ./GhosttyKit.xcframework.zip
 
       - name: Create Upstream Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ needs.prepare.outputs.storage_tag }}
           target_commitish: ${{ github.ref_name }}
