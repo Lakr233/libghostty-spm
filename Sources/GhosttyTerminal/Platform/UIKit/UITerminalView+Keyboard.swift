@@ -509,7 +509,7 @@
             private func scheduleInputMethodKeyFlush(after delay: TimeInterval = 0) {
                 guard !hardwareKeyboard.inputMethodFlushScheduled else { return }
                 hardwareKeyboard.inputMethodFlushScheduled = true
-                let flush = { [weak self] in
+                let flush: @MainActor @Sendable () -> Void = { [weak self] in
                     guard let self else { return }
                     hardwareKeyboard.inputMethodFlushScheduled = false
                     replayUnclaimedInputMethodKeys()
