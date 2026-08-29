@@ -14,11 +14,13 @@
         /// A press the key path already delivered, telling the UITextInput
         /// echo to stay silent.
         var keyHandled = false
-        /// Signatures of control combos already delivered this runloop turn.
-        /// One physical press can reach us twice — `pressesBegan` and a
-        /// matching `UIKeyCommand` — and which arrives (or both) varies by
-        /// iPadOS version; whichever runs first claims the press here.
-        var recentControlKeyDeliveries: Set<String> = []
+        /// Signatures of keys already delivered this runloop turn by one of
+        /// the two paths that can carry a key we register as a `UIKeyCommand`
+        /// (the Ctrl combos, Escape). One physical press can reach us twice —
+        /// `pressesBegan` and the matching command — and which arrives (or
+        /// both) varies by iPadOS version; whichever runs first claims the
+        /// press here.
+        var recentKeyCommandDeliveries: Set<String> = []
         /// Keys loaned to the input method this runloop turn. The text input
         /// system claims them through any UITextInput mutation; whatever is
         /// still here when the turn ends is replayed to the surface.
@@ -107,14 +109,54 @@
                 return command
             }
 
+        #if !targetEnvironment(macCatalyst)
+            /// Escape, which the text input system also handles itself: for
+            /// a `UITextInput` first responder UIKit's system behaviour for a
+            /// hardware Escape is to end editing — the view resigns, the
+            /// keyboard (and the accessory bar over it) drops — and that runs
+            /// before `pressesBegan` ever sees the key. A terminal cannot
+            /// give Escape away, so it is claimed the same way as the Ctrl
+            /// combos, under every modifier set a program might bind
+            /// (Cmd-Escape stays with the system). Catalyst has no software
+            /// keyboard and delivers Escape as a plain press; it needs none
+            /// of this.
+            private static let escapeKeyCommands: [UIKeyCommand] = {
+                let modifierSets: [UIKeyModifierFlags] = [
+                    [], .shift, .control, .alternate,
+                    [.shift, .control], [.shift, .alternate], [.control, .alternate],
+                    [.shift, .control, .alternate],
+                ]
+                return modifierSets.map { flags in
+                    let command = UIKeyCommand(
+                        input: UIKeyCommand.inputEscape,
+                        modifierFlags: flags,
+                        action: #selector(handleEscapeKeyCommand(_:))
+                    )
+                    command.wantsPriorityOverSystemBehavior = true
+                    return command
+                }
+            }()
+        #endif
+
         // Catalyst included: its text-input system also swallows Ctrl+letter
         // before `pressesBegan` (the Control press itself arrives, the letter
         // never does), and the key command is the only route left. The
         // per-runloop claim below dedupes against a press on systems that
         // deliver both.
+        //
+        // UIKit asks for this list on every key event, so it can change with
+        // the view's state: while a composition is on screen every key is the
+        // input method's (Escape cancels it — see `TerminalIMEComposition`),
+        // and the Escape commands step aside so the press takes the deferral
+        // path in `pressesBegan` as it always did.
         override open var keyCommands: [UIKeyCommand]? {
             var commands = super.keyCommands ?? []
             commands.append(contentsOf: Self.controlKeyCommands)
+            #if !targetEnvironment(macCatalyst)
+                if !inputHandler.hasMarkedText {
+                    commands.append(contentsOf: Self.escapeKeyCommands)
+                }
+            #endif
             return commands
         }
 
@@ -126,7 +168,7 @@
                       modifiers: TerminalInputModifiers(from: command.modifierFlags)
                   )
             else { return }
-            guard claimControlKeyDelivery(
+            guard claimKeyCommandDelivery(
                 input: input,
                 modifierFlags: command.modifierFlags
             ) else { return }
@@ -142,11 +184,34 @@
             _ = surface?.sendKey(press)
         }
 
-        /// Whether this path gets to deliver the combo. Whichever of
+        #if !targetEnvironment(macCatalyst)
+            /// The Escape command's action: the key goes to the surface as a
+            /// press, exactly as `pressesBegan` would have sent it, and the
+            /// keyboard stays where it is. The command is not offered while
+            /// text is marked (see `keyCommands`), so no composition is open
+            /// here.
+            @objc private func handleEscapeKeyCommand(_ command: UIKeyCommand) {
+                guard claimKeyCommandDelivery(
+                    input: UIKeyCommand.inputEscape,
+                    modifierFlags: command.modifierFlags
+                ) else { return }
+                TerminalDebugLog.log(
+                    .input,
+                    "uikit key command input=escape mods=0x\(String(command.modifierFlags.rawValue, radix: 16))"
+                )
+                _ = surface?.sendKey(TerminalKeyPress(
+                    .escape,
+                    modifiers: TerminalInputModifiers(from: command.modifierFlags)
+                ))
+            }
+        #endif
+
+        /// Whether this path gets to deliver a key that is also registered
+        /// as a `UIKeyCommand` (a Ctrl combo, Escape). Whichever of
         /// `pressesBegan` / the key command runs first wins the press; the
         /// entry expires at the end of the runloop turn, before the key can
         /// physically repeat.
-        func claimControlKeyDelivery(
+        func claimKeyCommandDelivery(
             input: String,
             modifierFlags: UIKeyModifierFlags
         ) -> Bool {
@@ -154,16 +219,16 @@
                 [.control, .shift, .alternate, .command]
             )
             let signature = "\(input.lowercased())|\(relevant.rawValue)"
-            guard !hardwareKeyboard.recentControlKeyDeliveries.contains(signature) else {
+            guard !hardwareKeyboard.recentKeyCommandDeliveries.contains(signature) else {
                 TerminalDebugLog.log(
                     .input,
                     "uikit key delivery deduped signature=\(signature)"
                 )
                 return false
             }
-            hardwareKeyboard.recentControlKeyDeliveries.insert(signature)
+            hardwareKeyboard.recentKeyCommandDeliveries.insert(signature)
             DispatchQueue.main.async { [weak self] in
-                self?.hardwareKeyboard.recentControlKeyDeliveries.remove(signature)
+                self?.hardwareKeyboard.recentKeyCommandDeliveries.remove(signature)
             }
             return true
         }
@@ -327,13 +392,13 @@
                 keyEvent.unshifted_codepoint = codepoint.value
             }
 
-            // The key command fallback may have sent this very combo already
-            // (see `controlKeyCommands`); on systems that deliver both, the
-            // first claim wins and this press stays silent.
+            // The key command fallback may have sent this very key already
+            // (see `controlKeyCommands` and `escapeKeyCommands`); on systems
+            // that deliver both, the first claim wins and this press stays
+            // silent.
             if action == GHOSTTY_ACTION_PRESS,
-               filteredModifierFlags.contains(.control),
-               let input = filteredIgnoringModifiers,
-               !claimControlKeyDelivery(
+               let input = keyCommandInput(for: key, filteredModifierFlags: filteredModifierFlags),
+               !claimKeyCommandDelivery(
                    input: input,
                    modifierFlags: filteredModifierFlags
                )
@@ -394,6 +459,24 @@
                 return key.keyCode == .keyboardDeleteOrBackspace
             }
             return true
+        }
+
+        /// The `UIKeyCommand.input` this press would arrive under, if it is
+        /// one of the keys `keyCommands` registers — the shared signature
+        /// both paths claim with. Nil for every other key.
+        private func keyCommandInput(
+            for key: UIKey,
+            filteredModifierFlags: UIKeyModifierFlags
+        ) -> String? {
+            #if !targetEnvironment(macCatalyst)
+                if key.keyCode == .keyboardEscape,
+                   !filteredModifierFlags.contains(.command)
+                {
+                    return UIKeyCommand.inputEscape
+                }
+            #endif
+            guard filteredModifierFlags.contains(.control) else { return nil }
+            return TerminalInputText.filteredFunctionKeyText(key.charactersIgnoringModifiers)
         }
 
         private func filteredModifierFlags(for key: UIKey) -> UIKeyModifierFlags {
