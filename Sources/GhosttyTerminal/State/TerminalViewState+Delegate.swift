@@ -22,35 +22,53 @@ extension TerminalViewState:
     TerminalSurfaceTextSelectionRequestDelegate,
     TerminalSurfaceClipboardConfirmationDelegate
 {
-    public func terminalDidChangeTitle(_ title: String) {
-        self.title = title
-    }
-
-    /// Unlike its neighbours here, this one is *scheduled* rather than applied.
+    /// Applies a change to this state on the main queue's next turn.
     ///
-    /// The metrics come from `synchronizeMetrics()`, which runs off the view's
-    /// layout — and SwiftUI runs a representable's `layoutSubviews` inside its
-    /// own update pass. Assigning a `@Published` property there publishes while
-    /// SwiftUI is mid-update, which it reports as "Publishing changes from
-    /// within view updates is not allowed, this will cause undefined
-    /// behavior." The other callbacks on this type are driven by the terminal's
-    /// IO thread and reach the main actor already outside an update, so only
-    /// this one needs the hop.
+    /// Every `@Published` property below goes through here, and the reason is
+    /// the same for all of them: SwiftUI runs a representable's
+    /// `layoutSubviews` — and the responder changes that layout provokes —
+    /// inside its own update pass. Publishing from there is what SwiftUI
+    /// reports as "Publishing changes from within view updates is not allowed,
+    /// this will cause undefined behavior", and the callbacks that can land
+    /// inside an update are not a fixed list: `terminalDidResize` and
+    /// `terminalDidChangeFocus` are the ones seen so far, but any of these can
+    /// be reached from a rebuild that a layout started. One rule for the whole
+    /// file is easier to keep true than a per-callback judgement that has to be
+    /// re-made every time one is added.
     ///
-    /// The cost is one runloop turn before a host sees a new grid size, and it
-    /// is invisible: the size reached the engine before this was ever called
-    /// (see the comment in `synchronizeMetrics`), so this notification is for
-    /// the host's own UI, never for the terminal. The guard keeps a layout pass
-    /// that recomputes the same metrics from scheduling anything at all.
-    public func terminalDidResize(_ size: TerminalGridMetrics) {
-        guard surfaceSize != size else { return }
+    /// The cost is one runloop turn on state a host only renders. Ordering
+    /// survives — the main queue is FIFO — and `weak self` keeps a detached
+    /// state from being resurrected by a change nobody will see.
+    ///
+    /// The closures further down are deliberately *not* routed through this.
+    /// They are requests with an answer expected, not state: a clipboard
+    /// confirmation must reach its host while the request is still live, and a
+    /// close must act before the surface goes.
+    private func publishSoon(_ apply: @escaping @MainActor (TerminalViewState) -> Void) {
         terminalRunOnMainNextTurn { [weak self] in
-            self?.surfaceSize = size
+            guard let self else { return }
+            apply(self)
         }
     }
 
+    public func terminalDidChangeTitle(_ title: String) {
+        guard self.title != title else { return }
+        publishSoon { $0.title = title }
+    }
+
+    /// The metrics come from `synchronizeMetrics()`, which runs off the view's
+    /// layout — the callback that first showed the update-pass problem. The
+    /// turn of delay is invisible here in particular: the size had already
+    /// reached the engine before this was called (`synchronizeMetrics` says so
+    /// at length), so this notification only ever fed the host's own UI.
+    public func terminalDidResize(_ size: TerminalGridMetrics) {
+        guard surfaceSize != size else { return }
+        publishSoon { $0.surfaceSize = size }
+    }
+
     public func terminalDidChangeFocus(_ focused: Bool) {
-        isFocused = focused
+        guard isFocused != focused else { return }
+        publishSoon { $0.isFocused = focused }
     }
 
     public func terminalDidClose(processAlive: Bool) {
@@ -58,27 +76,38 @@ extension TerminalViewState:
     }
 
     public func terminalDidRingBell() {
-        bellCount += 1
-        lastBellAt = Date()
+        // The instant the bell rang, not the instant it was published.
+        let at = Date()
+        publishSoon {
+            $0.bellCount += 1
+            $0.lastBellAt = at
+        }
     }
 
     public func terminalDidRequestDesktopNotification(title: String, body: String) {
-        lastDesktopNotificationTitle = title
-        lastDesktopNotificationBody = body
-        lastDesktopNotificationAt = Date()
+        let at = Date()
+        publishSoon {
+            $0.lastDesktopNotificationTitle = title
+            $0.lastDesktopNotificationBody = body
+            $0.lastDesktopNotificationAt = at
+        }
     }
 
     public func terminalDidChangeWorkingDirectory(_ path: String) {
-        workingDirectory = path
+        guard workingDirectory != path else { return }
+        publishSoon { $0.workingDirectory = path }
     }
 
     public func terminalDidUpdateScrollbar(_ scrollbar: TerminalScrollbar) {
-        self.scrollbar = scrollbar
+        guard self.scrollbar != scrollbar else { return }
+        publishSoon { $0.scrollbar = scrollbar }
     }
 
     public func terminalDidFinishCommand(exitCode: Int?, durationNanos: UInt64) {
-        lastCommandExitCode = exitCode
-        lastCommandDurationNanos = durationNanos
+        publishSoon {
+            $0.lastCommandExitCode = exitCode
+            $0.lastCommandDurationNanos = durationNanos
+        }
     }
 
     public func terminalDidRequestTextSelection(_ request: TerminalTextSelectionRequest) {
