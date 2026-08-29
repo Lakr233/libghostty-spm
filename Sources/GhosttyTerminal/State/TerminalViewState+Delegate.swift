@@ -26,8 +26,27 @@ extension TerminalViewState:
         self.title = title
     }
 
+    /// Unlike its neighbours here, this one is *scheduled* rather than applied.
+    ///
+    /// The metrics come from `synchronizeMetrics()`, which runs off the view's
+    /// layout — and SwiftUI runs a representable's `layoutSubviews` inside its
+    /// own update pass. Assigning a `@Published` property there publishes while
+    /// SwiftUI is mid-update, which it reports as "Publishing changes from
+    /// within view updates is not allowed, this will cause undefined
+    /// behavior." The other callbacks on this type are driven by the terminal's
+    /// IO thread and reach the main actor already outside an update, so only
+    /// this one needs the hop.
+    ///
+    /// The cost is one runloop turn before a host sees a new grid size, and it
+    /// is invisible: the size reached the engine before this was ever called
+    /// (see the comment in `synchronizeMetrics`), so this notification is for
+    /// the host's own UI, never for the terminal. The guard keeps a layout pass
+    /// that recomputes the same metrics from scheduling anything at all.
     public func terminalDidResize(_ size: TerminalGridMetrics) {
-        surfaceSize = size
+        guard surfaceSize != size else { return }
+        terminalRunOnMainNextTurn { [weak self] in
+            self?.surfaceSize = size
+        }
     }
 
     public func terminalDidChangeFocus(_ focused: Bool) {
