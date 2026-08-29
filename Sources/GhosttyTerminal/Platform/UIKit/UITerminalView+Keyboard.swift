@@ -109,34 +109,36 @@
                 return command
             }
 
-        #if !targetEnvironment(macCatalyst)
-            /// Escape, which the text input system also handles itself: for
-            /// a `UITextInput` first responder UIKit's system behaviour for a
-            /// hardware Escape is to end editing — the view resigns, the
-            /// keyboard (and the accessory bar over it) drops — and that runs
-            /// before `pressesBegan` ever sees the key. A terminal cannot
-            /// give Escape away, so it is claimed the same way as the Ctrl
-            /// combos, under every modifier set a program might bind
-            /// (Cmd-Escape stays with the system). Catalyst has no software
-            /// keyboard and delivers Escape as a plain press; it needs none
-            /// of this.
-            private static let escapeKeyCommands: [UIKeyCommand] = {
-                let modifierSets: [UIKeyModifierFlags] = [
-                    [], .shift, .control, .alternate,
-                    [.shift, .control], [.shift, .alternate], [.control, .alternate],
-                    [.shift, .control, .alternate],
-                ]
-                return modifierSets.map { flags in
-                    let command = UIKeyCommand(
-                        input: UIKeyCommand.inputEscape,
-                        modifierFlags: flags,
-                        action: #selector(handleEscapeKeyCommand(_:))
-                    )
-                    command.wantsPriorityOverSystemBehavior = true
-                    return command
-                }
-            }()
-        #endif
+        /// Escape, which the text input system also handles itself: for a
+        /// `UITextInput` first responder UIKit's system behaviour for a
+        /// hardware Escape is to end editing — the view resigns, the keyboard
+        /// (and the accessory bar over it) drops — and that runs before
+        /// `pressesBegan` ever sees the key. A terminal cannot give Escape
+        /// away, so it is claimed the same way as the Ctrl combos, under
+        /// every modifier set a program might bind (Cmd-Escape stays with
+        /// the system).
+        ///
+        /// Catalyst needs this just the same. It has no software keyboard to
+        /// drop, but the end-editing behaviour is the text input system's,
+        /// not the keyboard's: an unclaimed Escape resigns the view there
+        /// too, the press never reaches `pressesBegan`, and every key after
+        /// it goes nowhere until the next click.
+        private static let escapeKeyCommands: [UIKeyCommand] = {
+            let modifierSets: [UIKeyModifierFlags] = [
+                [], .shift, .control, .alternate,
+                [.shift, .control], [.shift, .alternate], [.control, .alternate],
+                [.shift, .control, .alternate],
+            ]
+            return modifierSets.map { flags in
+                let command = UIKeyCommand(
+                    input: UIKeyCommand.inputEscape,
+                    modifierFlags: flags,
+                    action: #selector(handleEscapeKeyCommand(_:))
+                )
+                command.wantsPriorityOverSystemBehavior = true
+                return command
+            }
+        }()
 
         // Catalyst included: its text-input system also swallows Ctrl+letter
         // before `pressesBegan` (the Control press itself arrives, the letter
@@ -152,11 +154,9 @@
         override open var keyCommands: [UIKeyCommand]? {
             var commands = super.keyCommands ?? []
             commands.append(contentsOf: Self.controlKeyCommands)
-            #if !targetEnvironment(macCatalyst)
-                if !inputHandler.hasMarkedText {
-                    commands.append(contentsOf: Self.escapeKeyCommands)
-                }
-            #endif
+            if !inputHandler.hasMarkedText {
+                commands.append(contentsOf: Self.escapeKeyCommands)
+            }
             return commands
         }
 
@@ -184,27 +184,24 @@
             _ = surface?.sendKey(press)
         }
 
-        #if !targetEnvironment(macCatalyst)
-            /// The Escape command's action: the key goes to the surface as a
-            /// press, exactly as `pressesBegan` would have sent it, and the
-            /// keyboard stays where it is. The command is not offered while
-            /// text is marked (see `keyCommands`), so no composition is open
-            /// here.
-            @objc private func handleEscapeKeyCommand(_ command: UIKeyCommand) {
-                guard claimKeyCommandDelivery(
-                    input: UIKeyCommand.inputEscape,
-                    modifierFlags: command.modifierFlags
-                ) else { return }
-                TerminalDebugLog.log(
-                    .input,
-                    "uikit key command input=escape mods=0x\(String(command.modifierFlags.rawValue, radix: 16))"
-                )
-                _ = surface?.sendKey(TerminalKeyPress(
-                    .escape,
-                    modifiers: TerminalInputModifiers(from: command.modifierFlags)
-                ))
-            }
-        #endif
+        /// The Escape command's action: the key goes to the surface as a
+        /// press, exactly as `pressesBegan` would have sent it, and the view
+        /// stays first responder. The command is not offered while text is
+        /// marked (see `keyCommands`), so no composition is open here.
+        @objc private func handleEscapeKeyCommand(_ command: UIKeyCommand) {
+            guard claimKeyCommandDelivery(
+                input: UIKeyCommand.inputEscape,
+                modifierFlags: command.modifierFlags
+            ) else { return }
+            TerminalDebugLog.log(
+                .input,
+                "uikit key command input=escape mods=0x\(String(command.modifierFlags.rawValue, radix: 16))"
+            )
+            _ = surface?.sendKey(TerminalKeyPress(
+                .escape,
+                modifiers: TerminalInputModifiers(from: command.modifierFlags)
+            ))
+        }
 
         /// Whether this path gets to deliver a key that is also registered
         /// as a `UIKeyCommand` (a Ctrl combo, Escape). Whichever of
@@ -468,13 +465,11 @@
             for key: UIKey,
             filteredModifierFlags: UIKeyModifierFlags
         ) -> String? {
-            #if !targetEnvironment(macCatalyst)
-                if key.keyCode == .keyboardEscape,
-                   !filteredModifierFlags.contains(.command)
-                {
-                    return UIKeyCommand.inputEscape
-                }
-            #endif
+            if key.keyCode == .keyboardEscape,
+               !filteredModifierFlags.contains(.command)
+            {
+                return UIKeyCommand.inputEscape
+            }
             guard filteredModifierFlags.contains(.control) else { return nil }
             return TerminalInputText.filteredFunctionKeyText(key.charactersIgnoringModifiers)
         }
