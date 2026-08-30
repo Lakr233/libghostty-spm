@@ -136,4 +136,19 @@ struct TerminalSurfaceResizeThrottleTests {
         #expect(!coordinator.testHooks_throttleTrailing)
         #expect(coordinator.testHooks_throttleGeneration != generationBefore)
     }
+
+    @Test
+    func `the synced view size is only ever a size the surface was given`() {
+        let coordinator = TerminalSurfaceCoordinator()
+        coordinator.viewSize = { (100, 50) }
+        coordinator.isAttached = { true }
+
+        // No surface: nothing was sized, so a UIKit host reading this to
+        // hold its layer must see nothing and place the layer at bounds.
+        coordinator.synchronizeMetrics()
+        #expect(coordinator.syncedViewSize == nil)
+
+        coordinator.freeSurface()
+        #expect(coordinator.syncedViewSize == nil)
+    }
 }
