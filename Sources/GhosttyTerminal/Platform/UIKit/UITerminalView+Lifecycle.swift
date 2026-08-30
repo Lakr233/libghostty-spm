@@ -147,13 +147,37 @@
             updateSublayerFrames()
         }
 
+        /// Where the engine's layer sits: the view's bounds, except while a
+        /// resize throttle is holding the surface at an older size. Then
+        /// the layer stays that size, anchored top-left, so the pixels it
+        /// holds are shown 1:1 and the uncovered strip is background. A
+        /// layer stretched to the new bounds shows the old frame scaled,
+        /// and the engine — deriving `contentsScale` from its pixel size
+        /// over the layer's points — writes a wrong scale on each draw
+        /// that `enforceSublayerScale` then undoes: a whole-pane flicker
+        /// for as long as the window is open. `layoutSubviews` sizes the
+        /// surface right after placing the layer, so with the throttle off
+        /// the surface catches up inside the same pass and
+        /// `onMetricsUpdate` re-places the layer at the bounds.
+        var sublayerFrame: CGRect {
+            guard let synced = core.syncedViewSize,
+                  synced.width != bounds.width || synced.height != bounds.height
+            else { return bounds }
+            // The full synced size, even past the bounds on a shrink: a
+            // frame clipped to the bounds would scale the pixels just the
+            // same. The view's layer masks the overflow instead.
+            return CGRect(x: 0, y: 0, width: synced.width, height: synced.height)
+        }
+
         func updateSublayerFrames() {
             let scale = resolvedDisplayScale()
             contentScaleFactor = scale
             layer.contentsScale = scale
+            layer.masksToBounds = true
             guard let sublayers = layer.sublayers else { return }
+            let frame = sublayerFrame
             for sublayer in sublayers {
-                sublayer.frame = bounds
+                sublayer.frame = frame
                 sublayer.contentsScale = scale
             }
         }
@@ -161,12 +185,13 @@
         func enforceSublayerScale() {
             let scale = resolvedDisplayScale()
             guard let sublayers = layer.sublayers else { return }
+            let frame = sublayerFrame
             for sublayer in sublayers {
                 if sublayer.contentsScale != scale {
                     sublayer.contentsScale = scale
                 }
-                if sublayer.frame != bounds {
-                    sublayer.frame = bounds
+                if sublayer.frame != frame {
+                    sublayer.frame = frame
                 }
             }
         }

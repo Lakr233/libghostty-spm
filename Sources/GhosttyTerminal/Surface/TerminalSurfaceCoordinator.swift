@@ -63,6 +63,18 @@ final class TerminalSurfaceCoordinator {
     var onPostRender: (() -> Void)?
 
     private var lastMetrics: TerminalViewportMetrics?
+
+    /// The view size, in points, the surface was last sized to. While a
+    /// resize throttle window is open this trails the live bounds: the
+    /// surface's IOSurface is still the old size, so a platform layer that
+    /// stretches to the new bounds shows the old pixels scaled — and the
+    /// engine, deriving `contentsScale` from old pixels over new points,
+    /// fights the host's correction on every tick. A UIKit host keeps its
+    /// sublayer at *this* size until the trailing sync lands, so the gap
+    /// shows background instead of a stretched frame. `nil` until the first
+    /// sync and after teardown.
+    private(set) var syncedViewSize: (width: Double, height: Double)?
+
     private var isDisplayVisible = true
     /// The last visibility the SwiftUI host declared through
     /// `TerminalViewState.isSurfaceVisible`. The representable forwards only
@@ -336,6 +348,7 @@ final class TerminalSurfaceCoordinator {
 
         surface.setContentScale(x: scale, y: scale)
         surface.setSize(width: pixelWidth, height: pixelHeight)
+        syncedViewSize = size
 
         guard let surfaceSize = surface.size(),
               surfaceSize.columns > 0, surfaceSize.rows > 0
@@ -517,6 +530,7 @@ final class TerminalSurfaceCoordinator {
         surface?.free()
         surface = nil
         lastMetrics = nil
+        syncedViewSize = nil
         // Retire any armed timer with the surface it was armed for, and
         // clear the gate so the replacement surface sizes immediately
         // instead of being suppressed by the old surface's armed flag.

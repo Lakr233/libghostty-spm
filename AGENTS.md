@@ -141,7 +141,7 @@ Files in `Platform/UIKit/`:
 - `UITerminalView+PublicInput.swift` — public `acquireProgrammaticFocus`, `paste(text:)`, `sendKey`, `performBindingAction`, `jumpToPrompt(by:)`, `scrollToRow`
 - `UITerminalView+PublicSticky.swift` — public sticky-modifier API (`TerminalPublicStickyModifier` / `TerminalPublicStickyActivation`) for hosts with their own accessory UI (iOS only)
 - `UITerminalView+Snapshot.swift` — public `snapshotImage()`: render-server snapshot (`drawHierarchy`) of the surface, Metal layer included; the AppKit twin (`AppTerminalView+Snapshot.swift`, `cacheDisplay`) is best-effort for Metal content. Reached from state via `TerminalViewState.attachedPlatformView`
-- `UITerminalView+Lifecycle.swift` — application active/background observers, display scale, sublayer frames, focus, color scheme; `FocusBridgeState`
+- `UITerminalView+Lifecycle.swift` — application active/background observers, display scale, sublayer frames (held at `core.syncedViewSize`, not the bounds, while a resize throttle has the surface at an older size — a layer stretched to the new bounds shows the old frame scaled and the engine's derived `contentsScale` fights the post-render correction every tick), focus, color scheme; `FocusBridgeState`
 - `TerminalInputAccessoryView.swift` — input accessory bar UIView (blur background, scrollable button layout)
 - `TerminalInputAccessoryStyle.swift` — configurable button colors for the accessory bar (regular/active background and foreground)
 - `TerminalInputBarKey.swift` — public `TerminalInputAccessoryItem` (bar layout, `defaultItems`) and internal `TerminalInputBarKey` (esc, tab, arrows, symbols, paste)
