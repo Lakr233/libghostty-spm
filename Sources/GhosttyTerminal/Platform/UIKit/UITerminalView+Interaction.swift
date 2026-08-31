@@ -659,7 +659,9 @@
                     "long-press selection dispatch viewPoint=\(NSCoder.string(for: viewPoint)) word=\(TerminalDebugLog.describe(wordResult?.word ?? "nil")) anchor=\(anchorRange.map { NSStringFromRange($0) } ?? "nil")"
                 )
 
+                #if !os(visionOS) // no haptics on a headset
                 UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                #endif
 
                 delegate.terminalDidRequestTextSelection(.init(
                     text: text,

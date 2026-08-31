@@ -9,6 +9,7 @@ on:
       - Ghostty.ref
       - Patches/**
       - Script/build-ghostty.sh
+      - Script/prepare-zig-lib.sh
       - Script/support/**
 
 permissions:
@@ -36,6 +37,10 @@ jobs:
           - target: aarch64-ios-macabi
             cpu: apple_a17
           - target: x86_64-ios-macabi
+          - target: aarch64-visionos
+          - target: aarch64-visionos-simulator
+            cpu: apple_a17
+          - target: x86_64-visionos-simulator
     steps:
       - name: Checkout
         uses: actions/checkout@v5

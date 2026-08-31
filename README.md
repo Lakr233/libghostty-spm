@@ -9,6 +9,9 @@ Swift Package wrapping [Ghostty](https://ghostty.org)'s terminal emulator librar
 - macOS 13+
 - iOS 15+
 - Mac Catalyst 15+
+- visionOS 1+ (`GhosttyTerminal` is the iOS view: touch, pointer, and
+  hardware keyboard work; there is no input accessory bar, no haptics, and
+  no `UIScreen`-derived scale — see the `#if os(visionOS)` guards)
 
 ## Products
 
@@ -45,7 +48,7 @@ Start from the example apps:
 - `Example/GhosttyTerminalApp/` — macOS AppKit demo with delegate callbacks
 - `Example/MobileGhosttyApp/` — iOS UIKit demo with keyboard, safe area, themes, and text selection
 
-### SwiftUI (iOS 15+ / macOS 13+ / Mac Catalyst 15+)
+### SwiftUI (iOS 15+ / macOS 13+ / Mac Catalyst 15+ / visionOS 1+)
 
 ```swift
 import SwiftUI
@@ -212,12 +215,19 @@ The package downloads a pre-built XCFramework. To rebuild libghostty from the Gh
 into `References/ghostty-upstream`; `--ref` checks out a tag or commit there
 (`Ghostty.ref` is the commit the shipped asset was built from). It applies the
 patches in `Patches/ghostty/`, builds each platform group (`macos`, `ios`,
-`maccatalyst` by default; macOS, Catalyst, and simulator slices are arm64 and
-x86_64), assembles `BinaryTarget/GhosttyKit.xcframework` and
+`maccatalyst`, `visionos` by default; macOS, Catalyst, and simulator slices
+are arm64 and x86_64), assembles `BinaryTarget/GhosttyKit.xcframework` and
 `build/GhosttyKit.xcframework.zip`, and runs `Script/test.sh` and `swift test`
 against the result unless `--skip-tests` is given. `Package.local.swift`
 points the binary target at that local `BinaryTarget/` build; `--download-url`
 regenerates `Package.swift` from `Package.swift.template` for an uploaded zip.
+
+The `visionos` group builds against a patched copy of Zig 0.15.2's standard
+library (`Patches/zig/`, staged under `build/cache` by
+`Script/prepare-zig-lib.sh`; the toolchain itself is not modified). On a Mac
+with Xcode 27 the pinned Zig cannot link its own build runner against the
+macOS SDK; `eval "$(./Script/support/xcode27-sdk-overlay.sh)"` puts a
+per-checkout SDK overlay on PATH that fixes that for the shell.
 
 ## Versions
 
@@ -225,8 +235,11 @@ Pin a package tag (`1.4.0` … `1.4.4`). These are independent of Ghostty's
 own version — every 1.4.x release so far ships Ghostty v1.3.1
 (`Ghostty.version`; `Ghostty.ref` pins its commit).
 
-`upstream.<X.Y.Z>` releases carry the XCFramework built from Ghostty `X.Y.Z`;
-each package tag's `Package.swift` downloads one of them. Those and the older
+`upstream.<X.Y.Z>` releases carry the XCFramework built from Ghostty `X.Y.Z`
+(`upstream.<X.Y.Z>-<N>` when the same Ghostty was rebuilt with a changed patch
+stack or target set — `Ghostty.build` holds `N`; `upstream.1.3.1-2` is the
+first asset with visionOS slices); each package tag's `Package.swift`
+downloads one of them. Those and the older
 `storage.*` tags are XCFramework assets, not package versions. SPM should not
 depend on them.
 

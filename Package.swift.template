@@ -7,6 +7,7 @@ let package = Package(
         .iOS(.v15),
         .macOS(.v13),
         .macCatalyst(.v15),
+        .visionOS(.v1),
     ],
     products: [
         .library(name: "GhosttyKit", targets: ["GhosttyKit"]),

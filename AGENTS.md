@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-SPM package wrapping Ghostty terminal emulator C library for Apple platforms (macOS 13+, iOS 15+, Mac Catalyst 15+). Four library products:
+SPM package wrapping Ghostty terminal emulator C library for Apple platforms (macOS 13+, iOS 15+, Mac Catalyst 15+, visionOS 1+). Four library products:
 
 - **GhosttyKit** — minimal re-export of the libghostty C API (`@_exported import libghostty`)
 - **GhosttyTerminal** — Swift wrapper: native views, SwiftUI integration, input handling, display link, host-managed I/O
@@ -22,12 +22,16 @@ swift build
 # Run tests
 swift test
 
-# Multi-destination build verification (macOS, iOS, iOS Simulator, Mac Catalyst)
+# Multi-destination build verification (macOS, iOS, iOS Simulator, Mac Catalyst,
+# and visionOS + visionOS Simulator when the host Xcode has the xros SDK)
 ./Script/test.sh
 
 # Build full XCFramework from Ghostty source (requires zig)
 ./build.sh
 ./build.sh --platforms macos,ios --source /path/to/ghostty --skip-tests
+
+# On a Mac with Xcode 27, first: eval "$(./Script/support/xcode27-sdk-overlay.sh)"
+# (Zig 0.15.2 cannot link its build runner against that macOS SDK otherwise)
 
 # Generate Package.swift from Package.swift.template (release.yml runs this)
 ./Script/build-manifest.sh <xcframework_zip> <download_url>
@@ -96,6 +100,17 @@ Catalyst down the AppKit branch. Write guards in exactly these shapes:
 // leaving it there.
 #if !canImport(UIKit) && canImport(AppKit)
     ...
+#endif
+
+// visionOS is a UIKit platform with a few APIs missing (`UIScreen`,
+// `inputAccessoryView`, `UIImpactFeedbackGenerator`, `UIGlassEffect`,
+// `inputAssistantItem`). Like `targetEnvironment`, `os(visionOS)` is only
+// ever a nested check inside the UIKit branch, wrapped tightly around the
+// one call that does not exist there — never a whole-file fork.
+#if canImport(UIKit)
+    #if !os(visionOS)
+        ...
+    #endif
 #endif
 ```
 
@@ -390,9 +405,21 @@ Two release tracks, decoupled since 1.4.0:
   the repo root, one line each. Patches in `Patches/ghostty/` target that
   release, not upstream main; the "Source Build" workflow (source-build.yml)
   rebuilds every target on a PR that touches `Ghostty.ref`, `Patches/`,
-  `Script/build-ghostty.sh`, or `Script/support/`. When bumping, keep the
-  Zig version pinned in build.yml *and* source-build.yml (0.15.2 today) in
-  sync with the pinned upstream's `minimum_zig_version` (build.zig.zon).
+  `Script/build-ghostty.sh`, `Script/prepare-zig-lib.sh`, or
+  `Script/support/`. When bumping, keep the Zig version pinned in build.yml
+  *and* source-build.yml (0.15.2 today) in sync with the pinned upstream's
+  `minimum_zig_version` (build.zig.zon) — and re-diff `Patches/zig/` against
+  the new std, since `prepare-zig-lib.sh` looks the patch up by exact Zig
+  version. **`Ghostty.build`** is the asset revision for one Ghostty
+  release: `Script/storage-tag.sh` turns version + build into the storage
+  tag (`upstream.1.3.1` for build 1 or no file, `upstream.1.3.1-2` from 2
+  on), and both build.yml and release.yml read it from there. Bump it when
+  the patch stack or the target set changes without a Ghostty bump —
+  build.yml exits early on an existing tag, so nothing else republishes
+  the asset. The visionOS slices (xros, xrsimulator) build against a
+  patched Zig std (`Patches/zig/`, `Script/prepare-zig-lib.sh` — a copy
+  under the build cache exported as `ZIG_LIB_DIR`; the toolchain on PATH
+  is never edited).
 - **Bare semver tags (1.4.0+) are Swift package releases** and follow their
   own sequence, independent of upstream's. The "Release Package" workflow
   (release.yml, dispatch with `package_version`) never runs Zig: it

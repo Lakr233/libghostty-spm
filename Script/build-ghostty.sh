@@ -43,6 +43,16 @@ GLOBAL_CACHE_DIR="${ZIG_GLOBAL_CACHE_DIR:-$CACHE_ROOT/zig-global}"
 LOCAL_CACHE_DIR="$CACHE_ROOT/$ZIG_TARGET/zig-local"
 MODULE_CACHE_DIR="${CLANG_MODULE_CACHE_ROOT:-$CACHE_ROOT/clang-module-cache}/$ZIG_TARGET"
 
+# visionOS is a target the pinned Zig only half knows: its std leaves the
+# `visionos` tag out of a few Darwin switches. Build those targets against a
+# patched copy of the std (Patches/zig/, staged by prepare-zig-lib.sh) — the
+# toolchain on PATH is left untouched, and every other target still uses it.
+if [[ "$ZIG_TARGET" == *visionos* ]]; then
+    ZIG_LIB_DIR=$(./Script/prepare-zig-lib.sh "$CACHE_ROOT")
+    export ZIG_LIB_DIR
+    echo "[*] visionOS target: ZIG_LIB_DIR=$ZIG_LIB_DIR"
+fi
+
 echo "[*] building Ghostty static library…"
 echo "    target: $ZIG_TARGET"
 echo "    source: $SOURCE_DIR"

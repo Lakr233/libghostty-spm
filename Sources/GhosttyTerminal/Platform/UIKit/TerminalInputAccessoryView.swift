@@ -283,13 +283,16 @@
         }
 
         private func makeBarEffect() -> UIVisualEffect {
+            // visionOS windows are glass already and the SDK has no
+            // `UIGlassEffect`; the blur is the bar's chrome there.
+            #if !os(visionOS)
             if #available(iOS 26, *) {
                 let effect = UIGlassEffect(style: .regular)
                 effect.isInteractive = true
                 return effect
-            } else {
-                return UIBlurEffect(style: .systemUltraThinMaterial)
             }
+            #endif
+            return UIBlurEffect(style: .systemUltraThinMaterial)
         }
 
         private func applyBarChrome() {

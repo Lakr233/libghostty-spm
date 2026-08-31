@@ -56,7 +56,7 @@ struct TerminalScreen: View {
 <p>Observable properties include <code>title</code>, <code>surfaceSize</code>, <code>isFocused</code>, <code>bellCount</code>, <code>lastBellAt</code>, desktop notification metadata, <code>workingDirectory</code>, and command-finished metadata.</p>
 
 <h2 id="view">View</h2>
-<p><code>TerminalSurfaceView</code> embeds the platform terminal view and adopts the current SwiftUI color scheme. This wrapper requires iOS 15, macOS 13, or Mac Catalyst 15.</p>
+<p><code>TerminalSurfaceView</code> embeds the platform terminal view and adopts the current SwiftUI color scheme. This wrapper requires iOS 15, macOS 13, Mac Catalyst 15, or visionOS 1.</p>
 <pre><code class="language-swift">TerminalSurfaceView(context: terminal)
     .onAppear {
         terminal.configuration = TerminalSurfaceOptions(

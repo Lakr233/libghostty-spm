@@ -39,6 +39,7 @@ let package = Package(
         .iOS(.v15),
         .macOS(.v13),
         .macCatalyst(.v15),
+        .visionOS(.v1),
     ],
     products: [
         .library(name: "Consumer", targets: ["Consumer"]),
@@ -95,6 +96,12 @@ test_build() {
     test_build "generic/platform=macOS,variant=Mac Catalyst"
     test_build "generic/platform=iOS"
     test_build "generic/platform=iOS Simulator"
+    if [ -d "$WORK_DIR/Consumer/BinaryTarget/GhosttyKit.xcframework/xros-arm64" ]; then
+        test_build "generic/platform=visionOS"
+        test_build "generic/platform=visionOS Simulator"
+    else
+        echo "[*] xcframework has no xros slice, skipping visionOS destinations"
+    fi
 )
 
 echo "[*] xcframework consumer tests passed"

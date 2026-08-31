@@ -9,9 +9,15 @@
     import UIKit
 
     extension UITerminalView {
+        // visionOS has no input accessory view: the software keyboard is its
+        // own window in the space, and UIKit does not offer the override.
+        // Hosts there draw a bar of their own and feed it through
+        // `+PublicSticky` / `sendKey`, as a Catalyst host does.
+        #if !os(visionOS)
         override open var inputAccessoryView: UIView? {
             inputAccessoryItems.isEmpty ? nil : terminalInputAccessory
         }
+        #endif
 
         func handleInputBarKey(_ key: TerminalInputBarKey) {
             commitMarkedTextIfStickyModifiersAreActive()
