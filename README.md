@@ -231,9 +231,11 @@ per-checkout SDK overlay on PATH that fixes that for the shell.
 
 ## Versions
 
-Pin a package tag (`1.4.0` … `1.4.4`). These are independent of Ghostty's
-own version — every 1.4.x release so far ships Ghostty v1.3.1
-(`Ghostty.version`; `Ghostty.ref` pins its commit).
+Pin a package tag (`1.4.0` … `1.4.13`, `1.5.0` for visionOS). These are
+independent of Ghostty's own version — every release so far ships Ghostty
+v1.3.1 (`Ghostty.version`; `Ghostty.ref` pins its commit). Package tags are
+cut by the "Release Package" workflow only; `Script/audit-releases.sh`
+checks every tag's manifest against the asset it downloads.
 
 `upstream.<X.Y.Z>` releases carry the XCFramework built from Ghostty `X.Y.Z`
 (`upstream.<X.Y.Z>-<N>` when the same Ghostty was rebuilt with a changed patch
