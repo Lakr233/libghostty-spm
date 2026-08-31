@@ -107,6 +107,8 @@ for library in libraries:
         ("ios", None): {"arm64"},
         ("ios", "maccatalyst"): {"arm64", "x86_64"},
         ("ios", "simulator"): {"arm64", "x86_64"},
+        ("xros", None): {"arm64"},
+        ("xros", "simulator"): {"arm64", "x86_64"},
     }.get((platform, platform_variant))
     if expected_architectures is not None and actual_architectures != expected_architectures:
         raise SystemExit(

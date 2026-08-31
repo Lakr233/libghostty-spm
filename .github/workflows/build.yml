@@ -2,9 +2,11 @@ name: Build Upstream XCFramework
 
 # Builds the GhosttyKit XCFramework from the pinned upstream Ghostty release
 # (Ghostty.ref + Ghostty.version) and publishes it on the `upstream.<version>`
-# release tag. Swift package releases (bare semver tags, 1.4.0+) are cut
-# separately by release.yml and reference the asset published here — a
-# Swift-only change never rebuilds the Zig core.
+# release tag — `upstream.<version>-<Ghostty.build>` for a rebuild of the same
+# release with a changed patch stack or target set (Script/storage-tag.sh).
+# Swift package releases (bare semver tags, 1.4.0+) are cut separately by
+# release.yml and reference the asset published here — a Swift-only change
+# never rebuilds the Zig core.
 
 on:
   workflow_dispatch:
@@ -60,7 +62,7 @@ jobs:
             exit 1
           fi
 
-          STORAGE_TAG="upstream.$GHOSTTY_VERSION"
+          STORAGE_TAG=$(./Script/storage-tag.sh)
           git fetch --tags origin
           if git rev-parse "refs/tags/$STORAGE_TAG" >/dev/null 2>&1; then
             echo "[*] $STORAGE_TAG already published, nothing to build"
@@ -68,7 +70,7 @@ jobs:
             exit 0
           fi
 
-          echo "[*] building v$GHOSTTY_VERSION ($GHOSTTY_REF) -> $STORAGE_TAG"
+          echo "[*] building v$GHOSTTY_VERSION ($GHOSTTY_REF) build $(cat Ghostty.build 2>/dev/null || echo 1) -> $STORAGE_TAG"
           echo "build_needed=true" >> "$GITHUB_OUTPUT"
           echo "ghostty_ref=$GHOSTTY_REF" >> "$GITHUB_OUTPUT"
           echo "ghostty_version=$GHOSTTY_VERSION" >> "$GITHUB_OUTPUT"
@@ -101,6 +103,13 @@ jobs:
             cpu: apple_a17
           - target: x86_64-ios-macabi
             variant: maccatalyst
+          - target: aarch64-visionos
+            variant: xros
+          - target: aarch64-visionos-simulator
+            variant: xrsimulator
+            cpu: apple_a17
+          - target: x86_64-visionos-simulator
+            variant: xrsimulator
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -218,6 +227,7 @@ jobs:
 
             Ghostty release: v${{ needs.prepare.outputs.ghostty_version }}
             Ghostty commit: ${{ needs.prepare.outputs.ghostty_ref }}
+            Slices: macOS, iOS, iOS Simulator, Mac Catalyst, visionOS, visionOS Simulator
           draft: false
           prerelease: false
           files: |

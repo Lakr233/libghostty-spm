@@ -9,8 +9,10 @@ main.
 
 `Script/build-ghostty.sh` runs `Script/apply-patches.sh <source_dir>` before
 every Zig build, and `Script/build-platform.sh` calls it once per target, so
-macOS, iOS, iOS Simulator, and Mac Catalyst all build from the same patched
-tree. The script walks this directory in name order and dispatches on the
+macOS, iOS, iOS Simulator, Mac Catalyst, visionOS, and visionOS Simulator all
+build from the same patched tree. (Patches to Zig's own std live in
+`../zig/`; they are staged by `Script/prepare-zig-lib.sh`, not by this
+pipeline.) The script walks this directory in name order and dispatches on the
 extension:
 
 - `.patch` is a unified diff applied with `git apply` (or `patch -p1` without
@@ -41,7 +43,7 @@ when the header already carries `GHOSTTY_SURFACE_IO_BACKEND_HOST_MANAGED`.
 - Every patch in this directory must be safe to re-run: the pipeline applies
   the whole directory once per build target.
 - Patches here are applied automatically by `Script/build-ghostty.sh`, so they
-  affect macOS, iOS, and Mac Catalyst builds equally.
+  affect macOS, iOS, Mac Catalyst, and visionOS builds equally.
 
 ## Patches
 
@@ -83,6 +85,24 @@ when the header already carries `GHOSTTY_SURFACE_IO_BACKEND_HOST_MANAGED`.
 - `0011-replay-response-suppression.patch` —
   `ghostty_surface_write_buffer_replay`: feed reconstructed history through
   the parser with terminal protocol responses discarded at their origin.
+- `0012-visionos.sh` — the `visionos` OS tag takes the iOS arm everywhere
+  the build system and the Darwin runtime switch on it: `MetallibStep`
+  learns the `xros` / `xrsimulator` SDKs and the Metal compiler's
+  `-mtargetos=xros<ver>[-simulator]` flag (there is no
+  `-mxros-version-min`), `Config.zig` gets a 1.0 minimum OS version, and
+  `Metal.zig`, `IOSurfaceLayer.zig`, `coretext.zig`, `pty.zig` (NullPty),
+  `os/{desktop,homedir,open}.zig`, `config/theme.zig`, `input/keycodes.zig`,
+  `cli/tui.zig`, `Command.zig`, and `pkg/apple-sdk` each get `.visionos`
+  beside `.ios` (marker `LIBGHOSTTY_SPM_VISIONOS_PATCH`). Needs the Zig std
+  patch in `../zig/` as well.
+- `0013-host-toolchain.sh` — two host-side fixes that hold for every target:
+  `LibtoolStep` merges archives with `zig ar --format=darwin` (Xcode 27's
+  libtool silently drops Zig's 2-byte-aligned members — oniguruma, libintl,
+  freetype, simd — and only the consuming app's link notices; marker
+  `LIBGHOSTTY_SPM_ZIG_AR_PATCH`), and `libghostty-vt.dylib` is no longer
+  installed (nothing ships it, and its libc++ sub-compile is what fails
+  under Xcode 27 and on visionOS everywhere; marker
+  `LIBGHOSTTY_SPM_NO_VT_DYLIB`).
 
 ## Current goal
 

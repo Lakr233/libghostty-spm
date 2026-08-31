@@ -126,14 +126,30 @@
             core.fitToSize()
         }
 
+        /// The scale used when neither the window nor the trait collection can
+        /// say. visionOS has no `UIScreen` — a window there is a rectangle in a
+        /// shared space, not on a display — and its content is rendered at 2×
+        /// for the compositor to resample; the trait collection reports 2.0 on
+        /// every device so far, and this is what `traitCollection.displayScale`
+        /// falls back to as well.
+        static var fallbackDisplayScale: CGFloat {
+            #if os(visionOS)
+            2.0
+            #else
+            UIScreen.main.nativeScale
+            #endif
+        }
+
         func resolvedDisplayScale() -> CGFloat {
+            #if !os(visionOS)
             if let screen = window?.screen {
                 return screen.nativeScale
             }
+            #endif
             if traitCollection.displayScale > 0 {
                 return traitCollection.displayScale
             }
-            return UIScreen.main.nativeScale
+            return Self.fallbackDisplayScale
         }
 
         func updateDisplayScale() {

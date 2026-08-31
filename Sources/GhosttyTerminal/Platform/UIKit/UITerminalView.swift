@@ -135,7 +135,7 @@
 
             core.isAttached = { [weak self] in self?.window != nil }
             core.scaleFactor = { [weak self] in
-                Double(self?.resolvedDisplayScale() ?? UIScreen.main.nativeScale)
+                Double(self?.resolvedDisplayScale() ?? UITerminalView.fallbackDisplayScale)
             }
             core.viewSize = { [weak self] in
                 guard let self else { return (0, 0) }
