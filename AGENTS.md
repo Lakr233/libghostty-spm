@@ -431,6 +431,14 @@ Two release tracks, decoupled since 1.4.0:
   manifest's URL and checksum against the asset the tag serves. A
   Swift-only change releases in minutes. `Script/tag-release.sh` predates
   this track (it cuts `1.0.<epoch>` tags) and no workflow uses it.
+  **Never push a bare semver tag by hand**: nothing but release.yml checks
+  a manifest against its asset before tagging, and a hand-pushed tag gets
+  no GitHub release (1.4.8, 1.4.9 and 1.4.12 were pushed that way; their
+  releases were created after the fact once their manifests had been
+  verified). `Script/audit-releases.sh` walks every 1.4.0+ tag and
+  reports one with no release, no upstream URL/checksum, or a checksum
+  its `upstream.*` asset does not carry — run it after any release
+  activity, and before deleting a storage or upstream release.
 - `storage.<package-version>` is the pre-1.4.0 legacy layout; those
   releases were built from upstream *main* snapshots (e.g. storage.1.3.2 ←
   ghostty commit 35e1a016, 2026-07), not from the similarly numbered
