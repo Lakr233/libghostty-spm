@@ -13,40 +13,52 @@ SPM package wrapping Ghostty terminal emulator C library for Apple platforms (ma
 
 Binary target: pre-built `libghostty` XCFramework. Dependency: MSDisplayLink ^2.2.0.
 
-## No Resource Bundles, No GPL Files (hard rule — review every PR for it)
+## No GPL Files (hard rule — review every PR for it)
 
-**The Swift targets ship code only.** No target in any of the three
-manifests declares `resources:`, and no `Sources/**/Resources/` directory
-exists. A host app that links this package must never end up with a
-`GhosttyKit_GhosttyTerminal.bundle` (or any other `*_*.bundle` from this
-package) inside its `Contents/Resources`. Anything that needs files at run
-time is the host's responsibility to ship.
+This package is MIT and its resource bundle (`GhosttyKit_GhosttyTerminal.bundle`)
+lands inside every host app, so a GPL file here is a GPL redistribution
+obligation for every downstream. **Nothing GPL-licensed may enter the
+repository, in any form** — not as a resource, not as a string literal, not
+"just for the exec backend".
 
-The concrete thing this rule exists to keep out is Ghostty's shell
-integration. Its `bash/ghostty.bash` and `zsh/ghostty-integration` are
-GPLv3 (their headers say so), this package is MIT, and bundling them puts a
-GPLv3 redistribution obligation on every app that links `GhosttyTerminal`.
-PR #40 was closed for exactly this reason; two days later PR #43 (titled as a
-clipboard change) brought the same scripts back under
-`Resources/Ghostty/shell-integration` plus a compiled terminfo (merged
-2026-08-06), and every package release from 1.4.0 through 1.5.0 shipped the
-bundle before anyone noticed. It was removed again after 1.5.0, along with
-`GhosttyRuntimeResources` and the `GHOSTTY_RESOURCES_DIR` export.
-Do not bring any of it back in any form:
+The concrete thing this rule keeps out is upstream Ghostty's bash and zsh
+shell integration (`bash/ghostty.bash`, `zsh/.zshenv`,
+`zsh/ghostty-integration`). Those three files derive from Kitty and carry a
+GPLv3 header. PR #40 was refused for exactly that; two days later PR #43,
+titled as a clipboard change, brought the same files back under
+`Resources/Ghostty/shell-integration` in its second summary bullet and was
+merged unread. Every package release from 1.4.0 through 1.5.0 shipped them;
+those tags and releases were withdrawn after 1.5.0.
 
-- No `resources:` on any target, no `Bundle.module`, no
-  `GHOSTTY_RESOURCES_DIR` / `TERMINFO` set from library code.
-- No shell-integration scripts, terminfo databases, or other Ghostty
-  runtime files under `Sources/` — not as resources, not as string
-  literals, not "just for the exec backend". Hosts that use `.exec` supply
-  their own resources directory and set `GHOSTTY_RESOURCES_DIR` themselves.
-- No GPL-licensed file anywhere in the repository. The only bundled
-  third-party data is the MIT-licensed theme set in `Sources/GhosttyTheme`.
+What the bundle holds today, and all it may hold:
 
-When reviewing a PR, read the manifest diff and the file list, not just the
-title — #43's summary mentioned the resources in its second bullet and was
-merged unread. `grep -rn "resources:\|Bundle.module\|GHOSTTY_RESOURCES_DIR" Package*.swift Package.swift.template Sources` must come back empty, and
-`find Sources -type d -name Resources` must find nothing.
+- `Resources/Ghostty/shell-integration/bash/ghostty.bash` and
+  `zsh/.zshenv` + `zsh/ghostty-integration` — **our own MIT rewrite**, not
+  upstream's. They speak the same environment contract as libghostty's
+  `termio/shell_integration.zig` (bash: `--posix` + `ENV`,
+  `GHOSTTY_BASH_INJECT` / `_RCFILE` / `_ENV` / `_UNEXPORT_HISTFILE`; zsh:
+  `ZDOTDIR` + `GHOSTTY_ZSH_ZDOTDIR`) and emit OSC 133 A/B/C/D, OSC 7, OSC 2
+  (feature `title`) and DECSCUSR (feature `cursor`). Other
+  `GHOSTTY_SHELL_FEATURES` entries are ignored. bash and zsh only — no fish,
+  elvish or nushell; upstream's copies of those are MIT but were dropped so
+  the bundle is exactly what we maintain. macOS's `/bin/bash` 3.2 ignores
+  `ENV` under `--posix`, so injection needs bash 4+ there; a 3.2 user
+  sources `ghostty.bash` from `.bashrc` instead.
+- `bash/bash-preexec.sh` — vendored from rcaloras/bash-preexec, MIT, with
+  `LICENSE-bash-preexec.md` next to it.
+- `Resources/terminfo/` — the `xterm-ghostty` entry compiled from Ghostty's
+  `src/terminfo/ghostty.zig` (MIT; audited 2026-09-01 against ncurses'
+  `terminfo.src`, which publishes the same entry under its MIT-style
+  notice).
+
+`Script/check-licenses.sh` enforces it: it greps every tracked file for GPL
+license text and requires `shell-integration/` to hold exactly the five
+files above. pr.yml and release.yml run it, and
+`GhosttyRuntimeResourcesTests` asserts the same on the built bundle. When
+reviewing a PR, read the manifest diff and the full file list, not the title
+— run the script on the branch. When bumping Ghostty, never "refresh" the
+integration from upstream; re-read the upstream `shell_integration.zig`
+contract and adjust our scripts if it changed.
 
 ## Build & Test Commands
 
@@ -73,6 +85,9 @@ swift test
 
 # Regenerate GhosttyTheme Swift files from iTerm2-Color-Schemes
 ./Script/generate-themes.sh
+
+# Refuse GPL license text anywhere in the tree (pr.yml and release.yml run it)
+./Script/check-licenses.sh
 ```
 
 ## Architecture
@@ -82,7 +97,7 @@ GhosttyKit (C API re-export)
   └─ libghostty.a (Zig → static lib) + ghostty.h
 
 GhosttyTerminal (Swift wrapper, ~70 files)
-  ├─ Configuration/    Config structs, themes, color schemes, ghostty.conf rendering
+  ├─ Configuration/    Config structs, themes, color schemes, ghostty.conf rendering, GhosttyRuntimeResources
   ├─ Controller/       TerminalController — app lifecycle, config, surface creation, C callbacks
   ├─ Debug/            TerminalDebugLog — category-gated logging to a host-settable sink
   ├─ InMemory/         Sandbox-safe I/O backend (no PTY), TerminalSessionBackend, C callback bridge
@@ -90,6 +105,7 @@ GhosttyTerminal (Swift wrapper, ~70 files)
   ├─ Platform/AppKit/  macOS NSView: key events, NSTextInputClient IME, CAMetalLayer, public input
   ├─ Platform/Shared/  Pasteboard reading, file staging, shell escaping, key tables, IME state, foreground pid
   ├─ Platform/UIKit/   iOS UIView: UITextInput, keyboard, touch/gesture, drop, pinch zoom, IME, input accessory bar
+  ├─ Resources/        Our MIT bash/zsh shell integration + Ghostty terminfo (exec backend; see "No GPL Files")
   ├─ State/            ObservableObject TerminalViewState (SwiftUI state container)
   ├─ Surface/          TerminalSurface, coordinator + display link, SwiftUI TerminalSurfaceView, delegates, TerminalKey/TerminalKeyPress
   └─ View/             TerminalView typealias + platform representables
@@ -164,7 +180,7 @@ that way, so grep for it before pushing.
 
 ### Host-Managed I/O
 
-All example apps run in App Sandbox. Use `GHOSTTY_SURFACE_IO_BACKEND_HOST_MANAGED` for non-PTY I/O: `TerminalSurfaceOptions.backend = .inMemory(session)` selects it (`TerminalController+Surface.swift`); the default `.exec` is a PTY, and a host that uses it must ship Ghostty's runtime files itself and export `GHOSTTY_RESOURCES_DIR` before the first surface is created — the package bundles nothing (see "No Resource Bundles, No GPL Files"). Never disable sandbox or spawn subprocesses.
+All example apps run in App Sandbox. Use `GHOSTTY_SURFACE_IO_BACKEND_HOST_MANAGED` for non-PTY I/O: `TerminalSurfaceOptions.backend = .inMemory(session)` selects it (`TerminalController+Surface.swift`); the default `.exec` is a PTY and uses the bundled `Resources/` (`GhosttyRuntimeResources` exports `GHOSTTY_RESOURCES_DIR` before `ghostty_init`; the shell integration in there is ours, see "No GPL Files"). Never disable sandbox or spawn subprocesses.
 
 ### iOS Input Architecture (UITextInput)
 

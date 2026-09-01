@@ -31,6 +31,9 @@ jobs:
       - name: Swift Version
         run: swift --version
 
+      - name: Check Licenses
+        run: ./Script/check-licenses.sh
+
       - name: Build Package Matrix
         run: ./Script/test.sh
 

@@ -128,11 +128,14 @@ terminal.jumpToPrompt(by: 1)  // Next prompt.
 terminal.scrollToRow(0)        // First absolute scrollback row.
 ```
 
-Prompt navigation requires [Ghostty shell integration](https://ghostty.org/docs/features/shell-integration),
-which records prompt boundaries. The package does not bundle the integration
-scripts (the bash and zsh ones are GPLv3); a host that runs a real shell
-ships them itself and sets `GHOSTTY_RESOURCES_DIR`. A host-managed backend
-must preserve or emit equivalent OSC 133 prompt markers. Arbitrary Ghostty actions remain available
+Prompt navigation requires [shell integration](https://ghostty.org/docs/features/shell-integration),
+which records prompt boundaries. The package bundles its own MIT-licensed
+bash and zsh integration (OSC 133 prompt marks, OSC 7 working directory,
+OSC 2 title, cursor shape) under `Resources/Ghostty/shell-integration`, and
+the `.exec` backend injects it the way upstream Ghostty does; upstream's own
+scripts are GPLv3 and are deliberately not shipped. Other shells get no
+automatic integration. A host-managed backend must preserve or emit
+equivalent OSC 133 prompt markers. Arbitrary Ghostty actions remain available
 through `performBindingAction(_:)`.
 
 ### Pasting and Dropping Files
@@ -278,7 +281,11 @@ The bundled `libghostty` is a trimmed build optimized for sandboxed, embedded us
 
 MIT License. See [LICENSE](LICENSE) for details.
 
-The bundled `libghostty` binary is built from [Ghostty](https://ghostty.org), which has its own license terms.
+The bundled `libghostty` binary is built from [Ghostty](https://ghostty.org), MIT License, Copyright (c) 2024 Mitchell Hashimoto, Ghostty contributors.
+
+`Sources/GhosttyTerminal/Resources/terminfo/` is the `xterm-ghostty` terminfo entry compiled from Ghostty's `src/terminfo/ghostty.zig` (same MIT License and copyright).
+
+`Sources/GhosttyTerminal/Resources/Ghostty/shell-integration/` is this package's own bash and zsh integration, MIT License, written from scratch — Ghostty's own bash and zsh integration scripts are GPLv3 and are not shipped. `bash/bash-preexec.sh` is vendored from [bash-preexec](https://github.com/rcaloras/bash-preexec), MIT License; see [LICENSE-bash-preexec.md](Sources/GhosttyTerminal/Resources/Ghostty/shell-integration/bash/LICENSE-bash-preexec.md).
 
 `GhosttyTheme` color data comes from [iTerm2-Color-Schemes](https://github.com/mbadolato/iTerm2-Color-Schemes), MIT License; see [Sources/GhosttyTheme/LICENSE](Sources/GhosttyTheme/LICENSE).
 
