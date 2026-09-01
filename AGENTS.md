@@ -13,6 +13,41 @@ SPM package wrapping Ghostty terminal emulator C library for Apple platforms (ma
 
 Binary target: pre-built `libghostty` XCFramework. Dependency: MSDisplayLink ^2.2.0.
 
+## No Resource Bundles, No GPL Files (hard rule — review every PR for it)
+
+**The Swift targets ship code only.** No target in any of the three
+manifests declares `resources:`, and no `Sources/**/Resources/` directory
+exists. A host app that links this package must never end up with a
+`GhosttyKit_GhosttyTerminal.bundle` (or any other `*_*.bundle` from this
+package) inside its `Contents/Resources`. Anything that needs files at run
+time is the host's responsibility to ship.
+
+The concrete thing this rule exists to keep out is Ghostty's shell
+integration. Its `bash/ghostty.bash` and `zsh/ghostty-integration` are
+GPLv3 (their headers say so), this package is MIT, and bundling them puts a
+GPLv3 redistribution obligation on every app that links `GhosttyTerminal`.
+PR #40 was closed for exactly this reason; two days later PR #43 (titled as a
+clipboard change) brought the same scripts back under
+`Resources/Ghostty/shell-integration` plus a compiled terminfo (merged
+2026-08-06), and every package release from 1.4.0 through 1.5.0 shipped the
+bundle before anyone noticed. It was removed again after 1.5.0, along with
+`GhosttyRuntimeResources` and the `GHOSTTY_RESOURCES_DIR` export.
+Do not bring any of it back in any form:
+
+- No `resources:` on any target, no `Bundle.module`, no
+  `GHOSTTY_RESOURCES_DIR` / `TERMINFO` set from library code.
+- No shell-integration scripts, terminfo databases, or other Ghostty
+  runtime files under `Sources/` — not as resources, not as string
+  literals, not "just for the exec backend". Hosts that use `.exec` supply
+  their own resources directory and set `GHOSTTY_RESOURCES_DIR` themselves.
+- No GPL-licensed file anywhere in the repository. The only bundled
+  third-party data is the MIT-licensed theme set in `Sources/GhosttyTheme`.
+
+When reviewing a PR, read the manifest diff and the file list, not just the
+title — #43's summary mentioned the resources in its second bullet and was
+merged unread. `grep -rn "resources:\|Bundle.module\|GHOSTTY_RESOURCES_DIR" Package*.swift Package.swift.template Sources` must come back empty, and
+`find Sources -type d -name Resources` must find nothing.
+
 ## Build & Test Commands
 
 ```bash
@@ -47,7 +82,7 @@ GhosttyKit (C API re-export)
   └─ libghostty.a (Zig → static lib) + ghostty.h
 
 GhosttyTerminal (Swift wrapper, ~70 files)
-  ├─ Configuration/    Config structs, themes, color schemes, ghostty.conf rendering, GhosttyRuntimeResources
+  ├─ Configuration/    Config structs, themes, color schemes, ghostty.conf rendering
   ├─ Controller/       TerminalController — app lifecycle, config, surface creation, C callbacks
   ├─ Debug/            TerminalDebugLog — category-gated logging to a host-settable sink
   ├─ InMemory/         Sandbox-safe I/O backend (no PTY), TerminalSessionBackend, C callback bridge
@@ -55,7 +90,6 @@ GhosttyTerminal (Swift wrapper, ~70 files)
   ├─ Platform/AppKit/  macOS NSView: key events, NSTextInputClient IME, CAMetalLayer, public input
   ├─ Platform/Shared/  Pasteboard reading, file staging, shell escaping, key tables, IME state, foreground pid
   ├─ Platform/UIKit/   iOS UIView: UITextInput, keyboard, touch/gesture, drop, pinch zoom, IME, input accessory bar
-  ├─ Resources/        Bundled Ghostty shell-integration + terminfo (exec backend)
   ├─ State/            ObservableObject TerminalViewState (SwiftUI state container)
   ├─ Surface/          TerminalSurface, coordinator + display link, SwiftUI TerminalSurfaceView, delegates, TerminalKey/TerminalKeyPress
   └─ View/             TerminalView typealias + platform representables
@@ -130,7 +164,7 @@ that way, so grep for it before pushing.
 
 ### Host-Managed I/O
 
-All example apps run in App Sandbox. Use `GHOSTTY_SURFACE_IO_BACKEND_HOST_MANAGED` for non-PTY I/O: `TerminalSurfaceOptions.backend = .inMemory(session)` selects it (`TerminalController+Surface.swift`); the default `.exec` is a PTY and needs the bundled `Resources/` (`GhosttyRuntimeResources`). Never disable sandbox or spawn subprocesses.
+All example apps run in App Sandbox. Use `GHOSTTY_SURFACE_IO_BACKEND_HOST_MANAGED` for non-PTY I/O: `TerminalSurfaceOptions.backend = .inMemory(session)` selects it (`TerminalController+Surface.swift`); the default `.exec` is a PTY, and a host that uses it must ship Ghostty's runtime files itself and export `GHOSTTY_RESOURCES_DIR` before the first surface is created — the package bundles nothing (see "No Resource Bundles, No GPL Files"). Never disable sandbox or spawn subprocesses.
 
 ### iOS Input Architecture (UITextInput)
 

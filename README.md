@@ -129,8 +129,10 @@ terminal.scrollToRow(0)        // First absolute scrollback row.
 ```
 
 Prompt navigation requires [Ghostty shell integration](https://ghostty.org/docs/features/shell-integration),
-which records prompt boundaries. A host-managed backend must preserve or emit
-equivalent OSC 133 prompt markers. Arbitrary Ghostty actions remain available
+which records prompt boundaries. The package does not bundle the integration
+scripts (the bash and zsh ones are GPLv3); a host that runs a real shell
+ships them itself and sets `GHOSTTY_RESOURCES_DIR`. A host-managed backend
+must preserve or emit equivalent OSC 133 prompt markers. Arbitrary Ghostty actions remain available
 through `performBindingAction(_:)`.
 
 ### Pasting and Dropping Files
