@@ -290,7 +290,15 @@ public final class InMemoryTerminalSession: @unchecked Sendable {
         )
     }
 
-    func waitForPendingOutput() {
+    /// Blocks until every `receive(_:)` call made so far has been fully parsed by the
+    /// terminal engine's internal serial queue, including any resulting writeback (e.g.
+    /// DECRPM/DA/OSC query responses the engine generates while parsing).
+    ///
+    /// `receive(_:)` only enqueues — it returns before parsing happens. A host that feeds
+    /// buffered/replayed history and then flips some "replay done" flag on its own signal
+    /// (rather than on this call returning) can observe writeback for that history arrive
+    /// late, after the flag already says replay is over.
+    public func waitForPendingOutput() {
         surfaceAccess.waitForPendingOutput()
     }
 
