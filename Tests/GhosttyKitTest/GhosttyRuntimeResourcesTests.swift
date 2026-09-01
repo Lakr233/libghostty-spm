@@ -44,7 +44,8 @@ struct GhosttyRuntimeResourcesTests {
             files.append(url.path.replacingOccurrences(of: integration.path + "/", with: ""))
 
             let text = try String(contentsOf: url, encoding: .utf8)
-            #expect(!text.localizedCaseInsensitiveContains("General Public Licen[s]e"), "\(url.lastPathComponent)")
+            // Split so the license name itself never appears in this tree.
+            #expect(!text.localizedCaseInsensitiveContains("General Public " + "License"), "\(url.lastPathComponent)")
         }
 
         #expect(files.sorted() == [

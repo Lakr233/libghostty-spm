@@ -16,11 +16,12 @@ cd "$(dirname "$0")/.."
 
 # Markers, case-insensitive. Kept to license *text* and SPDX identifiers so
 # that prose about the policy (this file, AGENTS.md) does not trip it; a
-# license header always carries one of these.
+# license header always carries one of these. The bracketed letter keeps the
+# license name itself out of this file, so a plain grep of the tree — and of
+# its history, which was rewritten to drop the upstream scripts — finds
+# nothing.
 patterns=(
-    'GNU General Public Licen[s]e'
-    'GNU Lesser General Public Licen[s]e'
-    'GNU Affero General Public Licen[s]e'
+    'GNU (Lesser |Affero )?General Public Licen[s]e'
     'SPDX-License-Identifier: *[AL]?GPL'
     'distributed under (the )?(GNU )?[AL]?GPL'
     'licensed under (the )?(GNU )?[AL]?GPL'
