@@ -116,6 +116,32 @@ struct InMemoryTerminalSessionOutputQueueTests {
         firstSession.waitForPendingOutput()
         secondSession.waitForPendingOutput()
     }
+
+    @Test
+    func `waitForPendingOutput blocks until writeback from replayed history has landed`() {
+        // Mirrors the bug this API fixes for consumers: a host replays buffered/historical
+        // bytes via receive(_:), then wants to know it's safe to stop treating "replay" as
+        // in-flight before it reacts to any writeback (e.g. terminal-capability query
+        // responses) that parsing that history generates. receive(_:) only enqueues -- a host
+        // that clears its own "replay in progress" flag on some *external* signal instead of
+        // this call can observe writeback for that history arrive after the flag already
+        // reads "done", and forward it somewhere it shouldn't (e.g. a live PTY).
+        let events = LockedValues<String>()
+        let session = makeSession { _, _ in
+            Thread.sleep(forTimeInterval: 0.1) // stand-in for slow escape-sequence generation
+            events.append("writeback landed")
+        }
+        session.setSurface(testSurface(6))
+
+        session.receive("replayed history containing a capability query")
+        // Without waitForPendingOutput, a host checking here would wrongly conclude the
+        // replay-triggered writeback is already done -- it hasn't even started yet.
+        #expect(events.values.isEmpty)
+
+        session.waitForPendingOutput()
+        // Only after this call returns is it safe to say writeback has actually landed.
+        #expect(events.values == ["writeback landed"])
+    }
 }
 
 private func makeSession(
