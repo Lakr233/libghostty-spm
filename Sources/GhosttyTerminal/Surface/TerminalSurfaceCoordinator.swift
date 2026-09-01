@@ -536,6 +536,14 @@ final class TerminalSurfaceCoordinator {
         surfaceSession?.clearSurface(ifMatches: surface?.rawValue)
         surfaceSession = nil
         controller?.removeWakeupObserver(ObjectIdentifier(self))
+        // Must run before rawSurface is cleared: a clipboard-read
+        // confirmation still awaiting the host's answer must resolve to a
+        // deny before the surface it names goes away, or the requesting
+        // program hangs forever. This is the wrapper-level backstop behind
+        // "exactly one of complete/deny fires for every request" — it
+        // fires regardless of whether the host's own confirmation UI ever
+        // dismisses.
+        bridge.denyAllPendingClipboardRequests()
         bridge.rawSurface = nil
         let hadSurface = surface != nil
         surface?.setFocus(false)

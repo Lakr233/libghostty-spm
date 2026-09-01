@@ -229,3 +229,18 @@ public protocol TerminalSurfaceLifecycleDelegate: TerminalSurfaceViewDelegate {
     func terminalDidAttachSurface(_ surface: TerminalSurface)
     func terminalDidDetachSurface()
 }
+
+// MARK: - Clipboard content
+
+/// One MIME-typed clipboard representation. Binary-safe: `data` may contain
+/// non-UTF8 bytes and is never implicitly text, even for a `mime` that looks
+/// text-like.
+public struct TerminalClipboardContent: Sendable {
+    public let mime: String
+    public let data: Data
+
+    public init(mime: String, data: Data) {
+        self.mime = mime
+        self.data = data
+    }
+}
