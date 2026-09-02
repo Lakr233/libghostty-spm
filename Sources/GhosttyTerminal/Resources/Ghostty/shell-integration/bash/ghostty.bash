@@ -108,6 +108,12 @@ fi
 [[ -n "${_ghostty_integration_loaded:-}" ]] && return 0
 _ghostty_integration_loaded=1
 
+# Not a precmd: bash-preexec runs those before the pre-existing PROMPT_COMMAND
+# text, so only a tail entry survives a PROMPT_COMMAND that rebuilds PS1 every
+# cycle. Appended before bash-preexec installs itself so that on the first
+# prompt it also precedes __bp_interactive_mode, whose flag the DEBUG trap
+# spends on the next command it sees.
+PROMPT_COMMAND+=$'\n_ghostty_mark_input'
 builtin source "${BASH_SOURCE[0]%/*}/bash-preexec.sh"
 
 _ghostty_prompt_end='\[\e]133;B\a\]'
@@ -146,7 +152,7 @@ _ghostty_precmd() {
 
     if _ghostty_feature title; then
         local directory="$PWD"
-        [[ -n "$HOME" && "$directory" == "$HOME"* ]] && directory="~${directory#"$HOME"}"
+        [[ -n "$HOME" && ( "$directory" == "$HOME" || "$directory" == "$HOME"/* ) ]] && directory="~${directory#"$HOME"}"
         builtin printf '\033]2;%s\007' "$directory"
     fi
 
@@ -154,12 +160,6 @@ _ghostty_precmd() {
         builtin printf '\033[6 q'
     elif _ghostty_feature cursor || _ghostty_feature cursor:blink; then
         builtin printf '\033[5 q'
-    fi
-
-    # Input start rides on the end of PS1; re-append whenever something
-    # rebuilt PS1 without it.
-    if [[ "$PS1" != *"$_ghostty_prompt_end" ]]; then
-        PS1="$PS1$_ghostty_prompt_end"
     fi
 }
 
@@ -177,6 +177,14 @@ _ghostty_preexec() {
     fi
 
     builtin printf '\033]133;C\007'
+}
+
+# Input start rides on the end of PS1; re-append whenever something
+# rebuilt PS1 without it.
+_ghostty_mark_input() {
+    if [[ "$PS1" != *"$_ghostty_prompt_end" ]]; then
+        PS1="$PS1$_ghostty_prompt_end"
+    fi
 }
 
 precmd_functions+=(_ghostty_precmd)

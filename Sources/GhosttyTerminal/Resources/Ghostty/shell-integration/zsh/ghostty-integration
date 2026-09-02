@@ -64,7 +64,7 @@ _ghostty_precmd() {
     builtin print -n -- $'\e]7;file://'"${HOST-}$(_ghostty_encoded_pwd)"$'\a'
 
     if _ghostty_feature title; then
-        builtin print -n -- $'\e]2;'"${(%):-%~}"$'\a'
+        builtin print -rn -- $'\e]2;'"${(%):-%~}"$'\a'
     fi
 
     if _ghostty_feature cursor:steady; then
@@ -90,7 +90,7 @@ _ghostty_preexec() {
     if _ghostty_feature title; then
         # The first line of the command, control characters stripped.
         local command="${1%%$'\n'*}"
-        builtin print -n -- $'\e]2;'"${command//[[:cntrl:]]/}"$'\a'
+        builtin print -rn -- $'\e]2;'"${command//[[:cntrl:]]/}"$'\a'
     fi
 
     builtin print -n -- $'\e]133;C\a'

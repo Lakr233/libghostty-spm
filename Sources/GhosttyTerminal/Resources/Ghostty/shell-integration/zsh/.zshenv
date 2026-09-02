@@ -40,11 +40,13 @@ if [[ -o interactive ]]; then
     _ghostty_deferred_init() {
         builtin unfunction _ghostty_deferred_init
         precmd_functions=(${precmd_functions:#_ghostty_deferred_init})
+        # Already sourced by .zshrc: its hooks are in this cycle's snapshot.
+        (( ${+_ghostty_integration_loaded} )) && return 0
         if [[ -r "$GHOSTTY_ZSH_INTEGRATION_DIR/ghostty-integration" ]]; then
             builtin source -- "$GHOSTTY_ZSH_INTEGRATION_DIR/ghostty-integration"
             # This precmd cycle iterates a snapshot of the hook list, so
             # run ours once by hand for the very first prompt.
-            (( ${+functions[_ghostty_precmd]} )) && _ghostty_precmd
+            _ghostty_precmd
         fi
     }
     typeset -ga precmd_functions
