@@ -40,6 +40,22 @@ actor Engine {
         self.sessionBridge = sessionBridge
     }
 
+    /// Consumes the session's events one at a time so writes are parsed in
+    /// arrival order; the parser keeps state across writes (`escapeState`,
+    /// `pendingText`), and one Task per write would race for the actor.
+    func run(_ events: AsyncStream<ShellSessionEvent>) async {
+        for await event in events {
+            switch event {
+            case .start:
+                start()
+            case let .write(data):
+                handleOutbound(data)
+            case let .resize(size):
+                updateSize(size)
+            }
+        }
+    }
+
     func start() {
         guard !hasStarted else {
             return
@@ -68,6 +84,15 @@ actor Engine {
         shellDebugLog(
             .actions,
             "shell redraw after resize input=\(shellDebugDescribe(currentInput)) cursorPosition=\(cursorPosition)"
+        )
+        // ghostty reflows the soft-wrapped prompt+input block to the new
+        // width before it reports the resize, so the cursor's row offset
+        // inside the block is already the new-width one.
+        renderedInputState = terminalRenderedInputState(
+            promptDisplayWidth: shell.promptDisplayWidth,
+            input: currentInput,
+            cursorPosition: cursorPosition,
+            terminalColumns: Int(size.columns)
         )
         redrawInputLine()
 
@@ -132,6 +157,10 @@ actor Engine {
             break
         }
 
+        if byte != 0x0A {
+            ignoreNextLineFeed = false
+        }
+
         switch byte {
         case 0x1B:
             flushPendingText()
@@ -147,6 +176,7 @@ actor Engine {
 
         case 0x03:
             flushPendingText()
+            moveCursorToRenderedInputEnd()
             currentInput.removeAll(keepingCapacity: true)
             cursorPosition = 0
             resetHistoryState()
@@ -320,7 +350,10 @@ actor Engine {
         let previousCursorPosition = cursorPosition
         let idx = currentInput.index(currentInput.startIndex, offsetBy: cursorPosition)
         currentInput.insert(contentsOf: text, at: idx)
-        cursorPosition += text.count
+        // A combining scalar typed on its own merges into the previous
+        // Character, so count the graphemes now before the cursor rather
+        // than adding `text.count`.
+        cursorPosition = (String(previousInput.prefix(previousCursorPosition)) + text).count
 
         if applyIncrementalAppendIfPossible(
             insertedText: text,
@@ -471,6 +504,7 @@ actor Engine {
     }
 
     private func submitCurrentInput() {
+        moveCursorToRenderedInputEnd()
         send("\r\n")
 
         let command = currentInput.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -602,6 +636,18 @@ actor Engine {
         renderedInputState = nextState
         renderedInputRevision &+= 1
         return true
+    }
+
+    private func moveCursorToRenderedInputEnd() {
+        moveCursor(
+            from: renderedInputState,
+            to: terminalRenderedInputState(
+                promptDisplayWidth: shell.promptDisplayWidth,
+                input: currentInput,
+                cursorPosition: currentInput.count,
+                terminalColumns: Int(terminalSize.columns)
+            )
+        )
     }
 
     private func moveCursorToRenderedInputStart(
@@ -892,9 +938,15 @@ func terminalRenderedInputState(
 ) -> TerminalRenderedInputState {
     let columns = max(terminalColumns, 1)
     let clampedCursorPosition = min(max(cursorPosition, 0), input.count)
-    let totalWidth = promptDisplayWidth + input.terminalDisplayWidth
-    let cursorWidth = promptDisplayWidth
-        + String(input.prefix(clampedCursorPosition)).terminalDisplayWidth
+    let cursorIndex = input.index(input.startIndex, offsetBy: clampedCursorPosition)
+    let cursorWidth = String(input[..<cursorIndex]).terminalWrappedDisplayWidth(
+        after: promptDisplayWidth,
+        terminalColumns: columns
+    )
+    let totalWidth = String(input[cursorIndex...]).terminalWrappedDisplayWidth(
+        after: cursorWidth,
+        terminalColumns: columns
+    )
     let hasTrailingContent = cursorWidth < totalWidth
 
     let cursorLineOffset: Int

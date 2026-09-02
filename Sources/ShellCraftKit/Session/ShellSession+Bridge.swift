@@ -2,5 +2,5 @@ import Foundation
 import GhosttyTerminal
 
 final class SessionBridge: @unchecked Sendable {
-    nonisolated(unsafe) var session: InMemoryTerminalSession?
+    nonisolated(unsafe) weak var session: InMemoryTerminalSession?
 }

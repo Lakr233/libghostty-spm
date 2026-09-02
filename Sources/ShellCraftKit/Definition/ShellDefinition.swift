@@ -75,8 +75,11 @@ public struct ShellDefinition: Sendable {
         let cmd = String(parts[0]).lowercased()
         let args = parts.count > 1 ? String(parts[1]) : ""
 
-        if cmd == "help" {
-            return .output(generateHelp())
+        guard let command = commands[cmd] else {
+            if cmd == "help" {
+                return .output(generateHelp())
+            }
+            return .output(fallbackMessage(trimmed) + "\r\n")
         }
 
         let context = CommandContext(
@@ -85,10 +88,6 @@ public struct ShellDefinition: Sendable {
             username: username,
             terminalSize: terminalSize
         )
-
-        guard let command = commands[cmd] else {
-            return .output(fallbackMessage(trimmed) + "\r\n")
-        }
 
         return command.execute(context)
     }
@@ -147,6 +146,23 @@ extension String {
             }
         }
 
+        return width
+    }
+
+    /// Cells occupied once this text is appended to a block already `width`
+    /// cells long in a `terminalColumns`-wide terminal. A width-2 glyph that
+    /// would start in the last column leaves that cell empty and starts the
+    /// next row, so it costs three cells there instead of two.
+    func terminalWrappedDisplayWidth(after width: Int, terminalColumns: Int) -> Int {
+        let columns = max(terminalColumns, 1)
+        var width = width
+        for scalar in unicodeScalars {
+            let cellWidth = scalar.terminalCellWidth
+            if cellWidth == 2, width % columns == columns - 1 {
+                width += 1
+            }
+            width += cellWidth
+        }
         return width
     }
 }
@@ -223,8 +239,16 @@ private extension UnicodeScalar {
              0xFE30 ... 0xFE6B,
              0xFF01 ... 0xFF60,
              0xFFE0 ... 0xFFE6,
+             0x1F004,
+             0x1F0CF,
+             0x1F18E,
+             0x1F191 ... 0x1F19A,
+             0x1F200 ... 0x1F265,
              0x1F300 ... 0x1F64F,
+             0x1F680 ... 0x1F6FF,
+             0x1F7E0 ... 0x1F7EB,
              0x1F900 ... 0x1F9FF,
+             0x1FA70 ... 0x1FAFF,
              0x20000 ... 0x2FFFD,
              0x30000 ... 0x3FFFD:
             return 2

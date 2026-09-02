@@ -1,35 +1,42 @@
 import Foundation
 import GhosttyTerminal
 
+enum ShellSessionEvent: Sendable {
+    case start
+    case write(Data)
+    case resize(InMemoryTerminalViewport)
+}
+
 public final class ShellSession {
     public let terminalSession: InMemoryTerminalSession
-    private let engine: Engine
+    private let events: AsyncStream<ShellSessionEvent>.Continuation
 
     public init(shell: ShellDefinition) {
         let sessionBridge = SessionBridge()
         let engine = Engine(shell: shell, sessionBridge: sessionBridge)
+        let (stream, events) = AsyncStream.makeStream(of: ShellSessionEvent.self)
         let terminalSession = InMemoryTerminalSession(
             write: { data in
-                Task {
-                    await engine.handleOutbound(data)
-                }
+                events.yield(.write(data))
             },
             resize: { size in
-                Task {
-                    await engine.updateSize(size)
-                }
+                events.yield(.resize(size))
             }
         )
         sessionBridge.session = terminalSession
 
         self.terminalSession = terminalSession
-        self.engine = engine
+        self.events = events
+        Task {
+            await engine.run(stream)
+        }
+    }
+
+    deinit {
+        events.finish()
     }
 
     public func start() {
-        let engine = engine
-        Task {
-            await engine.start()
-        }
+        events.yield(.start)
     }
 }
