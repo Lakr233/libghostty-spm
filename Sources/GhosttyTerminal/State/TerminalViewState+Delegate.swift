@@ -38,7 +38,11 @@ extension TerminalViewState:
     ///
     /// The cost is one runloop turn on state a host only renders. Ordering
     /// survives — the main queue is FIFO — and `weak self` keeps a detached
-    /// state from being resurrected by a change nobody will see.
+    /// state from being resurrected by a change nobody will see. The
+    /// no-change checks run inside the closure, against the value at apply
+    /// time: two callbacks in one turn both see the same published value,
+    /// so a check made at call time drops the second of X→Y→X and the
+    /// state ends at Y.
     ///
     /// The closures further down are deliberately *not* routed through this.
     /// They are requests with an answer expected, not state: a clipboard
@@ -52,8 +56,10 @@ extension TerminalViewState:
     }
 
     public func terminalDidChangeTitle(_ title: String) {
-        guard self.title != title else { return }
-        publishSoon { $0.title = title }
+        publishSoon {
+            guard $0.title != title else { return }
+            $0.title = title
+        }
     }
 
     /// The metrics come from `synchronizeMetrics()`, which runs off the view's
@@ -62,13 +68,17 @@ extension TerminalViewState:
     /// reached the engine before this was called (`synchronizeMetrics` says so
     /// at length), so this notification only ever fed the host's own UI.
     public func terminalDidResize(_ size: TerminalGridMetrics) {
-        guard surfaceSize != size else { return }
-        publishSoon { $0.surfaceSize = size }
+        publishSoon {
+            guard $0.surfaceSize != size else { return }
+            $0.surfaceSize = size
+        }
     }
 
     public func terminalDidChangeFocus(_ focused: Bool) {
-        guard isFocused != focused else { return }
-        publishSoon { $0.isFocused = focused }
+        publishSoon {
+            guard $0.isFocused != focused else { return }
+            $0.isFocused = focused
+        }
     }
 
     public func terminalDidClose(processAlive: Bool) {
@@ -94,13 +104,17 @@ extension TerminalViewState:
     }
 
     public func terminalDidChangeWorkingDirectory(_ path: String) {
-        guard workingDirectory != path else { return }
-        publishSoon { $0.workingDirectory = path }
+        publishSoon {
+            guard $0.workingDirectory != path else { return }
+            $0.workingDirectory = path
+        }
     }
 
     public func terminalDidUpdateScrollbar(_ scrollbar: TerminalScrollbar) {
-        guard self.scrollbar != scrollbar else { return }
-        publishSoon { $0.scrollbar = scrollbar }
+        publishSoon {
+            guard $0.scrollbar != scrollbar else { return }
+            $0.scrollbar = scrollbar
+        }
     }
 
     public func terminalDidFinishCommand(exitCode: Int?, durationNanos: UInt64) {
@@ -132,6 +146,10 @@ extension TerminalViewState:
     }
 
     public func terminalDidDetachSurface() {
+        // Two views can report to one state while a SwiftUI swap keeps the
+        // outgoing one mounted; its teardown must not drop the replacement
+        // surface the incoming view attached. A freed surface reads nil.
+        guard surface?.rawValue == nil else { return }
         surface = nil
     }
 }

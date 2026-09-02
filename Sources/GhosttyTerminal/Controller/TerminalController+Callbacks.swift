@@ -36,11 +36,18 @@ private enum TerminalCallbacks {
         let bridge = Unmanaged<TerminalCallbackBridge>
             .fromOpaque(bridgePtr)
             .takeUnretainedValue()
-        terminalRunOnMain {
-            bridge.handleAction(action)
+        guard Thread.isMainThread else {
+            terminalRunOnMain { bridge.handleAction(action) }
+            return false
         }
-
-        return false
+        return MainActor.assumeIsolated {
+            bridge.handleAction(action)
+            // Core spawns /usr/bin/open for an open_url reported unhandled,
+            // so a host delegate that took the URL is reported as handling
+            // it. Both open_url emitters run on the main thread.
+            return action.tag == GHOSTTY_ACTION_OPEN_URL
+                && bridge.delegate is any TerminalSurfaceOpenURLDelegate
+        }
     }
 
     static func closeSurface(

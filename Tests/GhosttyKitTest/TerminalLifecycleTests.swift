@@ -1,8 +1,82 @@
+import Foundation
 @testable import GhosttyTerminal
 import Testing
 
 @MainActor
 struct TerminalLifecycleTests {
+    @Test
+    func `rejected config file survives init and is not the base`() {
+        let path = "/nonexistent-\(UUID().uuidString).conf"
+        let controller = TerminalController(configFilePath: path)
+
+        #expect(controller.lastConfigurationIssue?.contains("failed to load ghostty config template") == true)
+        #expect(controller.currentConfigSource != .file(path))
+        #expect(controller.renderedConfig.contains("background = F7F7F7"))
+
+        // Clearing the theme resolves to the base, which is the default that
+        // loaded — not the file that did not.
+        #expect(controller.setTheme(TerminalTheme()))
+        #expect(controller.currentConfigSource == .none)
+        #expect(controller.renderedConfig == TerminalController.defaultRenderedConfig)
+    }
+
+    @Test
+    func `updating the config source rebases theme rendering`() {
+        let controller = TerminalController(
+            configSource: .generated("cursor-style = block"),
+            theme: .init(
+                light: TerminalConfiguration().backgroundOpacity(0.91),
+                dark: TerminalConfiguration().backgroundOpacity(0.47)
+            )
+        )
+
+        #expect(controller.updateConfigSource(.generated("font-size = 14")))
+        #expect(controller.renderedConfig.contains("font-size = 14"))
+        #expect(!controller.renderedConfig.contains("cursor-style = block"))
+        #expect(controller.renderedConfig.contains("background-opacity = 0.91"))
+        #expect(controller.lastConfigurationIssue == nil)
+
+        controller.setColorScheme(.dark)
+
+        #expect(controller.renderedConfig.contains("font-size = 14"))
+        #expect(controller.renderedConfig.contains("background-opacity = 0.47"))
+        #expect(!controller.renderedConfig.contains("background-opacity = 0.91"))
+    }
+
+    @Test
+    func `relative config file path loads against the working directory`() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("ghostty-config-test-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        try "font-size = 14\n".write(
+            to: directory.appendingPathComponent("ghostty.conf"),
+            atomically: true,
+            encoding: .utf8
+        )
+        let previousDirectory = FileManager.default.currentDirectoryPath
+        defer { FileManager.default.changeCurrentDirectoryPath(previousDirectory) }
+        #expect(FileManager.default.changeCurrentDirectoryPath(directory.path))
+
+        let controller = TerminalController(configFilePath: "ghostty.conf", theme: TerminalTheme())
+
+        #expect(controller.lastConfigurationIssue == nil)
+        #expect(controller.currentConfigSource == .file("ghostty.conf"))
+        #expect(controller.renderedConfig == "font-size = 14\n")
+    }
+
+    @Test
+    func `detaching a freed surface keeps a live replacement`() {
+        let state = TerminalViewState()
+        // Never freed or ticked: the only thing read off it is that it is live.
+        let replacement = TerminalSurface(UnsafeMutableRawPointer(bitPattern: 0x1)!)
+        state.terminalDidAttachSurface(replacement)
+
+        state.terminalDidDetachSurface()
+
+        #expect(state.surface === replacement)
+    }
+
     @Test
     func `failed surface creation does not retain bridge`() {
         let controller = TerminalController()

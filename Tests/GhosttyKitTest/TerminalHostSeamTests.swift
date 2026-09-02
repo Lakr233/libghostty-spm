@@ -1,3 +1,4 @@
+import Foundation
 @testable import GhosttyTerminal
 import Testing
 
@@ -12,6 +13,25 @@ struct TerminalHostSeamTests {
     func `platform view factory defaults to the base class`() {
         let state = TerminalViewState()
         #expect(state.makePlatformView == nil)
+    }
+
+    @Test
+    @MainActor
+    func `a change reverted within one turn publishes the reverted value`() async {
+        let state = TerminalViewState()
+        state.terminalDidChangeTitle("~")
+        await nextMainQueueTurn()
+        #expect(state.title == "~")
+        #expect(!state.isFocused)
+
+        state.terminalDidChangeTitle("ls")
+        state.terminalDidChangeTitle("~")
+        state.terminalDidChangeFocus(true)
+        state.terminalDidChangeFocus(false)
+        await nextMainQueueTurn()
+
+        #expect(state.title == "~")
+        #expect(!state.isFocused)
     }
 
     #if !canImport(UIKit) && canImport(AppKit)
@@ -29,4 +49,12 @@ struct TerminalHostSeamTests {
             #expect(view.snapshotImage() == nil)
         }
     #endif
+}
+
+/// Resumes once every block the main queue held when this was called has
+/// run — the queue is FIFO, so a deferred publish lands before this does.
+private func nextMainQueueTurn() async {
+    await withCheckedContinuation { continuation in
+        DispatchQueue.main.async { continuation.resume() }
+    }
 }
