@@ -295,14 +295,19 @@ public final class TerminalSurface {
     #if canImport(UIKit) || canImport(AppKit)
         struct QuicklookWordResult {
             let word: String
+            /// Linear cell index of the word's first cell in the viewport grid
+            /// (`row * columns + column`); the grid position to use, see
+            /// `TerminalSelectionAnchor`.
             let offsetStart: UInt32
             let offsetLength: UInt32
             // tl_px_x / tl_px_y are reported in host points (view coordinates),
             // not surface pixels. Ghostty's embedded API receives mouse_pos in
             // points and stores the cursor position * contentScale internally,
             // then divides by contentScale when reporting selection coordinates
-            // back. Callers must convert cell pixel dimensions to points before
-            // dividing.
+            // back. Despite the name, tl_px_y is the row's text baseline plus
+            // the top window padding, not the cell top, and tl_px_x includes
+            // the left padding — dividing them by the cell size does not give
+            // the grid position.
             let pointX: Double
             let pointY: Double
         }
@@ -366,6 +371,11 @@ public final class TerminalSurface {
     /// user runs a program in the pty this is that program's pid, so hosts can
     /// correlate a surface with an external process list. Ghostty returns 0
     /// when the surface has no process yet — surfaced here as nil.
+    ///
+    /// Always nil on the pinned Ghostty 1.3.1, for every backend: that release
+    /// predates upstream's process-info API, and the shipped
+    /// `ghostty_surface_foreground_pid` is a stub from
+    /// `Patches/ghostty/0002-host-managed-io.patch` that reports 0.
     var foregroundPid: pid_t? {
         guard let s = surface else { return nil }
         let pid = ghostty_surface_foreground_pid(s)
@@ -374,6 +384,10 @@ public final class TerminalSurface {
 
     /// Name of the pty's controlling tty (e.g. `/dev/ttys004`), or nil when the
     /// surface has no process yet. Useful as a cross-check for ``foregroundPid``.
+    ///
+    /// Always nil on the pinned Ghostty 1.3.1, for every backend: the shipped
+    /// `ghostty_surface_tty_name` is a stub that returns the empty string, for
+    /// the same reason ``foregroundPid`` is nil there.
     var ttyName: String? {
         guard let s = surface else { return nil }
         let str = ghostty_surface_tty_name(s)

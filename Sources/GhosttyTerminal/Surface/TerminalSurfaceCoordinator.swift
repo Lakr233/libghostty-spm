@@ -35,6 +35,12 @@ final class TerminalSurfaceCoordinator {
     }
 
     var surface: TerminalSurface?
+    /// The in-memory session `surface` was handed to at build time. Teardown
+    /// must clear that session, not whichever one `configuration` names by
+    /// then: a rebuild runs from `configuration`'s didSet, after the property
+    /// already holds the new backend, and a swap to another session or to
+    /// `.exec` would otherwise free a surface the old session still uses.
+    private var surfaceSession: InMemoryTerminalSession?
     let bridge = TerminalCallbackBridge()
 
     // MARK: - Platform Hooks
@@ -195,6 +201,7 @@ final class TerminalSurfaceCoordinator {
         bridge.rawSurface = rawSurface
         let newSurface = TerminalSurface(rawSurface)
         surface = newSurface
+        surfaceSession = configuration.inMemorySession
         newSurface.setOcclusion(effectiveSurfaceVisible)
         // Wakeups must keep draining while the surface is merely occluded:
         // the app mailbox (titles, pwd, bell, child-exit) only empties in
@@ -290,7 +297,11 @@ final class TerminalSurfaceCoordinator {
             return
         }
 
-        performMetricsSync()
+        // Arm only behind a size the surface actually received. The
+        // creation-time cell_size callback lands here while `surface` is still
+        // nil; arming then would make the new surface's own first sync wait
+        // out a full window as a trailing edge.
+        guard performMetricsSync() else { return }
         armResizeThrottle()
     }
 
@@ -309,16 +320,17 @@ final class TerminalSurfaceCoordinator {
             resizeThrottleArmed = false
             guard resizeThrottleTrailing else { return }
             resizeThrottleTrailing = false
-            guard surface != nil else { return }
-            performMetricsSync()
+            guard performMetricsSync() else { return }
             armResizeThrottle()
         }
     }
 
-    private func performMetricsSync() {
+    /// Returns whether a size reached the surface.
+    @discardableResult
+    private func performMetricsSync() -> Bool {
         guard let surface else {
             TerminalDebugLog.log(.metrics, "synchronizeMetrics skipped: missing surface")
-            return
+            return false
         }
 
         let scale = scaleFactor()
@@ -328,7 +340,7 @@ final class TerminalSurfaceCoordinator {
                 .metrics,
                 "synchronizeMetrics skipped: invalid view size=\(String(format: "%.2f", size.width))x\(String(format: "%.2f", size.height))"
             )
-            return
+            return false
         }
 
         let pixelWidth = UInt32((size.width * scale).rounded(.down))
@@ -338,7 +350,7 @@ final class TerminalSurfaceCoordinator {
                 .metrics,
                 "synchronizeMetrics skipped: invalid pixel size=\(pixelWidth)x\(pixelHeight)"
             )
-            return
+            return false
         }
 
         TerminalDebugLog.log(
@@ -355,7 +367,7 @@ final class TerminalSurfaceCoordinator {
         else {
             TerminalDebugLog.log(.metrics, "sync missing grid metrics after resize")
             onMetricsUpdate?()
-            return
+            return true
         }
 
         let metrics = TerminalViewportMetrics(surfaceSize: surfaceSize, scale: scale)
@@ -365,7 +377,7 @@ final class TerminalSurfaceCoordinator {
                 "sync unchanged \(metrics.debugSummary)"
             )
             onMetricsUpdate?()
-            return
+            return true
         }
 
         lastMetrics = metrics
@@ -396,6 +408,7 @@ final class TerminalSurfaceCoordinator {
             )
         }
         onMetricsUpdate?()
+        return true
     }
 
     func fitToSize() {
@@ -520,9 +533,8 @@ final class TerminalSurfaceCoordinator {
     private func tearDownSurface(removingBridgeFrom controller: TerminalController?) {
         TerminalDebugLog.log(.lifecycle, "tear down surface")
         releaseDisplayLink()
-        if let session = configuration.inMemorySession {
-            session.clearSurface(ifMatches: surface?.rawValue)
-        }
+        surfaceSession?.clearSurface(ifMatches: surface?.rawValue)
+        surfaceSession = nil
         controller?.removeWakeupObserver(ObjectIdentifier(self))
         bridge.rawSurface = nil
         let hadSurface = surface != nil
