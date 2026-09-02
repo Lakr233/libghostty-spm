@@ -121,8 +121,10 @@ final class ViewController: UIViewController {
 
     private func applyBackgroundForCurrentAppearance() {
         let key = isDarkMode ? Self.darkThemeKey : Self.lightThemeKey
-        guard let theme = Self.savedThemeDefinition(forKey: key) else { return }
-        if let bgColor = UIColor(hexString: theme.background) {
+        // Backgrounds of the `.afterglow` / `.alabaster` fallbacks in savedTerminalTheme().
+        let defaultBackground = isDarkMode ? "212121" : "F7F7F7"
+        let background = Self.savedThemeDefinition(forKey: key)?.background ?? defaultBackground
+        if let bgColor = UIColor(hexString: background) {
             view.backgroundColor = bgColor
         }
     }
