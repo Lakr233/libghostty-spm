@@ -88,6 +88,13 @@ when the header already carries `GHOSTTY_SURFACE_IO_BACKEND_HOST_MANAGED`.
 - `0011-replay-response-suppression.patch` —
   `ghostty_surface_write_buffer_replay`: feed reconstructed history through
   the parser with terminal protocol responses discarded at their origin.
+  `apprt.surface.Message.discardIfTerminalResponse` does not cover
+  `kitty_clipboard_read`/`kitty_clipboard_write` (added after this patch was
+  authored) — the receiver takes ownership of a boxed request it must
+  destroy, which the classifier has no way to do. Replaying reconstructed
+  history containing a Kitty clipboard protocol sequence can still leak a
+  confirmation to the host; low risk today (no on-disk scrollback replay uses
+  this path yet) but worth closing if that changes.
 - `0012-visionos.sh` — the `visionos` OS tag takes the iOS arm everywhere
   the build system and the Darwin runtime switch on it: `MetallibStep`
   learns the `xros` / `xrsimulator` SDKs and the Metal compiler's

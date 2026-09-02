@@ -239,8 +239,14 @@ private enum TerminalCallbacks {
                 .input,
                 "clipboard confirm denied: unrecognized request kind=\(request.rawValue)"
             )
+            // Round-tripped through a bit pattern, not captured directly:
+            // a raw pointer captured as-is by this main-actor-crossing
+            // closure trips Swift 6's sending-risks-data-race check.
+            let stateAddress = UInt(bitPattern: statePtr)
             terminalRunOnMain {
-                guard let surface = bridge.rawSurface else { return }
+                guard let surface = bridge.rawSurface,
+                      let statePtr = UnsafeMutableRawPointer(bitPattern: stateAddress)
+                else { return }
                 ghostty_surface_deny_clipboard_request(surface, statePtr)
             }
             return
