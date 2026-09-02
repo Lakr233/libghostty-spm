@@ -17,8 +17,10 @@ SOURCE_DIR="${1:?Usage: $0 <ghostty-source-dir>}"
 # (available since iOS 11) provides hardware-accelerated compositing.
 #
 # Fix:
-# - Allow ±1px tolerance on iOS when comparing surface vs layer dimensions
-# - Dynamically adjust contentsScale when dimensions don't match exactly
+# - Allow ±1px tolerance on iOS when comparing surface vs layer dimensions;
+#   a larger mismatch is a stale frame and is discarded as upstream does.
+#   contentsScale is never written here: Metal.surfaceSize reads it back as
+#   the next frame's size, so the host must stay its only writer.
 # - Use CAIOSurfaceLayer as base class on iOS for native IOSurface compositing
 # - Mark layer as opaque since terminal content fills the entire bounds
 # =============================================================================
@@ -39,18 +41,21 @@ src = src.replace(
 )
 
 # The scoped log is only used in the size check we're replacing; drop it
-src = src.replace('\nconst log = std.log.scoped(.IOSurfaceLayer);\n', '\n')
+src = src.replace('const log = std.log.scoped(.IOSurfaceLayer);\n\n', '')
 
 # Terminal surface is always fully opaque — tell the compositor
-src = src.replace(
-    'layer.setProperty("contentsGravity", macos.animation.kCAGravityTopLeft);\n\n    layer.setInstanceVariable',
-    'layer.setProperty("contentsGravity", macos.animation.kCAGravityTopLeft);\n    layer.setProperty("opaque", true);\n\n    layer.setInstanceVariable'
-)
+old_gravity = 'layer.setProperty("contentsGravity", macos.animation.kCAGravityTopLeft);\n\n    layer.setInstanceVariable'
+new_gravity = 'layer.setProperty("contentsGravity", macos.animation.kCAGravityTopLeft);\n    layer.setProperty("opaque", true);\n\n    layer.setInstanceVariable'
+
+if old_gravity not in src:
+    print("[!] IOSurfaceLayer contentsGravity block not found — source may have changed")
+    sys.exit(1)
+src = src.replace(old_gravity, new_gravity)
 
 # Replace the strict size equality check with a platform-aware version.
-# On iOS, UIKit's point→pixel rounding can produce a 1px discrepancy.
-# Rather than dropping the frame entirely (→ blank screen), we accept it
-# and recalculate contentsScale so CoreAnimation stretches correctly.
+# On iOS, UIKit's point→pixel rounding can produce a 1px discrepancy, and
+# dropping that frame leaves a blank screen. Anything larger is a stale
+# frame from before a resize and is discarded like upstream does.
 old_block = """    if (width != surface.getWidth() or height != surface.getHeight()) {
         log.debug(
             "setSurfaceCallback(): surface is wrong size for layer, discarding. surface = {d}x{d}, layer = {d}x{d}",
@@ -65,23 +70,7 @@ new_block = """    const sw = surface.getWidth();
     const dh: usize = if (height > sh) height - sh else sh - height;
     // iOS UIKit rounding can produce ±1px discrepancy; macOS must match exactly
     const max_drift: usize = if (comptime builtin.os.tag == .ios) 1 else 0;
-    if (dw > max_drift or dh > max_drift) {
-        if (comptime builtin.os.tag == .ios) {
-            // Recalculate contentsScale so CA maps surface pixels to layer points
-            const pw = bounds.size.width;
-            const ph = bounds.size.height;
-            if (pw > 0 and ph > 0) {
-                const cs_x: f64 = @as(f64, @floatFromInt(sw)) / pw;
-                const cs_y: f64 = @as(f64, @floatFromInt(sh)) / ph;
-                const cs: f64 = @max(cs_x, cs_y);
-                if (@abs(cs - scale) > 0.01) {
-                    layer.setProperty("contentsScale", cs);
-                }
-            }
-        } else {
-            return;
-        }
-    }"""
+    if (dw > max_drift or dh > max_drift) return;"""
 
 if old_block not in src:
     print("[!] IOSurfaceLayer size check block not found — source may have changed")
@@ -106,6 +95,9 @@ new_cls = """    const parent_cls = if (comptime builtin.os.tag == .ios)
     var subclass =
         objc.allocateClassPair(parent_cls, "IOSurfaceLayer") orelse return error.ObjCFailed;"""
 
+if old_cls not in src:
+    print("[!] IOSurfaceLayer getSubclass CALayer block not found — source may have changed")
+    sys.exit(1)
 src = src.replace(old_cls, new_cls)
 
 path.write_text(src)

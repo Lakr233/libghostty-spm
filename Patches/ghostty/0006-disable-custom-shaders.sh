@@ -68,13 +68,13 @@ print("[+] patched Config.zig")
 shared_path = source_dir / "src/build/SharedDeps.zig"
 text = shared_path.read_text()
 
-# Gate glslang — wrap with custom_shaders check
-text = text.replace(
+# Gate glslang and spirv-cross — wrap each block with a custom_shaders check
+# and close the extra `if` at its end. The trim these edits do is not verified
+# by anything downstream, so a drifted anchor is fatal here.
+shared_edits = [(
     '    // Glslang\n    if (b.lazyDependency("glslang", .{',
     '    // Glslang — only needed for custom shaders\n    if (self.config.custom_shaders) if (b.lazyDependency("glslang", .{',
-)
-# Close the extra if at end of glslang block
-text = text.replace(
+), (
     """            step.linkLibrary(glslang_dep.artifact("glslang"));
             try static_libs.append(
                 b.allocator,
@@ -93,14 +93,10 @@ text = text.replace(
     };
 
     // Spirv-cross""",
-)
-
-# Gate spirv-cross — wrap with custom_shaders check
-text = text.replace(
+), (
     '    // Spirv-cross\n    if (b.lazyDependency("spirv_cross", .{',
     '    // Spirv-cross — only needed for custom shaders\n    if (self.config.custom_shaders) if (b.lazyDependency("spirv_cross", .{',
-)
-text = text.replace(
+), (
     """            step.linkLibrary(spirv_cross_dep.artifact("spirv_cross"));
             try static_libs.append(
                 b.allocator,
@@ -119,7 +115,14 @@ text = text.replace(
     };
 
     // Sentry""",
-)
+)]
+
+for old, new in shared_edits:
+    if old not in text:
+        print("[-] pattern not found in src/build/SharedDeps.zig; upstream changed, update this patch:")
+        print(f"    {old[:80]}...")
+        sys.exit(1)
+    text = text.replace(old, new)
 
 shared_path.write_text(text)
 print("[+] patched SharedDeps.zig")

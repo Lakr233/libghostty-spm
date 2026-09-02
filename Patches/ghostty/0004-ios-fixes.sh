@@ -9,7 +9,7 @@ SOURCE_DIR="${1:?Usage: $0 <ghostty-source-dir>}"
 CF_RELEASE="${SOURCE_DIR}/src/os/cf_release_thread.zig"
 if [ -f "$CF_RELEASE" ]; then
     if grep -q 'try self.loop.run(.until_done);' "$CF_RELEASE"; then
-        sed -i '' 's/try self\.loop\.run(\.until_done);/self.loop.run(.until_done) catch |err| { log.warn("cf release loop failed err={}", .{err}); return; };/' "$CF_RELEASE"
+        perl -0pi -e 's/^([ \t]*)try self\.loop\.run\(\.until_done\);$/$1self.loop.run(.until_done) catch |err| {\n$1    log.warn("cf release loop failed err={}", .{err});\n$1    return;\n$1};/m' "$CF_RELEASE"
         echo "[+] patched cf_release_thread to ignore loop errors"
     else
         echo "[+] cf_release_thread already patched"
@@ -61,10 +61,11 @@ new_fn = """    export fn ghostty_set_window_background_blur(
     }"""
 
 if old_fn not in text:
-    print("[+] blur patch already applied or source changed")
-else:
-    path.write_text(text.replace(old_fn, new_fn))
-    print("[+] patched: disabled private blur API")
+    print("[-] blur function block not found; upstream changed, update this patch")
+    sys.exit(1)
+
+path.write_text(text.replace(old_fn, new_fn))
+print("[+] patched: disabled private blur API")
 PY
     else
         echo "[+] blur patch already applied"
@@ -77,6 +78,11 @@ if [ -f "$BUILD_ZIG" ]; then
     if ! grep -q 'lib.linkFramework("Metal")' "$BUILD_ZIG"; then
         perl -0pi -e 's/lib\.linkFramework\("IOSurface"\);/lib.linkFramework("IOSurface");\n    lib.linkFramework("Metal");\n    lib.linkFramework("MetalKit");/g' "$BUILD_ZIG"
         perl -0pi -e 's/module\.linkFramework\("IOSurface", \.\{\}\);/module.linkFramework("IOSurface", .{});\n        module.linkFramework("Metal", .{});\n        module.linkFramework("MetalKit", .{});/g' "$BUILD_ZIG"
+        grep -q 'lib.linkFramework("Metal")' "$BUILD_ZIG" &&
+            grep -q 'module.linkFramework("Metal", .{})' "$BUILD_ZIG" || {
+            echo "[-] IOSurface linkFramework anchors not found; upstream changed, update this patch"
+            exit 1
+        }
         echo "[+] patched: linked Metal frameworks"
     else
         echo "[+] Metal frameworks already linked"
@@ -88,6 +94,10 @@ CONFIG_ZIG="${SOURCE_DIR}/src/build/Config.zig"
 if [ -f "$CONFIG_ZIG" ]; then
     if grep -q '\.ios => \.{ \.semver = \.{' "$CONFIG_ZIG"; then
         perl -0pi -e 's/\.ios => \.{ \.semver = \.{\n\s*\.major = \d+,\n\s*\.minor = \d+,\n\s*\.patch = \d+,/.ios => .{ .semver = .{\n            .major = 15,\n            .minor = 0,\n            .patch = 0,/s' "$CONFIG_ZIG"
+        grep -A1 '\.ios => \.{ \.semver = \.{' "$CONFIG_ZIG" | grep -q '\.major = 15,' || {
+            echo "[-] iOS semver block not found; upstream changed, update this patch"
+            exit 1
+        }
         echo "[+] patched: iOS deployment target -> 15.0"
     else
         echo "[+] iOS deployment target already patched"
