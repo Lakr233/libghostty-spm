@@ -14,15 +14,16 @@ diff --git a/src/apprt/embedded.zig b/src/apprt/embedded.zig
 index 4f163229b..d7b0fcd9d 100644
 --- a/src/apprt/embedded.zig
 +++ b/src/apprt/embedded.zig
-@@ -1662,6 +1662,20 @@ pub const CAPI = struct {
+@@ -1662,6 +1662,21 @@ pub const CAPI = struct {
          surface.core_surface.io.processOutput(ptr[0..len]);
      }
  
 +    /// Process host output as reconstructed history. The parser and terminal
 +    /// state are updated exactly as with ghostty_surface_write_buffer, but
 +    /// terminal protocol responses caused by this buffer are discarded at
-+    /// their origin. The suppression flag and parser state share the same
-+    /// terminal-state mutex, so the flag cannot outlive this parser call.
++    /// their origin. The suppression flag is set under the terminal-state
++    /// mutex and cleared whenever the parser releases it mid-call, so a
++    /// response another thread produces in that window is not discarded.
 +    export fn ghostty_surface_write_buffer_replay(
 +        surface: *Surface,
 +        ptr: [*]const u8,
@@ -148,23 +149,26 @@ index d7a59bf5e..2545a7c40 100644
 +    try testing.expect(!(Message{ .linefeed_mode = true }).discardIfTerminalResponse());
 +}
 diff --git a/src/termio/stream_handler.zig b/src/termio/stream_handler.zig
-index 8c1b5b8ab..92f29cebd 100644
+index 8c1b5b8ab..51afd8bbf 100644
 --- a/src/termio/stream_handler.zig
 +++ b/src/termio/stream_handler.zig
-@@ -78,6 +78,12 @@ pub const StreamHandler = struct {
+@@ -78,6 +78,15 @@ pub const StreamHandler = struct {
      /// to wake up the termio thread.
      termio_messaged: bool = false,
  
 +    /// When true, parser-originated messages that would write terminal
 +    /// protocol responses back to the backend are discarded. This is used by
 +    /// host-managed replay and is changed only while the terminal-state mutex
-+    /// is held.
++    /// is held. The writers below release that mutex when a mailbox is full,
++    /// so each clears the flag for that window: a message another thread
++    /// sends meanwhile (changeConfig's color_scheme_report) must not be
++    /// discarded as part of the replay.
 +    suppress_terminal_responses: bool = false,
 +
      /// This is set to true when we've seen a title escape sequence. We use
      /// this to determine if we need to default the window title.
      seen_title: bool = false,
-@@ -126,6 +132,9 @@ pub const StreamHandler = struct {
+@@ -126,9 +135,15 @@ pub const StreamHandler = struct {
          self: *StreamHandler,
          msg: apprt.surface.Message,
      ) void {
@@ -174,13 +178,33 @@ index 8c1b5b8ab..92f29cebd 100644
          // See messageWriter which has similar logic and explains why
          // we may have to do this.
          if (self.surface_mailbox.push(msg, .{ .instant = {} }) == 0) {
-@@ -136,6 +145,9 @@ pub const StreamHandler = struct {
++            const suppress = self.suppress_terminal_responses;
++            self.suppress_terminal_responses = false;
++            defer self.suppress_terminal_responses = suppress;
+             self.renderer_state.mutex.unlock();
+             defer self.renderer_state.mutex.lock();
+             _ = self.surface_mailbox.push(msg, .{ .forever = {} });
+@@ -136,6 +151,13 @@ pub const StreamHandler = struct {
      }
  
      inline fn messageWriter(self: *StreamHandler, msg: termio.Message) void {
 +        if (self.suppress_terminal_responses and msg.discardIfTerminalResponse()) {
 +            return;
 +        }
++        // send releases the mutex when the termio mailbox is full.
++        const suppress = self.suppress_terminal_responses;
++        self.suppress_terminal_responses = false;
++        defer self.suppress_terminal_responses = suppress;
          self.termio_mailbox.send(msg, self.renderer_state.mutex);
          self.termio_messaged = true;
      }
+@@ -158,6 +180,9 @@ pub const StreamHandler = struct {
+         // Instant would have blocked. Release the renderer mutex,
+         // wake up the renderer to allow it to process the message,
+         // and then try again.
++        const suppress = self.suppress_terminal_responses;
++        self.suppress_terminal_responses = false;
++        defer self.suppress_terminal_responses = suppress;
+         self.renderer_state.mutex.unlock();
+         defer self.renderer_state.mutex.lock();
+         self.renderer_wakeup.notify() catch |err| {

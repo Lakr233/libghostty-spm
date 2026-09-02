@@ -1,0 +1,13 @@
+diff --git a/src/apprt/embedded.zig b/src/apprt/embedded.zig
+index 800f3cdfb..ad77ff3fc 100644
+--- a/src/apprt/embedded.zig
++++ b/src/apprt/embedded.zig
+@@ -1783,7 +1783,7 @@ pub const CAPI = struct {
+         return true;
+     }
+ 
+-    export fn ghostty_surface_free_text(ptr: *Text) void {
++    export fn ghostty_surface_free_text(_: *Surface, ptr: *Text) void {
+         ptr.deinit();
+     }
+ 

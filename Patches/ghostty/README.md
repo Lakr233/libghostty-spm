@@ -15,9 +15,11 @@ build from the same patched tree. (Patches to Zig's own std live in
 pipeline.) The script walks this directory in name order and dispatches on the
 extension:
 
-- `.patch` is a unified diff applied with `git apply` (or `patch -p1` without
-  a git checkout). A patch that already reverse-applies is reported as applied
-  and skipped; one that fails `--check` aborts the build.
+- `.patch` is a unified diff applied with `git -C <source> apply`; `git` must
+  be installed (0003 carries a binary hunk `patch(1)` cannot apply), but the
+  source may be a clone, a worktree or an extracted tarball. A patch that
+  already reverse-applies is reported as applied and skipped; one that fails
+  `--check` aborts the build.
 - `.sh` is executed as `<script> <source_dir>`; each script checks for its
   own changes (a marker or the edited text) and skips whatever is already
   applied, so re-running it is a no-op.
@@ -55,8 +57,9 @@ when the header already carries `GHOSTTY_SURFACE_IO_BACKEND_HOST_MANAGED`.
   (`GHOSTTY_SURFACE_IO_BACKEND_HOST_MANAGED`, receive-buffer and resize
   callbacks, `ghostty_surface_write_buffer` / `_process_exit`,
   `src/termio/HostManaged.zig`) plus `ghostty_surface_foreground_pid` /
-  `_tty_name` stubs for a core without process info. The variant the pinned
-  release selects.
+  `_tty_name` stubs that return 0 / empty for every backend, `.exec`
+  included: the 1.3.1 core has no process-info API to read from. The variant
+  the pinned release selects.
 - `0002-host-managed-io-modern.patch` — the same backend rebased onto upstream
   main (`GHOSTTY_API`, env API rename), for a release that declares
   `ghostty_surface_foreground_pid` itself.
@@ -103,6 +106,11 @@ when the header already carries `GHOSTTY_SURFACE_IO_BACKEND_HOST_MANAGED`.
   installed (nothing ships it, and its libc++ sub-compile is what fails
   under Xcode 27 and on visionOS everywhere; marker
   `LIBGHOSTTY_SPM_NO_VT_DYLIB`).
+- `0014-free-text-signature.patch` — upstream commit `4803d58b`:
+  `ghostty_surface_free_text` takes the surface as its first parameter, as
+  `ghostty.h` has always declared it. The 1.3.1 export took only the text
+  pointer, so a caller following the header handed the surface in its place
+  and the text was never freed.
 
 ## Current goal
 

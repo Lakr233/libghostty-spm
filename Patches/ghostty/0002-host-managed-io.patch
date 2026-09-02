@@ -53,7 +53,7 @@ index 4d66622e3..145d1135b 100644
 -            log.warn("error getting env map for surface err={}", .{err});
 -            break :env internal_os.getEnvMap(alloc) catch
 -                std.process.EnvMap.init(alloc);
-+        const backend: termio.Backend = switch (rt_surface.termioBackend()) {
++        var backend: termio.Backend = switch (rt_surface.termioBackend()) {
 +            .exec => backend: {
 +                var env = rt_surface.defaultTermioEnv() catch |err| env: {
 +                    log.warn("error getting env map for surface err={}", .{err});
@@ -64,7 +64,7 @@ index 4d66622e3..145d1135b 100644
 +
 +                env.remove("GHOSTTY_LOG");
 +
-+                var io_exec = try termio.Exec.init(alloc, .{
++                const io_exec = try termio.Exec.init(alloc, .{
 +                    .command = command,
 +                    .env = env,
 +                    .env_override = config.env,
@@ -77,7 +77,6 @@ index 4d66622e3..145d1135b 100644
 +                    .rt_pre_exec_info = .init(config),
 +                    .rt_post_fork_info = .init(config),
 +                });
-+                errdefer io_exec.deinit();
 +
 +                break :backend .{ .exec = io_exec };
 +            },
@@ -88,6 +87,7 @@ index 4d66622e3..145d1135b 100644
 +                ),
 +            },
          };
++        errdefer backend.deinit();
 -        errdefer env.deinit();
 -
 -        // don't leak GHOSTTY_LOG to any subprocesses
@@ -300,7 +300,7 @@ new file mode 100644
 index 000000000..0d1821350
 --- /dev/null
 +++ b/src/termio/HostManaged.zig
-@@ -0,0 +1,136 @@
+@@ -0,0 +1,185 @@
 +const HostManaged = @This();
 +
 +const std = @import("std");
@@ -398,12 +398,32 @@ index 000000000..0d1821350
 +    data: []const u8,
 +    linefeed: bool,
 +) !void {
-+    _ = alloc;
 +    _ = td;
-+    _ = linefeed;
 +
 +    if (data.len == 0) return;
-+    self.write(self.userdata, data.ptr, data.len);
++
++    // LNM (mode 20): CR goes out as CRLF, as Exec.queueWrite does.
++    const cr_count = if (linefeed) std.mem.count(u8, data, "\r") else 0;
++    if (cr_count == 0) {
++        self.write(self.userdata, data.ptr, data.len);
++        return;
++    }
++
++    var stack_buf: [256]u8 = undefined;
++    const needed = data.len + cr_count;
++    const buf = if (needed <= stack_buf.len) stack_buf[0..needed] else try alloc.alloc(u8, needed);
++    defer if (needed > stack_buf.len) alloc.free(buf);
++
++    var buf_i: usize = 0;
++    for (data) |ch| {
++        buf[buf_i] = ch;
++        buf_i += 1;
++        if (ch == '\r') {
++            buf[buf_i] = '\n';
++            buf_i += 1;
++        }
++    }
++    self.write(self.userdata, buf.ptr, buf.len);
 +}
 +
 +pub fn childExitedAbnormally(
@@ -437,6 +457,35 @@ index 000000000..0d1821350
 +        _ = alloc;
 +    }
 +};
++
++test "queueWrite honours the linefeed flag" {
++    const testing = std.testing;
++    const Sink = struct {
++        buf: [1024]u8 = undefined,
++        len: usize = 0,
++
++        fn write(ud: ?*anyopaque, ptr: [*]const u8, len: usize) callconv(.c) void {
++            const sink: *@This() = @ptrCast(@alignCast(ud.?));
++            @memcpy(sink.buf[sink.len..][0..len], ptr[0..len]);
++            sink.len += len;
++        }
++    };
++
++    var sink: Sink = .{};
++    var host: HostManaged = .init(.{ .userdata = &sink, .write = Sink.write });
++    var td: termio.Termio.ThreadData = undefined;
++
++    try host.queueWrite(testing.allocator, &td, "a\rb", false);
++    try testing.expectEqualStrings("a\rb", sink.buf[0..sink.len]);
++
++    sink.len = 0;
++    try host.queueWrite(testing.allocator, &td, "a\rb\r", true);
++    try testing.expectEqualStrings("a\r\nb\r\n", sink.buf[0..sink.len]);
++
++    sink.len = 0;
++    try host.queueWrite(testing.allocator, &td, "\r" ** 300, true);
++    try testing.expectEqualStrings("\r\n" ** 300, sink.buf[0..sink.len]);
++}
 diff --git a/src/termio/backend.zig b/src/termio/backend.zig
 index ae0e2004f..f1d35d2a2 100644
 --- a/src/termio/backend.zig
