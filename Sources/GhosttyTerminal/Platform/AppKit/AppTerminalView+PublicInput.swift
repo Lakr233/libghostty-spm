@@ -47,7 +47,10 @@
         public func sendKey(_ press: TerminalKeyPress) -> Bool {
             guard let surface else { return false }
             if hasMarkedText() {
-                unmarkText()
+                inputHandler?.inputMethodHandler?.commitMarkedText()
+                // The input method keeps its own copy of the composition and
+                // would re-mark it on the next keystroke.
+                inputContext?.discardMarkedText()
             }
             return surface.sendKey(press)
         }

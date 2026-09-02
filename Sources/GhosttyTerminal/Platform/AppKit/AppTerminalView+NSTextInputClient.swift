@@ -62,10 +62,11 @@
         ) -> NSRect {
             guard let surface else { return .zero }
 
+            // ghostty's ime point y is already the cell's bottom edge.
             let point = surface.imePoint()
             let viewRect = NSRect(
                 x: point.x,
-                y: bounds.height - point.y - point.height,
+                y: bounds.height - point.y,
                 width: point.width,
                 height: point.height
             )

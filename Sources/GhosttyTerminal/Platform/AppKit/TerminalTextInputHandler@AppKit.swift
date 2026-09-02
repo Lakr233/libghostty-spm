@@ -89,6 +89,31 @@
             syncPreedit()
         }
 
+        /// Commits an open composition as typed text on the key path — what
+        /// a hardware key would have done through `interpretKeyEvents` —
+        /// instead of dropping it. The keycode is deliberately outside the
+        /// AppKit virtual-keycode table so ghostty resolves the key to
+        /// `.unidentified` and encodes from the text alone, as the UIKit
+        /// twin's `sendTypedText` does.
+        func commitMarkedText() {
+            guard let text = markedTextState.text else { return }
+            markedTextState.clear()
+            syncPreedit()
+
+            var event = ghostty_input_key_s()
+            event.action = GHOSTTY_ACTION_PRESS
+            event.mods = ghostty_input_mods_e(rawValue: 0)
+            event.consumed_mods = ghostty_input_mods_e(rawValue: 0)
+            event.keycode = 0xFFFF
+            event.composing = false
+            event.unshifted_codepoint = text.unicodeScalars.first.map(\.value) ?? 0
+
+            text.withCString { ptr in
+                event.text = ptr
+                view?.surface?.sendKeyEvent(event)
+            }
+        }
+
         func currentSelectedRange() -> NSRange {
             markedTextState.currentSelectedRange
         }

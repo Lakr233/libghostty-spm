@@ -16,8 +16,6 @@
 
     /// Mouse selection state; behavior lives in +Input.
     struct PointerSelectionState {
-        var selectionStartPoint: CGPoint?
-        var lastSelectionRect: CGRect?
         var pendingSelectionMenuPoint: CGPoint?
     }
 
@@ -144,7 +142,6 @@
             window?.makeFirstResponder(self)
             let (x, y) = mousePoint(from: event)
             let mods = TerminalInputModifiers(from: event.modifierFlags)
-            pointer.selectionStartPoint = CGPoint(x: x, y: y)
             pointer.pendingSelectionMenuPoint = nil
             surface?.sendMousePos(x: x, y: y, mods: mods.ghosttyMods)
             surface?.sendMouseButton(
@@ -163,7 +160,6 @@
                 button: GHOSTTY_MOUSE_LEFT,
                 mods: mods.ghosttyMods
             )
-            finishPointerSelection(at: CGPoint(x: x, y: y))
         }
 
         override open func rightMouseDown(with event: NSEvent) {
@@ -235,9 +231,16 @@
             surface?.sendMousePos(x: x, y: y, mods: mods.ghosttyMods)
         }
 
+        // ghostty clears link hover only on a negative position; the
+        // tracking area stops delivering mouseMoved outside the view. Skipped
+        // during a drag, where mouseDragged keeps reporting real positions.
+        override open func mouseExited(with event: NSEvent) {
+            guard NSEvent.pressedMouseButtons == 0 else { return }
+            let mods = TerminalInputModifiers(from: event.modifierFlags)
+            surface?.sendMousePos(x: -1, y: -1, mods: mods.ghosttyMods)
+        }
+
         override open func mouseDragged(with event: NSEvent) {
-            let (x, y) = mousePoint(from: event)
-            updatePointerSelectionRect(to: CGPoint(x: x, y: y))
             mouseMoved(with: event)
         }
 
@@ -259,27 +262,6 @@
                 y: event.scrollingDeltaY,
                 mods: scrollMods.rawValue
             )
-        }
-
-        private func updatePointerSelectionRect(to point: CGPoint) {
-            guard let start = pointer.selectionStartPoint else { return }
-            pointer.lastSelectionRect = CGRect(
-                x: min(start.x, point.x),
-                y: min(start.y, point.y),
-                width: abs(start.x - point.x),
-                height: abs(start.y - point.y)
-            ).insetBy(dx: -2, dy: -2)
-        }
-
-        private func finishPointerSelection(at point: CGPoint) {
-            defer { pointer.selectionStartPoint = nil }
-            guard let start = pointer.selectionStartPoint else { return }
-            let dragDistance = hypot(point.x - start.x, point.y - start.y)
-            if dragDistance < 2 {
-                pointer.lastSelectionRect = nil
-            } else {
-                updatePointerSelectionRect(to: point)
-            }
         }
 
         private func showSelectionCopyMenu(with event: NSEvent) {

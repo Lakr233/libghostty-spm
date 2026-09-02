@@ -40,9 +40,9 @@ struct TerminalViewRepresentable {
             view.controller = controller
         }
 
-        if !view.configuration.isEquivalent(to: configuration) {
-            view.configuration = configuration
-        }
+        // Unconditional: the coordinator's didSet gates rebuilds on
+        // isEquivalent, which ignores resizeThrottleMilliseconds on purpose.
+        view.configuration = configuration
 
         // Forward only changes: stamping unconditionally would revert an
         // imperative `setSurfaceVisible` call on every SwiftUI update and

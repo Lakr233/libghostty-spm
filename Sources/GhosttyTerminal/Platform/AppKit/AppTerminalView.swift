@@ -109,35 +109,14 @@
             }
         }
 
+        // Upstream's rule: Copy is offered whenever ghostty has a selection.
+        // A cached drag rect went stale on scroll and select_all, and the
+        // quicklook-word test misses whitespace inside a selection.
         open func selectionMenuPoint(at point: CGPoint) -> CGPoint? {
             guard surface?.hasSelection() == true else {
                 TerminalDebugLog.log(
                     .input,
                     "selection menu miss point=\(selectionPointDescription(point))"
-                )
-                return nil
-            }
-
-            if let rect = pointer.lastSelectionRect {
-                guard rect.insetBy(dx: -4, dy: -4).contains(point) else {
-                    TerminalDebugLog.log(
-                        .input,
-                        "selection menu miss point=\(selectionPointDescription(point)) outside pointer selection"
-                    )
-                    return nil
-                }
-
-                TerminalDebugLog.log(
-                    .input,
-                    "selection menu hit point=\(selectionPointDescription(point)) inside pointer selection"
-                )
-                return point
-            }
-
-            guard surface?.selectionContainsQuicklookWord() == true else {
-                TerminalDebugLog.log(
-                    .input,
-                    "selection menu miss point=\(selectionPointDescription(point)) outside quicklook word"
                 )
                 return nil
             }
