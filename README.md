@@ -9,9 +9,7 @@ Swift Package wrapping [Ghostty](https://ghostty.org)'s terminal emulator librar
 - macOS 13+
 - iOS 15+
 - Mac Catalyst 15+
-- visionOS 1+ (`GhosttyTerminal` is the iOS view: touch, pointer, and
-  hardware keyboard work; there is no input accessory bar, no haptics, and
-  no `UIScreen`-derived scale — see the `#if os(visionOS)` guards)
+- visionOS 1+
 
 ## Products
 
@@ -26,7 +24,7 @@ Swift Package wrapping [Ghostty](https://ghostty.org)'s terminal emulator librar
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/Lakr233/libghostty-spm.git", from: "1.5.1"),
+    .package(url: "https://github.com/Lakr233/libghostty-spm.git", from: "1.5.2"),
 ]
 ```
 
@@ -236,8 +234,8 @@ per-checkout SDK overlay on PATH that fixes that for the shell.
 
 ## Versions
 
-Pin `1.5.1` or later (`from: "1.5.1"`). The `1.4.0` … `1.4.13` and `1.5.0`
-tags and releases were withdrawn and no longer exist, so `1.5.1` is the
+Pin `1.5.2` or later (`from: "1.5.2"`). The `1.4.0` … `1.4.13` and `1.5.0`
+tags and releases were withdrawn and no longer exist; `1.5.1` is the
 oldest live tag on this track and the first with visionOS slices. Package
 versions are independent of Ghostty's own version — every release so far ships Ghostty
 v1.3.1 (`Ghostty.version`; `Ghostty.ref` pins its commit). Package tags are
