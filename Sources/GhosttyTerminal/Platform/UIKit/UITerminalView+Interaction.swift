@@ -245,8 +245,7 @@
             let mods = ghostty_input_mods_e(rawValue: 0)
             let location = touch.location(in: self)
             let suppressSurfacePositionForSelectionMenu =
-                button == GHOSTTY_MOUSE_RIGHT &&
-                (pointer.pendingSelectionMenuPoint != nil || pointIsInsidePointerSelection(location))
+                button == GHOSTTY_MOUSE_RIGHT && pointer.pendingSelectionMenuPoint != nil
             TerminalDebugLog.log(
                 .input,
                 "pointer touch phase=\(phase) type=\(touch.type.rawValue) button=\(button.rawValue) location=\(NSCoder.string(for: location)) mask=\(event?.buttonMask.rawValue ?? 0)"
@@ -273,11 +272,7 @@
                     )
 
                 case GHOSTTY_MOUSE_RIGHT:
-                    if pointIsInsidePointerSelection(location) {
-                        pointer.pendingSelectionMenuPoint = location
-                    } else {
-                        pointer.pendingSelectionMenuPoint = selectionMenuPoint(at: location)
-                    }
+                    pointer.pendingSelectionMenuPoint = selectionMenuPoint(at: location)
 
                 default:
                     surface?.sendMouseButton(
@@ -288,7 +283,9 @@
                 }
 
             case .moved:
-                updatePointerSelectionRect(to: location)
+                if pointer.activeButton == GHOSTTY_MOUSE_LEFT {
+                    updatePointerSelectionRect(to: location)
+                }
 
             case .ended:
                 let releasedButton = pointer.activeButton ?? button
@@ -350,9 +347,7 @@
         }
 
         func updatePointerSelectionRect(to point: CGPoint) {
-            guard pointer.activeButton == GHOSTTY_MOUSE_LEFT,
-                  let start = pointer.selectionStartPoint
-            else { return }
+            guard let start = pointer.selectionStartPoint else { return }
 
             pointer.lastSelectionRect = CGRect(
                 x: min(start.x, point.x),
@@ -465,12 +460,6 @@
             return super.canPerformAction(action, withSender: sender)
         }
 
-        func pointIsInsidePointerSelection(_ point: CGPoint) -> Bool {
-            pointer.lastSelectionRect.map {
-                $0.insetBy(dx: -4, dy: -4).contains(point)
-            } ?? false
-        }
-
         #if !targetEnvironment(macCatalyst)
             func setupTouchScrollInput() {
                 let gesture = UIPanGestureRecognizer(
@@ -495,7 +484,6 @@
                 addGestureRecognizer(longPress)
 
                 setupIndirectPointerSelectionGesture()
-                fontZoom.currentFontSize = configuration.fontSize ?? 14
                 setupPinchZoomGesture()
             }
 
@@ -562,7 +550,6 @@
 
                 case .ended:
                     pointer.activeButton = nil
-                    updatePointerSelectionRect(to: location)
                     surface?.sendMousePos(x: location.x, y: location.y, mods: mods)
                     surface?.sendMouseButton(
                         state: GHOSTTY_MOUSE_RELEASE,
@@ -638,19 +625,11 @@
 
                 var anchorRange: NSRange?
                 if let w = wordResult, !text.isEmpty, let size = surface.size() {
-                    let scale = Double(resolvedDisplayScale())
-                    // cellWidth/HeightPixels are surface pixels; ghostty's
-                    // tl_px_x/y are host points. Convert to points before
-                    // dividing so units match inside resolveRange.
-                    let cellWidthPoints = scale > 0 ? Double(size.cellWidthPixels) / scale : 0
-                    let cellHeightPoints = scale > 0 ? Double(size.cellHeightPixels) / scale : 0
                     anchorRange = TerminalSelectionAnchor.resolveRange(
                         in: text,
                         word: w.word,
-                        pointX: w.pointX,
-                        pointY: w.pointY,
-                        cellWidthPoints: cellWidthPoints,
-                        cellHeightPoints: cellHeightPoints
+                        offsetStart: w.offsetStart,
+                        columns: UInt32(size.columns)
                     )
                 }
 
@@ -739,10 +718,12 @@
 
         @objc func momentumScrollFrame(_ link: CADisplayLink) {
             let dt = link.targetTimestamp - link.timestamp
-            let deceleration: CGFloat = 0.92
+            // 0.92 per 1/60 s, scaled to the frame so a flick travels the
+            // same distance at 120 Hz as at 60 Hz.
+            let decay = CGFloat(pow(0.92, dt * 60))
 
-            momentumScroll.velocity.x *= deceleration
-            momentumScroll.velocity.y *= deceleration
+            momentumScroll.velocity.x *= decay
+            momentumScroll.velocity.y *= decay
 
             let deltaX = momentumScroll.velocity.x * dt * Self.touchScrollMultiplier
             let deltaY = momentumScroll.velocity.y * dt * Self.touchScrollMultiplier

@@ -2,13 +2,11 @@ import Foundation
 @testable import GhosttyTerminal
 import Testing
 
-// All test cases use host-point units. cellWidthPoints = 10, cellHeightPoints = 20
-// unless otherwise noted. The function's contract is "pointX / cellWidthPoints
-// = expected cell column" — that identity holds regardless of physical device
-// scale, so callers passing host points consistently get correct results on
-// @1x/2x/3x devices alike. A caller passing surface pixels without dividing
-// by displayScale would compute the wrong expectedColumn — that's a caller
-// bug, not a function bug. See plan §1 and §10审 for the unit contract.
+// The anchor is ghostty's `offset_start`, the word's first cell as a linear
+// index into the viewport grid (`row * columns + column`), together with the
+// grid width. Both are cell counts: window padding, the font baseline and
+// the display scale never enter, which is why the pixel variant below is only
+// exercised for its input guards. An 80-column grid unless noted.
 
 struct TerminalSelectionAnchorTests {
     @Test
@@ -16,8 +14,7 @@ struct TerminalSelectionAnchorTests {
         let range = TerminalSelectionAnchor.resolveRange(
             in: "hello world",
             word: "world",
-            pointX: 60, pointY: 0,
-            cellWidthPoints: 10, cellHeightPoints: 20
+            offsetStart: 6, columns: 80
         )
         #expect(range == NSRange(location: 6, length: 5))
     }
@@ -27,8 +24,7 @@ struct TerminalSelectionAnchorTests {
         let range = TerminalSelectionAnchor.resolveRange(
             in: "aaa\nbbb\nworld",
             word: "world",
-            pointX: 0, pointY: 40,
-            cellWidthPoints: 10, cellHeightPoints: 20
+            offsetStart: 2 * 80, columns: 80
         )
         #expect(range == NSRange(location: 8, length: 5))
     }
@@ -38,8 +34,7 @@ struct TerminalSelectionAnchorTests {
         let range = TerminalSelectionAnchor.resolveRange(
             in: "foo\nfoo\nfoo",
             word: "foo",
-            pointX: 0, pointY: 20,
-            cellWidthPoints: 10, cellHeightPoints: 20
+            offsetStart: 1 * 80, columns: 80
         )
         #expect(range == NSRange(location: 4, length: 3))
     }
@@ -49,10 +44,36 @@ struct TerminalSelectionAnchorTests {
         let range = TerminalSelectionAnchor.resolveRange(
             in: "\n\nhello",
             word: "hello",
-            pointX: 0, pointY: 40,
-            cellWidthPoints: 10, cellHeightPoints: 20
+            offsetStart: 2 * 80, columns: 80
         )
         #expect(range == NSRange(location: 2, length: 5))
+    }
+
+    @Test
+    func `offset in the middle of a row maps to that row and column`() {
+        // Row 2, column 37 in an 80-column grid, with the same word earlier
+        // on the row and the snapshot lines far shorter than the grid: the
+        // row comes from the grid width, the pick from the column.
+        let row2 = "   cat" + String(repeating: " ", count: 31) + "cat"
+        let text = "row0\nrow1\n" + row2
+        let range = TerminalSelectionAnchor.resolveRange(
+            in: text,
+            word: "cat",
+            offsetStart: 2 * 80 + 37, columns: 80
+        )
+        #expect(range == NSRange(location: 10 + 37, length: 3))
+    }
+
+    @Test
+    func `row follows the grid width, not the line length`() {
+        // A 10-column grid: offset 10 is the first cell of row 1 even though
+        // row 0 is shorter than the grid.
+        let range = TerminalSelectionAnchor.resolveRange(
+            in: "ab\nabc",
+            word: "abc",
+            offsetStart: 10, columns: 10
+        )
+        #expect(range == NSRange(location: 3, length: 3))
     }
 
     @Test
@@ -60,8 +81,7 @@ struct TerminalSelectionAnchorTests {
         let range = TerminalSelectionAnchor.resolveRange(
             in: "abc",
             word: "xyz",
-            pointX: 0, pointY: 0,
-            cellWidthPoints: 10, cellHeightPoints: 20
+            offsetStart: 0, columns: 80
         )
         #expect(range == nil)
     }
@@ -71,8 +91,17 @@ struct TerminalSelectionAnchorTests {
         let range = TerminalSelectionAnchor.resolveRange(
             in: "abc",
             word: "abc",
-            pointX: 0, pointY: 100,
-            cellWidthPoints: 10, cellHeightPoints: 20
+            offsetStart: 5 * 80, columns: 80
+        )
+        #expect(range == nil)
+    }
+
+    @Test
+    func `zero columns returns nil`() {
+        let range = TerminalSelectionAnchor.resolveRange(
+            in: "abc",
+            word: "abc",
+            offsetStart: 0, columns: 0
         )
         #expect(range == nil)
     }
@@ -83,8 +112,7 @@ struct TerminalSelectionAnchorTests {
         let range = TerminalSelectionAnchor.resolveRange(
             in: text,
             word: "👋",
-            pointX: 30, pointY: 0,
-            cellWidthPoints: 10, cellHeightPoints: 20
+            offsetStart: 3, columns: 80
         )
         let nsText = text as NSString
         #expect(range != nil)
@@ -99,76 +127,40 @@ struct TerminalSelectionAnchorTests {
         let range = TerminalSelectionAnchor.resolveRange(
             in: "你好 world",
             word: "你好",
-            pointX: 0, pointY: 0,
-            cellWidthPoints: 10, cellHeightPoints: 20
+            offsetStart: 0, columns: 80
         )
         #expect(range == NSRange(location: 0, length: 2))
-    }
-
-    @Test
-    func `zero cell dimensions`() {
-        let r1 = TerminalSelectionAnchor.resolveRange(
-            in: "abc", word: "abc",
-            pointX: 0, pointY: 0,
-            cellWidthPoints: 0, cellHeightPoints: 20
-        )
-        let r2 = TerminalSelectionAnchor.resolveRange(
-            in: "abc", word: "abc",
-            pointX: 0, pointY: 0,
-            cellWidthPoints: 10, cellHeightPoints: 0
-        )
-        #expect(r1 == nil)
-        #expect(r2 == nil)
     }
 
     @Test
     func `empty word`() {
         let range = TerminalSelectionAnchor.resolveRange(
             in: "abc", word: "",
-            pointX: 0, pointY: 0,
-            cellWidthPoints: 10, cellHeightPoints: 20
+            offsetStart: 0, columns: 80
         )
         #expect(range == nil)
     }
 
     @Test
-    func `negative coordinates`() {
-        let r1 = TerminalSelectionAnchor.resolveRange(
-            in: "abc", word: "abc",
-            pointX: -1, pointY: 0,
-            cellWidthPoints: 10, cellHeightPoints: 20
-        )
-        let r2 = TerminalSelectionAnchor.resolveRange(
-            in: "abc", word: "abc",
-            pointX: 0, pointY: -1,
-            cellWidthPoints: 10, cellHeightPoints: 20
-        )
-        #expect(r1 == nil)
-        #expect(r2 == nil)
-    }
-
-    @Test
-    func `substring disambiguation by point X`() {
+    func `substring disambiguation by column`() {
         // `catalog cat` long-pressed at the end `cat` (column 8) — must pick
         // the standalone `cat` at location 8, not the prefix inside `catalog`
         // at location 0. literals at {0, 8}, expectedColumn=8 → 8.
         let range = TerminalSelectionAnchor.resolveRange(
             in: "catalog cat",
             word: "cat",
-            pointX: 80, pointY: 0,
-            cellWidthPoints: 10, cellHeightPoints: 20
+            offsetStart: 8, columns: 80
         )
         #expect(range == NSRange(location: 8, length: 3))
     }
 
     @Test
-    func `triple repeat picked by point X`() {
+    func `triple repeat picked by column`() {
         // literals at {0, 4, 8}, expectedColumn=8 → 8.
         let range = TerminalSelectionAnchor.resolveRange(
             in: "cat cat cat",
             word: "cat",
-            pointX: 80, pointY: 0,
-            cellWidthPoints: 10, cellHeightPoints: 20
+            offsetStart: 8, columns: 80
         )
         #expect(range == NSRange(location: 8, length: 3))
     }
@@ -179,8 +171,7 @@ struct TerminalSelectionAnchorTests {
         let range = TerminalSelectionAnchor.resolveRange(
             in: "see /usr/local /usr/local",
             word: "/usr/local",
-            pointX: 150, pointY: 0,
-            cellWidthPoints: 10, cellHeightPoints: 20
+            offsetStart: 15, columns: 80
         )
         #expect(range == NSRange(location: 15, length: 10))
     }
@@ -191,31 +182,8 @@ struct TerminalSelectionAnchorTests {
         let range = TerminalSelectionAnchor.resolveRange(
             in: "x/foo /foo",
             word: "/foo",
-            pointX: 60, pointY: 0,
-            cellWidthPoints: 10, cellHeightPoints: 20
+            offsetStart: 6, columns: 80
         )
         #expect(range == NSRange(location: 6, length: 4))
-    }
-
-    @Test
-    func `nan and infinity guarded`() {
-        let r1 = TerminalSelectionAnchor.resolveRange(
-            in: "abc", word: "abc",
-            pointX: .nan, pointY: 0,
-            cellWidthPoints: 10, cellHeightPoints: 20
-        )
-        let r2 = TerminalSelectionAnchor.resolveRange(
-            in: "abc", word: "abc",
-            pointX: .infinity, pointY: 0,
-            cellWidthPoints: 10, cellHeightPoints: 20
-        )
-        let r3 = TerminalSelectionAnchor.resolveRange(
-            in: "abc", word: "abc",
-            pointX: 0, pointY: 0,
-            cellWidthPoints: .nan, cellHeightPoints: 20
-        )
-        #expect(r1 == nil)
-        #expect(r2 == nil)
-        #expect(r3 == nil)
     }
 }

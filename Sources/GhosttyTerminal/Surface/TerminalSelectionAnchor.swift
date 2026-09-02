@@ -6,24 +6,23 @@
 import Foundation
 
 enum TerminalSelectionAnchor {
-    /// Map a quicklook word + its top-left host-point coordinate back into
-    /// an `NSRange` inside the viewport text snapshot, suitable for direct
-    /// assignment to `UITextView.selectedRange`.
+    /// Map a quicklook word back into an `NSRange` inside the viewport text
+    /// snapshot, suitable for direct assignment to
+    /// `UITextView.selectedRange`.
     ///
-    /// Strategy: derive `row` from `pointY / cellHeightPoints`; collect every
-    /// literal occurrence of `word` in that row; then use
-    /// `pointX / cellWidthPoints` as the expected UTF-16 column and pick the
-    /// match whose `location` is closest. This resolves substring ambiguity
-    /// (e.g. `catalog cat` long-pressed at the end picks the standalone
-    /// `cat`, not the prefix of `catalog`) without depending on word
-    /// boundaries — which would fail for tokens like `/foo` whose first
-    /// character is a non-word character.
+    /// `offsetStart` is ghostty's `ghostty_text_s.offset_start`: the word's
+    /// first cell as a linear index into the viewport grid
+    /// (`row * columns + column`, Surface.zig `dumpTextLocked`), and `columns`
+    /// is the grid width from `TerminalSurface.size()`. Both are cell counts,
+    /// so window padding, the text baseline and the display scale never enter.
     ///
-    /// Units: `pointX/Y` and `cellWidth/HeightPoints` must all be host
-    /// points (not surface pixels). Callers are responsible for converting
-    /// `cellPixels / displayScale → points` before invoking. Ghostty's
-    /// embedded API returns `tl_px_x/y` in host points, so passing them
-    /// through unchanged is correct.
+    /// Strategy: derive `row` and the expected UTF-16 column from the offset;
+    /// collect every literal occurrence of `word` in that row and pick the
+    /// match whose `location` is closest to the column. This resolves
+    /// substring ambiguity (e.g. `catalog cat` long-pressed at the end picks
+    /// the standalone `cat`, not the prefix of `catalog`) without depending
+    /// on word boundaries — which would fail for tokens like `/foo` whose
+    /// first character is a non-word character.
     ///
     /// Known limitation: when the target row contains CJK full-width
     /// characters before the match, cell columns and UTF-16 offsets diverge
@@ -32,26 +31,25 @@ enum TerminalSelectionAnchor {
     static func resolveRange(
         in text: String,
         word: String,
-        pointX: Double,
-        pointY: Double,
-        cellWidthPoints: Double,
-        cellHeightPoints: Double
+        offsetStart: UInt32,
+        columns: UInt32
+    ) -> NSRange? {
+        guard columns > 0 else { return nil }
+        return resolveRange(
+            in: text,
+            word: word,
+            row: Int(offsetStart / columns),
+            expectedColumnUTF16: Int(offsetStart % columns)
+        )
+    }
+
+    private static func resolveRange(
+        in text: String,
+        word: String,
+        row: Int,
+        expectedColumnUTF16: Int
     ) -> NSRange? {
         guard !word.isEmpty else { return nil }
-        guard pointX.isFinite, pointY.isFinite,
-              cellWidthPoints.isFinite, cellHeightPoints.isFinite
-        else { return nil }
-        guard cellWidthPoints > 0, cellHeightPoints > 0 else { return nil }
-        guard pointX >= 0, pointY >= 0 else { return nil }
-
-        let rowDouble = pointY / cellHeightPoints
-        let columnDouble = pointX / cellWidthPoints
-        guard rowDouble.isFinite, columnDouble.isFinite,
-              rowDouble < Double(Int.max), columnDouble < Double(Int.max)
-        else { return nil }
-
-        let row = Int(rowDouble)
-        let expectedColumnUTF16 = Int(columnDouble)
 
         let nsText = text as NSString
         let lines = nsText.components(separatedBy: "\n")
