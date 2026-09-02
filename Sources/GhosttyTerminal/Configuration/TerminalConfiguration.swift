@@ -5,6 +5,8 @@
 //  Created by Lakr233 on 2026/3/17.
 //
 
+import Foundation
+
 public enum TerminalCursorStyle: String, Sendable, Hashable {
     case block
     case bar
@@ -51,7 +53,7 @@ public enum TerminalConfigCommand: Sendable, Hashable {
             "font-family = \(value)"
 
         case let .fontSize(value):
-            "font-size = \(value.formatted(.number.precision(.fractionLength(0 ... 2))))"
+            "font-size = \(configLiteral(value, maximumFractionDigits: 2))"
 
         case let .fontThicken(enabled):
             "font-thicken = \(enabled)"
@@ -72,7 +74,7 @@ public enum TerminalConfigCommand: Sendable, Hashable {
             "cursor-text = \(value)"
 
         case let .cursorOpacity(value):
-            "cursor-opacity = \(value.formatted(.number.precision(.fractionLength(0 ... 3))))"
+            "cursor-opacity = \(configLiteral(value, maximumFractionDigits: 3))"
 
         case let .background(value):
             "background = \(value)"
@@ -93,10 +95,10 @@ public enum TerminalConfigCommand: Sendable, Hashable {
             "palette = \(index)=\(color)"
 
         case let .minimumContrast(value):
-            "minimum-contrast = \(value.formatted(.number.precision(.fractionLength(0 ... 2))))"
+            "minimum-contrast = \(configLiteral(value, maximumFractionDigits: 2))"
 
         case let .backgroundOpacity(value):
-            "background-opacity = \(value.formatted(.number.precision(.fractionLength(0 ... 3))))"
+            "background-opacity = \(configLiteral(value, maximumFractionDigits: 3))"
 
         case let .backgroundBlur(value):
             "background-blur = \(value)"
@@ -110,6 +112,20 @@ public enum TerminalConfigCommand: Sendable, Hashable {
         case let .custom(key, value):
             "\(key) = \(value)"
         }
+    }
+
+    // ghostty parses the value with std.fmt.parseFloat, which accepts only a
+    // `.` separator and ASCII digits; the default style follows the device
+    // region (`13,5` in de_DE, `١٤` in ar_EG) and the whole config is rejected.
+    private func configLiteral<Value: BinaryFloatingPoint>(
+        _ value: Value,
+        maximumFractionDigits: Int
+    ) -> String {
+        value.formatted(
+            FloatingPointFormatStyle<Value>(locale: Locale(identifier: "en_US_POSIX"))
+                .precision(.fractionLength(0 ... maximumFractionDigits))
+                .grouping(.never)
+        )
     }
 }
 

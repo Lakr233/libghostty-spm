@@ -26,6 +26,30 @@ struct TerminalThemeConfigurationTests {
     }
 
     @Test
+    func `float values render with a POSIX decimal point regardless of locale`() {
+        let german = Locale(identifier: "de_DE")
+        #expect(Float(13.5).formatted(.number.locale(german)) == "13,5")
+        #expect(Double(0.82).formatted(.number.locale(german)) == "0,82")
+
+        let rendered = TerminalConfiguration()
+            .fontSize(13.5)
+            .cursorOpacity(0.75)
+            .minimumContrast(1.1)
+            .backgroundOpacity(0.82)
+            .rendered
+
+        #expect(
+            rendered
+                == """
+                font-size = 13.5
+                cursor-opacity = 0.75
+                minimum-contrast = 1.1
+                background-opacity = 0.82
+                """
+        )
+    }
+
+    @Test
     func `rendered config composes base behavior and theme`() {
         let state = TerminalViewState(
             configSource: .generated(
