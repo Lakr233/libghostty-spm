@@ -83,6 +83,9 @@ if [ ! -d "$SOURCE_DIR" ]; then
     echo "[*] Ghostty source not found, cloning into $SOURCE_DIR…"
     mkdir -p "$(dirname "$SOURCE_DIR")"
     git clone https://github.com/ghostty-org/ghostty "$SOURCE_DIR"
+    if [ -z "$GHOSTTY_REF" ]; then
+        GHOSTTY_REF=$(tr -d '[:space:]' < Ghostty.ref)
+    fi
 fi
 
 if [ -n "$GHOSTTY_REF" ]; then
@@ -123,6 +126,10 @@ if [ -n "$DOWNLOAD_URL" ]; then
 fi
 
 if [ "$SKIP_TESTS" -eq 0 ]; then
+    saved_manifest=$(mktemp)
+    cp Package.swift "$saved_manifest"
+    trap 'cp "$saved_manifest" Package.swift; rm -f "$saved_manifest"' EXIT
+    cp Package.local.swift Package.swift
     ./Script/test.sh
     swift test
 fi

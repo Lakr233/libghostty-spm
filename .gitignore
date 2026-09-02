@@ -8,7 +8,6 @@ binpack*
 BinaryTarget/
 
 # Xcode
-*.xcodeproj
 xcuserdata/
 *.xcuserstate
 .swiftpm/

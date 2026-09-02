@@ -27,36 +27,25 @@ if [ ! -d "$PATCH_DIR" ]; then
     exit 0
 fi
 
+if ! command -v git >/dev/null 2>&1; then
+    echo "[-] git not found. The patch stack carries git binary patches that patch(1) cannot apply."
+    exit 1
+fi
+
 apply_unified_patch() {
     local patch_file="$1"
 
-    if [ -d "$SOURCE_DIR/.git" ] && command -v git >/dev/null 2>&1; then
-        if git -C "$SOURCE_DIR" apply --check --reverse "$patch_file" >/dev/null 2>&1; then
-            echo "[+] patch already applied: $(basename "$patch_file")"
-            return
-        fi
-
-        if ! git -C "$SOURCE_DIR" apply --check "$patch_file" >/dev/null 2>&1; then
-            echo "[-] failed to validate patch: $patch_file"
-            exit 1
-        fi
-
-        git -C "$SOURCE_DIR" apply "$patch_file"
-        echo "[+] applied patch: $(basename "$patch_file")"
-        return
-    fi
-
-    if patch -p1 -R --dry-run -d "$SOURCE_DIR" <"$patch_file" >/dev/null 2>&1; then
+    if git -C "$SOURCE_DIR" apply --check --reverse "$patch_file" >/dev/null 2>&1; then
         echo "[+] patch already applied: $(basename "$patch_file")"
         return
     fi
 
-    if ! patch -p1 --dry-run -d "$SOURCE_DIR" <"$patch_file" >/dev/null 2>&1; then
+    if ! git -C "$SOURCE_DIR" apply --check "$patch_file" >/dev/null 2>&1; then
         echo "[-] failed to validate patch: $patch_file"
         exit 1
     fi
 
-    patch -p1 -d "$SOURCE_DIR" <"$patch_file" >/dev/null
+    git -C "$SOURCE_DIR" apply "$patch_file"
     echo "[+] applied patch: $(basename "$patch_file")"
 }
 

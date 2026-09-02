@@ -8,6 +8,7 @@ on:
       - .github/workflows/source-build.yml
       - Ghostty.ref
       - Patches/**
+      - Script/apply-patches.sh
       - Script/build-ghostty.sh
       - Script/prepare-zig-lib.sh
       - Script/support/**
