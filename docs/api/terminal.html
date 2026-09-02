@@ -40,9 +40,18 @@
 </nav>
 
 <h2 id="TerminalViewState">TerminalViewState</h2>
-<p>Main SwiftUI state container. Available on iOS 15, macOS 13, and Mac Catalyst 15.</p>
+<p>Main SwiftUI state container. Available on iOS 15, macOS 13, Mac Catalyst 15, and visionOS 1.</p>
 <pre><code class="language-swift">@MainActor
 public final class TerminalViewState: ObservableObject {
+    public convenience init()
+    public convenience init(configFilePath: String?)
+    public init(
+        configSource: TerminalController.ConfigSource = .none,
+        theme: TerminalTheme = .default,
+        terminalConfiguration: TerminalConfiguration = .init()
+    )
+    public init(controller: TerminalController)
+
     @Published public internal(set) var title: String { get }
     @Published public internal(set) var surfaceSize: TerminalGridMetrics? { get }
     @Published public internal(set) var isFocused: Bool { get }
@@ -54,11 +63,33 @@ public final class TerminalViewState: ObservableObject {
     @Published public internal(set) var workingDirectory: String? { get }
     @Published public internal(set) var lastCommandExitCode: Int? { get }
     @Published public internal(set) var lastCommandDurationNanos: UInt64? { get }
+    @Published public internal(set) var scrollbar: TerminalScrollbar? { get }
     public internal(set) weak var surface: TerminalSurface? { get }
 
     @Published public var configuration: TerminalSurfaceOptions
+    /// False stops rendering for a surface kept mounted but hidden; the
+    /// grid, scrollback, and session are kept.
+    @Published public var isSurfaceVisible: Bool
     public var onClose: ((Bool) -&gt; Void)?
     @Published public internal(set) var controller: TerminalController { get }
+
+    /// The platform view presenting this state; nil while none does.
+    public var attachedPlatformView: TerminalView? { get }
+    /// Factory for a TerminalView subclass; read once, when the surface
+    /// view is made.
+    public var makePlatformView: (@MainActor () -&gt; TerminalView)?
+    #if canImport(UIKit)
+    #if !targetEnvironment(macCatalyst)
+    /// nil shows TerminalInputAccessoryItem.defaultItems; [] hides the bar.
+    @Published public var inputAccessoryItems: [TerminalInputAccessoryItem]?
+    #endif
+    #endif
+
+    /// Opt-in for the iOS long-press text-selection flow.
+    public var onTextSelectionRequest: ((TerminalTextSelectionRequest) -&gt; Void)?
+    /// Presents OSC 52 reads/writes and flagged pastes; nil denies a
+    /// program's request silently and allows a user paste.
+    public var onClipboardConfirmationRequest: ((TerminalClipboardConfirmationRequest) -&gt; Void)?
 
     public var renderedConfig: String { get }
     public var effectiveColorScheme: TerminalColorScheme { get }
@@ -70,6 +101,10 @@ public final class TerminalViewState: ObservableObject {
     public func sendKey(_ key: TerminalKey, modifiers: TerminalInputModifiers = []) -&gt; Bool
     @available(*, deprecated, renamed: "paste(text:)")
     public func send(_ text: String) -&gt; Bool
+    public func requestFocus()
+    public func performBindingAction(_ action: String) -&gt; Bool
+    public func jumpToPrompt(by offset: Int16) -&gt; Bool
+    public func scrollToRow(_ row: UInt) -&gt; Bool
     public func adopt(colorScheme: ColorScheme)
     public func adopt(terminalColorScheme colorScheme: TerminalColorScheme)
     public func setTheme(_ theme: TerminalTheme) -&gt; Bool
@@ -108,6 +143,26 @@ public final class TerminalController {
     public private(set) var effectiveColorScheme: TerminalColorScheme { get }
     public internal(set) var lastConfigurationIssue: String? { get }
 
+    public static let shared: TerminalController
+
+    /// The default configuration.
+    public convenience init()
+    /// A fully custom configuration, rendered as the config source.
+    public convenience init(
+        configuration: TerminalConfiguration,
+        theme: TerminalTheme = .default
+    )
+    /// Commands composed on top of the default configuration.
+    public convenience init(
+        theme: TerminalTheme = .default,
+        configure: (inout TerminalConfiguration.Builder) -&gt; Void
+    )
+    /// Loads the configuration from a file; nil means no file.
+    public convenience init(
+        configFilePath: String?,
+        theme: TerminalTheme = .default
+    )
+    /// Low-level initialiser for full control over the config source.
     public init(
         configSource: ConfigSource = .none,
         theme: TerminalTheme = .default,

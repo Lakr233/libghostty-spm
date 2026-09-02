@@ -78,8 +78,9 @@ terminalView.sendKey(.c, modifiers: .ctrl)
 
 <h2 id="ios-input">iOS input</h2>
 <p><code>UITerminalView</code> conforms to <code>UITextInput</code>. Hardware keys enter through <code>pressesBegan</code>, software keyboard text enters through <code>insertText</code>, and marked text flows through the shared IME handler.</p>
-<p>On iOS, the input accessory bar provides Esc, Tab, arrows, symbols, Paste, and sticky Ctrl/Alt/Cmd modifiers. Configure colors through <code>inputAccessoryStyle</code>.</p>
+<p>On iOS, the input accessory bar provides Esc, Tab, arrows, symbols, Paste, and sticky Ctrl/Alt/Cmd modifiers. Configure colors through <code>inputAccessoryStyle</code>. The bar and its members exist on iOS only — not on Mac Catalyst, which imports UIKit too — so a target that also builds for Catalyst nests the exclusion inside the UIKit guard.</p>
 <pre><code class="language-swift">#if canImport(UIKit)
+#if !targetEnvironment(macCatalyst)
 terminalView.inputAccessoryStyle = .init(
     regularBackground: .secondarySystemBackground,
     regularForeground: .label,
@@ -87,14 +88,18 @@ terminalView.inputAccessoryStyle = .init(
     activeForeground: .systemBackground
 )
 #endif
+#endif
 </code></pre>
 <p>Hosts with a custom keyboard bar can hide the bundled accessory and drive sticky modifiers through the public sticky APIs.</p>
 <pre><code class="language-swift">#if canImport(UIKit)
+#if !targetEnvironment(macCatalyst)
 terminalView.inputAccessoryItems = []
+#endif
 #endif
 </code></pre>
 <p>The default button list is available as <code>TerminalInputAccessoryItem.defaultItems</code>. Hosts can provide a smaller list while keeping the bundled bar styling and key dispatch behavior.</p>
 <pre><code class="language-swift">#if canImport(UIKit)
+#if !targetEnvironment(macCatalyst)
 terminalView.inputAccessoryItems = [
     .esc,
     .ctrl,
@@ -106,6 +111,7 @@ terminalView.inputAccessoryItems = [
     .arrowRight,
     .paste,
 ]
+#endif
 #endif
 </code></pre>
 

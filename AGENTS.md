@@ -169,9 +169,12 @@ Two omissions keep the noise down:
 - An **empty branch is omitted**, never written out. An empty
   `#elseif canImport(AppKit)` is dropped; an empty leading UIKit branch
   becomes `#if !canImport(UIKit) && canImport(AppKit)`.
-- **No file carries an `#else` / `#error` arm.** The unsupported-platform
-  assertion lives once, in `Platform/PlatformSupport.swift`, and every other
-  file simply compiles to nothing there.
+- **No `canImport` chain carries an `#else` / `#error` arm.** The
+  unsupported-platform assertion lives once, in
+  `Platform/PlatformSupport.swift`, and every other file simply compiles to
+  nothing there. A nested `targetEnvironment(macCatalyst)`, `os(visionOS)`,
+  or `os(iOS)` check may have an `#else`; that is a branch within a
+  platform, not a platform fallback.
 
 Swift spells the middle branch **`#elseif`**. C's `#elif` parses as an
 expression and fails with "consecutive statements on a line must be separated
@@ -423,7 +426,7 @@ write-clipboard callback for `.osc52Write`; tests in
 
 ### iOS Long-Press Text Selection
 
-Long-press ≥0.5s on `UITerminalView` (single-finger direct touch, iOS only — Catalyst excluded; `handleLongPressForSelection` in `+Interaction`) triggers `TerminalSurfaceTextSelectionRequestDelegate.terminalDidRequestTextSelection(_:)`. The host receives a `TerminalTextSelectionRequest` (`text`: viewport snapshot, `anchorRange`: UTF-16 `NSRange?` for pre-selection, `sourcePoint`) and is expected to present a host UI (e.g. UITextView sheet). Word detection uses `ghostty_surface_quicklook_word` via `surface.quicklookWord()` (Apple-only); `TerminalSelectionAnchor.resolveRange` (`Surface/`) maps the result to an `NSRange` via NSString UTF-16 calculations. Same-row duplicate occurrences are disambiguated by `pointX / cellWidthPoints`; callers must convert `cellPixels / displayScale → points` so ghostty's `tl_px_x/y` host-point units match. Prefix CJK full-width characters can shift cell-vs-UTF-16 columns and degrade disambiguation (ASCII-only correct, best-effort otherwise). The recognizer is gated by `gestureRecognizerShouldBegin` to stay inactive when no host has opted in: the delegate must adopt the protocol, and for a `TerminalViewState` delegate (which adopts it unconditionally) `onTextSelectionRequest` must be set (`activeTextSelectionDelegate`). Only the `inMemory` backend is supported — the snapshot comes from `InMemoryTerminalSession.readViewportText()`, and any other backend logs and returns.
+Long-press ≥0.5s on `UITerminalView` (single-finger direct touch, iOS only — Catalyst excluded; `handleLongPressForSelection` in `+Interaction`) triggers `TerminalSurfaceTextSelectionRequestDelegate.terminalDidRequestTextSelection(_:)`. The host receives a `TerminalTextSelectionRequest` (`text`: viewport snapshot, `anchorRange`: UTF-16 `NSRange?` for pre-selection, `sourcePoint`) and is expected to present a host UI (e.g. UITextView sheet). Word detection uses `ghostty_surface_quicklook_word` via `surface.quicklookWord()` (Apple-only); `TerminalSelectionAnchor.resolveRange` (`Surface/`) maps the result to an `NSRange` via NSString UTF-16 calculations from the word's `offsetStart` (ghostty's linear viewport cell index, `row * columns + column`) and `surface.size().columns`; same-row duplicate occurrences are disambiguated by that column. The `tl_px_x/y` fields are not used: `tl_px_y` is the row's text baseline plus the top window padding, not the cell top, so dividing it by the cell height lands one row low once the padding exceeds the baseline offset. Prefix CJK full-width characters can shift cell-vs-UTF-16 columns and degrade disambiguation (ASCII-only correct, best-effort otherwise). The recognizer is gated by `gestureRecognizerShouldBegin` to stay inactive when no host has opted in: the delegate must adopt the protocol, and for a `TerminalViewState` delegate (which adopts it unconditionally) `onTextSelectionRequest` must be set (`activeTextSelectionDelegate`). Only the `inMemory` backend is supported — the snapshot comes from `InMemoryTerminalSession.readViewportText()`, and any other backend logs and returns.
 
 In iPhone UI tests, synthesize ordinary terminal taps as explicitly short presses and verify `hasKeyboardFocus` before `typeText`; a loaded hosted runner can stretch `tap()` long enough for the selection recognizer to present its sheet. Keep the ordinary XCTest tap and typing path on iPad, where short presses do not reliably publish keyboard focus through accessibility.
 
@@ -455,8 +458,8 @@ Two release tracks, decoupled since 1.4.0:
   the repo root, one line each. Patches in `Patches/ghostty/` target that
   release, not upstream main; the "Source Build" workflow (source-build.yml)
   rebuilds every target on a PR that touches `Ghostty.ref`, `Patches/`,
-  `Script/build-ghostty.sh`, `Script/prepare-zig-lib.sh`, or
-  `Script/support/`. When bumping, keep the Zig version pinned in build.yml
+  `Script/apply-patches.sh`, `Script/build-ghostty.sh`,
+  `Script/prepare-zig-lib.sh`, or `Script/support/`. When bumping, keep the Zig version pinned in build.yml
   *and* source-build.yml (0.15.2 today) in sync with the pinned upstream's
   `minimum_zig_version` (build.zig.zon) — and re-diff `Patches/zig/` against
   the new std, since `prepare-zig-lib.sh` looks the patch up by exact Zig

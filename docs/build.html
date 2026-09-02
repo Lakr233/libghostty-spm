@@ -51,9 +51,9 @@ swift test
 <p>The build scripts apply patches from <code>Patches/ghostty</code>, build target libraries with Zig, merge them into <code>GhosttyKit.xcframework</code>, and update release artifacts.</p>
 
 <h2 id="manifest">Release Manifest</h2>
-<pre><code class="language-bash">./Script/build-manifest.sh
+<pre><code class="language-bash">./Script/build-manifest.sh build/GhosttyKit.xcframework.zip &lt;download_url&gt;
 </code></pre>
-<p>When products, targets, or binary metadata change, keep <code>Package.swift</code>, <code>Package.local.swift</code>, and <code>Package.swift.template</code> aligned.</p>
+<p>The script sha256-hashes the zip and substitutes the URL and checksum into <code>Package.swift.template</code> to produce <code>Package.swift</code>; both arguments are required. When products, targets, or binary metadata change, keep <code>Package.swift</code>, <code>Package.local.swift</code>, and <code>Package.swift.template</code> aligned.</p>
 
 <h2 id="themes">Theme Generation</h2>
 <pre><code class="language-bash">./Script/generate-themes.sh

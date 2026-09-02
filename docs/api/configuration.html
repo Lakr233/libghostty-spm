@@ -42,13 +42,28 @@
     public var backend: TerminalSessionBackend
     public var fontSize: Float?
     public var workingDirectory: String?
+    /// Extra environment for the child process (exec backend).
+    public var envVars: [String: String]
+    /// Replaces the user's default shell as the child command (exec backend);
+    /// nil leaves the app-level config's command in place.
+    public var command: String?
+    /// Keep the surface open after `command` exits; nil leaves the
+    /// app-level config's value in place.
+    public var waitAfterCommand: Bool?
     public var context: TerminalSurfaceContext
+    /// Coalescing window for host-driven resizes; 0 (the default) resizes
+    /// synchronously on every metrics change.
+    public var resizeThrottleMilliseconds: Double
 
     public init(
         backend: TerminalSessionBackend = .exec,
         fontSize: Float? = nil,
         workingDirectory: String? = nil,
-        context: TerminalSurfaceContext = .window
+        envVars: [String: String] = [:],
+        command: String? = nil,
+        waitAfterCommand: Bool? = nil,
+        context: TerminalSurfaceContext = .window,
+        resizeThrottleMilliseconds: Double = 0
     )
 }
 
@@ -73,23 +88,76 @@ public enum TerminalSurfaceContext: Sendable, Equatable {
     )
 
     public func appending(_ command: TerminalConfigCommand) -&gt; TerminalConfiguration
+
+    // Font
     public func fontFamily(_ value: String) -&gt; TerminalConfiguration
     public func fontSize(_ value: Float) -&gt; TerminalConfiguration
+    public func fontThicken(_ enabled: Bool) -&gt; TerminalConfiguration
+    public func fontThickenStrength(_ value: Int) -&gt; TerminalConfiguration
+
+    // Cursor
     public func cursorStyle(_ style: TerminalCursorStyle) -&gt; TerminalConfiguration
+    public func cursorStyleBlink(_ enabled: Bool) -&gt; TerminalConfiguration
+    public func cursorColor(_ value: String) -&gt; TerminalConfiguration
+    public func cursorText(_ value: String) -&gt; TerminalConfiguration
+    public func cursorOpacity(_ value: Double) -&gt; TerminalConfiguration
+
+    // Colors
     public func background(_ value: String) -&gt; TerminalConfiguration
     public func foreground(_ value: String) -&gt; TerminalConfiguration
+    public func selectionBackground(_ value: String) -&gt; TerminalConfiguration
+    public func selectionForeground(_ value: String) -&gt; TerminalConfiguration
+    public func boldColor(_ value: String) -&gt; TerminalConfiguration
     public func palette(_ index: Int, color: String) -&gt; TerminalConfiguration
+    public func minimumContrast(_ value: Double) -&gt; TerminalConfiguration
+
+    // Background
     public func backgroundOpacity(_ value: Double) -&gt; TerminalConfiguration
+    public func backgroundBlur(_ value: Int) -&gt; TerminalConfiguration
+
+    // Layout
     public func windowPaddingX(_ value: Int) -&gt; TerminalConfiguration
     public func windowPaddingY(_ value: Int) -&gt; TerminalConfiguration
+
+    // Escape hatch
     public func custom(_ key: String, _ value: String) -&gt; TerminalConfiguration
 
     public static let `default`: TerminalConfiguration
     public var rendered: String { get }
 }
+
+public enum TerminalCursorStyle: String, Sendable, Hashable {
+    case block
+    case bar
+    case underline
+}
+
+public enum TerminalConfigCommand: Sendable, Hashable {
+    case fontFamily(String)
+    case fontSize(Float)
+    case fontThicken(Bool)
+    case fontThickenStrength(Int)
+    case cursorStyle(TerminalCursorStyle)
+    case cursorStyleBlink(Bool)
+    case cursorColor(String)
+    case cursorText(String)
+    case cursorOpacity(Double)
+    case background(String)
+    case foreground(String)
+    case selectionBackground(String)
+    case selectionForeground(String)
+    case boldColor(String)
+    case palette(index: Int, color: String)
+    case minimumContrast(Double)
+    case backgroundOpacity(Double)
+    case backgroundBlur(Int)
+    case windowPaddingX(Int)
+    case windowPaddingY(Int)
+    case custom(key: String, value: String)
+}
 </code></pre>
 
-<p>The builder variant has matching <code>with*</code> mutating methods for composing a default configuration with many overrides.</p>
+<p>Each fluent method appends the <code>TerminalConfigCommand</code> case of the same name; <code>rendered</code> emits one <code>key = value</code> line per command. The builder variant has matching <code>with*</code> mutating methods (<code>withFontFamily</code>, <code>withCursorColor</code>, …) for composing a default configuration with many overrides.</p>
 
 <h2 id="TerminalTheme">TerminalTheme</h2>
 <pre><code class="language-swift">public enum TerminalColorScheme: Sendable {
