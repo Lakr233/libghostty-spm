@@ -41,24 +41,29 @@ public final class InMemoryTerminalSession: @unchecked Sendable {
         self.suppressesPixelOnlyResizes = suppressesPixelOnlyResizes
         surfaceAccess = InMemoryTerminalSurfaceAccess(
             write: Self.writeToSurface,
-            processExit: Self.reportProcessExit
+            processExit: Self.reportProcessExit,
+            tick: Self.tickApp
         )
     }
 
+    /// Test seam: the surface handed to `setSurface` is a stand-in, so every
+    /// C call on it is injected, and the tick defaults to a no-op.
     init(
         write: @escaping @Sendable (Data) -> Void,
         resize: @escaping @Sendable (InMemoryTerminalViewport) -> Void,
         suppressesPixelOnlyResizes: Bool = false,
         surfaceWrite: @escaping InMemoryTerminalSurfaceAccess.Write,
         processExit: @escaping InMemoryTerminalSurfaceAccess.ProcessExit =
-            InMemoryTerminalSession.reportProcessExit
+            InMemoryTerminalSession.reportProcessExit,
+        tick: @escaping InMemoryTerminalSurfaceAccess.Tick = { _ in }
     ) {
         writeHandler = write
         resizeHandler = resize
         self.suppressesPixelOnlyResizes = suppressesPixelOnlyResizes
         surfaceAccess = InMemoryTerminalSurfaceAccess(
             write: surfaceWrite,
-            processExit: processExit
+            processExit: processExit,
+            tick: tick
         )
     }
 
@@ -91,49 +96,57 @@ public final class InMemoryTerminalSession: @unchecked Sendable {
     // MARK: - Viewport Read
 
     /// Returns the active viewport as a UTF-8 string, or `nil` if no surface
-    /// is attached. Lines are separated by `\n`. The `ghostty_text_s`
-    /// lifecycle (allocate via `ghostty_surface_read_text`, free via
-    /// `ghostty_surface_free_text`) is fully encapsulated — callers never
-    /// touch the C buffer.
+    /// is attached: one line per viewport row, joined with `\n`. The
+    /// `ghostty_text_s` lifecycle (allocate via `ghostty_surface_read_text`,
+    /// free via `ghostty_surface_free_text`) is fully encapsulated — callers
+    /// never touch the C buffer.
     ///
-    /// Selection grammar: `(VIEWPORT, TOP_LEFT)` to `(VIEWPORT, BOTTOM_RIGHT)`
-    /// with `rectangle: false` (linear flow). This reads exactly the visible
-    /// rows and ignores scrollback. Empty viewports return an empty string.
+    /// Each row is its own read, `(VIEWPORT, EXACT (0, y))` to
+    /// `(VIEWPORT, EXACT (columns - 1, y))`: a single read over the whole
+    /// viewport unwraps a soft-wrapped row into its neighbour's line, and
+    /// `TerminalSelectionAnchor` indexes these lines by viewport row. This
+    /// reads exactly the visible rows and ignores scrollback. Empty viewports
+    /// return an empty string.
     ///
     /// Thread-safe: keeps the surface alive for the duration of the read,
     /// preventing access against a surface mid-replacement.
     public func readViewportText() -> String? {
-        surfaceAccess.withCurrentSurface { surface in
-            let topLeft = ghostty_point_s(
-                tag: GHOSTTY_POINT_VIEWPORT,
-                coord: GHOSTTY_POINT_COORD_TOP_LEFT,
-                x: 0,
-                y: 0
-            )
-            let bottomRight = ghostty_point_s(
-                tag: GHOSTTY_POINT_VIEWPORT,
-                coord: GHOSTTY_POINT_COORD_BOTTOM_RIGHT,
-                x: 0,
-                y: 0
-            )
-            let selection = ghostty_selection_s(
-                top_left: topLeft,
-                bottom_right: bottomRight,
-                rectangle: false
-            )
+        surfaceAccess.withCurrentSurface { surface -> String? in
+            let size = ghostty_surface_size(surface)
+            guard size.columns > 0 else { return "" }
+            var lines: [String] = []
+            for row in 0..<UInt32(size.rows) {
+                let selection = ghostty_selection_s(
+                    top_left: ghostty_point_s(
+                        tag: GHOSTTY_POINT_VIEWPORT,
+                        coord: GHOSTTY_POINT_COORD_EXACT,
+                        x: 0,
+                        y: row
+                    ),
+                    bottom_right: ghostty_point_s(
+                        tag: GHOSTTY_POINT_VIEWPORT,
+                        coord: GHOSTTY_POINT_COORD_EXACT,
+                        x: UInt32(size.columns) - 1,
+                        y: row
+                    ),
+                    rectangle: false
+                )
 
-            var out = ghostty_text_s()
-            guard ghostty_surface_read_text(surface, selection, &out) else {
-                return nil
-            }
-            defer { ghostty_surface_free_text(surface, &out) }
+                var out = ghostty_text_s()
+                guard ghostty_surface_read_text(surface, selection, &out) else {
+                    return nil
+                }
+                defer { ghostty_surface_free_text(surface, &out) }
 
-            guard let textPtr = out.text, out.text_len > 0 else {
-                return ""
+                guard let textPtr = out.text, out.text_len > 0 else {
+                    lines.append("")
+                    continue
+                }
+                let bytes = UnsafeBufferPointer(start: textPtr, count: Int(out.text_len))
+                    .map { UInt8(bitPattern: $0) }
+                lines.append(String(decoding: bytes, as: UTF8.self))
             }
-            let bytes = UnsafeBufferPointer(start: textPtr, count: Int(out.text_len))
-                .map { UInt8(bitPattern: $0) }
-            return String(decoding: bytes, as: UTF8.self)
+            return lines.joined(separator: "\n")
         } ?? nil
     }
 
@@ -187,18 +200,13 @@ public final class InMemoryTerminalSession: @unchecked Sendable {
     // MARK: - Process Exit
 
     /// Enqueue a host-managed process exit after all previously received data.
+    /// Like that data, an exit that arrives before a surface attaches waits
+    /// for the next one and is delivered after the buffered bytes.
     public func finish(exitCode: UInt32, runtimeMilliseconds: UInt64) {
-        guard surfaceAccess.enqueueProcessExit(
+        surfaceAccess.enqueueProcessExit(
             exitCode: exitCode,
             runtimeMilliseconds: runtimeMilliseconds
-        ) else {
-            TerminalDebugLog.log(
-                .lifecycle,
-                "process exit ignored: missing surface exitCode=\(exitCode) runtimeMs=\(runtimeMilliseconds)"
-            )
-            return
-        }
-
+        )
         TerminalDebugLog.log(
             .lifecycle,
             "process exit exitCode=\(exitCode) runtimeMs=\(runtimeMilliseconds)"
@@ -298,6 +306,9 @@ public final class InMemoryTerminalSession: @unchecked Sendable {
     /// buffered/replayed history and then flips some "replay done" flag on its own signal
     /// (rather than on this call returning) can observe writeback for that history arrive
     /// late, after the flag already says replay is over.
+    ///
+    /// Safe on the main thread: parsing fills ghostty's app mailbox, which only the main
+    /// thread drains, so a main-thread caller ticks the app while it waits.
     public func waitForPendingOutput() {
         surfaceAccess.waitForPendingOutput()
     }
@@ -328,5 +339,9 @@ public final class InMemoryTerminalSession: @unchecked Sendable {
         _ runtimeMilliseconds: UInt64
     ) {
         ghostty_surface_process_exit(surface, exitCode, runtimeMilliseconds)
+    }
+
+    private static func tickApp(_ surface: ghostty_surface_t) {
+        ghostty_app_tick(ghostty_surface_app(surface))
     }
 }

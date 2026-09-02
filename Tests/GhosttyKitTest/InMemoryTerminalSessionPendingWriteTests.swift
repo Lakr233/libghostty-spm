@@ -44,6 +44,38 @@ struct InMemoryTerminalSessionPendingWriteTests {
         #expect(writes.values == ["first", "while detached"])
     }
 
+    /// The shell ends in the same gap its last output lands in: a `finish`
+    /// with no surface must reach the next one, after the buffered bytes,
+    /// or the host keeps a dead session open as live.
+    @Test
+    func `process exit received while detached follows the buffered bytes into the next surface`() {
+        let events = LockedValues<String>()
+        let surface = SendableSurface(testSurface(0x50))
+        let session = InMemoryTerminalSession(
+            write: { _ in },
+            resize: { _ in },
+            surfaceWrite: { _, data in
+                events.append(String(decoding: data, as: UTF8.self))
+            },
+            processExit: { _, exitCode, runtimeMilliseconds in
+                events.append("exit:\(exitCode):\(runtimeMilliseconds)")
+            }
+        )
+
+        session.setSurface(surface.rawValue)
+        session.receive("first")
+        session.waitForPendingOutput()
+        session.clearSurface(ifMatches: surface.rawValue)
+
+        session.receive("logout\r\n")
+        session.finish(exitCode: 0, runtimeMilliseconds: 5)
+        session.clearSurface(ifMatches: nil)
+        session.setSurface(testSurface(0x60))
+        session.waitForPendingOutput()
+
+        #expect(events.values == ["first", "logout\r\n", "exit:0:5"])
+    }
+
     @Test
     func `pending bytes are bounded and keep the newest tail`() {
         let writes = LockedValues<Data>()
