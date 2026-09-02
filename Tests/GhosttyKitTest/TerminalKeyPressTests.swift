@@ -1,4 +1,3 @@
-import AppKit
 import Foundation
 import GhosttyKit
 @testable import GhosttyTerminal
@@ -120,13 +119,14 @@ struct TerminalKeyPressTests {
 struct TerminalKeyPressIntegrationTests {
     @Test
     func `enter takes the key path under bracketed paste`() async {
-        let harness = KeyPressHarness()
+        let harness = GhosttySurfaceHarness()
         defer { harness.tearDown() }
+        guard let surface = harness.surface else { return }
         // Kitty keeps Enter in legacy form unless report-all (bit 8) is
         // active, so combine it with disambiguate (bit 1).
         harness.receive("\u{1B}[?2004h\u{1B}[>9u")
 
-        #expect(harness.surface.sendKey(.enter))
+        #expect(surface.sendKey(.enter))
 
         let bytes = await harness.drain()
         #expect(bytes.count(of: "\u{1B}[13u") == 1)
@@ -137,12 +137,13 @@ struct TerminalKeyPressIntegrationTests {
 
     @Test
     func `a release is reported when the program asks for key events`() async {
-        let harness = KeyPressHarness()
+        let harness = GhosttySurfaceHarness()
         defer { harness.tearDown() }
+        guard let surface = harness.surface else { return }
         // disambiguate (1) + report event types (2) + report all keys (8).
         harness.receive("\u{1B}[>11u")
 
-        #expect(harness.surface.sendKey(.enter))
+        #expect(surface.sendKey(.enter))
 
         let bytes = await harness.drain()
         #expect(bytes.count(of: "\u{1B}[13u") == 1)
@@ -151,10 +152,11 @@ struct TerminalKeyPressIntegrationTests {
 
     @Test
     func `control c encodes the control byte`() async {
-        let harness = KeyPressHarness()
+        let harness = GhosttySurfaceHarness()
         defer { harness.tearDown() }
+        guard let surface = harness.surface else { return }
 
-        #expect(harness.surface.sendKey(.c, modifiers: .ctrl))
+        #expect(surface.sendKey(.c, modifiers: .ctrl))
 
         let bytes = await harness.drain()
         #expect(bytes == Data([0x03]))
@@ -164,10 +166,11 @@ struct TerminalKeyPressIntegrationTests {
     /// writes the ESC prefix a program reads as Meta.
     @Test
     func `control alt c keeps the alt escape prefix`() async {
-        let harness = KeyPressHarness()
+        let harness = GhosttySurfaceHarness()
         defer { harness.tearDown() }
+        guard let surface = harness.surface else { return }
 
-        #expect(harness.surface.sendKey(.c, modifiers: [.ctrl, .alt]))
+        #expect(surface.sendKey(.c, modifiers: [.ctrl, .alt]))
 
         let bytes = await harness.drain()
         #expect(bytes == Data([0x1B, 0x03]))
@@ -175,11 +178,12 @@ struct TerminalKeyPressIntegrationTests {
 
     @Test
     func `a typed character sends its text`() async {
-        let harness = KeyPressHarness()
+        let harness = GhosttySurfaceHarness()
         defer { harness.tearDown() }
+        guard let surface = harness.surface else { return }
 
-        #expect(harness.surface.sendKey(TerminalKeyPress(typing: "A")!))
-        #expect(harness.surface.sendKey(TerminalKeyPress(typing: "~")!))
+        #expect(surface.sendKey(TerminalKeyPress(typing: "A")!))
+        #expect(surface.sendKey(TerminalKeyPress(typing: "~")!))
 
         let bytes = await harness.drain()
         #expect(bytes == Data("A~".utf8))
@@ -187,10 +191,11 @@ struct TerminalKeyPressIntegrationTests {
 
     @Test
     func `shift tab encodes back tab`() async {
-        let harness = KeyPressHarness()
+        let harness = GhosttySurfaceHarness()
         defer { harness.tearDown() }
+        guard let surface = harness.surface else { return }
 
-        #expect(harness.surface.sendKey(.tab, modifiers: .shift))
+        #expect(surface.sendKey(.tab, modifiers: .shift))
 
         let bytes = await harness.drain()
         #expect(bytes == Data("\u{1B}[Z".utf8))
@@ -198,118 +203,13 @@ struct TerminalKeyPressIntegrationTests {
 
     @Test
     func `a key without a mac keycode is refused`() async {
-        let harness = KeyPressHarness()
+        let harness = GhosttySurfaceHarness()
         defer { harness.tearDown() }
+        guard let surface = harness.surface else { return }
 
-        #expect(!harness.surface.sendKey(.mediaPlayPause))
+        #expect(!surface.sendKey(.mediaPlayPause))
 
         let bytes = await harness.drain()
         #expect(bytes.isEmpty)
-    }
-}
-
-/// An in-memory session behind a macOS surface, with the bytes it writes
-/// captured for inspection.
-@MainActor
-private final class KeyPressHarness {
-    let session: InMemoryTerminalSession
-    let coordinator = TerminalSurfaceCoordinator()
-    private let platformView = NSView(frame: NSRect(x: 0, y: 0, width: 800, height: 500))
-    private let outbound = LockedBytes()
-
-    init() {
-        let outbound = outbound
-        session = InMemoryTerminalSession(
-            write: { outbound.append($0) },
-            resize: { _ in }
-        )
-        platformView.wantsLayer = true
-        coordinator.isAttached = { true }
-        coordinator.scaleFactor = { 1 }
-        coordinator.viewSize = { (800, 500) }
-        coordinator.platformSetup = { [platformView] config in
-            config.platform_tag = GHOSTTY_PLATFORM_MACOS
-            config.platform = ghostty_platform_u(
-                macos: ghostty_platform_macos_s(
-                    nsview: Unmanaged.passUnretained(platformView).toOpaque()
-                )
-            )
-        }
-        coordinator.configuration = TerminalSurfaceOptions(backend: .inMemory(session))
-        coordinator.controller = TerminalController()
-        precondition(coordinator.surface != nil, "surface must build for the harness")
-    }
-
-    var surface: TerminalSurface { coordinator.surface! }
-
-    func tearDown() {
-        coordinator.freeSurface()
-    }
-
-    /// Feeds bytes to the terminal as if the program wrote them, and waits
-    /// for the parser to apply them so a mode set is in force for the next
-    /// key.
-    func receive(_ text: String) {
-        session.receive(Data(text.utf8))
-        session.waitForPendingOutput()
-        outbound.removeAll()
-    }
-
-    /// Everything the terminal wrote for the keys sent so far. Asks the
-    /// terminal for its device attributes and waits for the answer: the
-    /// reply queues behind the key encoder's output, so once it arrives
-    /// every earlier key has been written.
-    func drain() async -> Data {
-        session.receive(Data("\u{1B}[c".utf8))
-        session.waitForPendingOutput()
-
-        let marker = Data("\u{1B}[?62;22".utf8)
-        let clock = ContinuousClock()
-        let deadline = clock.now + .seconds(2)
-        while clock.now < deadline {
-            let bytes = outbound.bytes
-            if let reply = bytes.range(of: marker) {
-                return bytes[..<reply.lowerBound]
-            }
-            await Task.yield()
-        }
-        Issue.record("device attributes reply never arrived")
-        return outbound.bytes
-    }
-}
-
-private final class LockedBytes: @unchecked Sendable {
-    private let lock = NSLock()
-    private var storage = Data()
-
-    var bytes: Data {
-        lock.lock()
-        defer { lock.unlock() }
-        return storage
-    }
-
-    func append(_ data: Data) {
-        lock.lock()
-        storage.append(data)
-        lock.unlock()
-    }
-
-    func removeAll() {
-        lock.lock()
-        storage.removeAll(keepingCapacity: true)
-        lock.unlock()
-    }
-}
-
-private extension Data {
-    func count(of needle: String) -> Int {
-        let needle = Data(needle.utf8)
-        var count = 0
-        var searchRange = startIndex ..< endIndex
-        while let found = range(of: needle, in: searchRange) {
-            count += 1
-            searchRange = found.upperBound ..< endIndex
-        }
-        return count
     }
 }

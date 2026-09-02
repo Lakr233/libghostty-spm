@@ -166,6 +166,9 @@
             core.onCellSizeDidChange = { [weak self] in
                 self?.refreshTextInputGeometry(reason: "cell-size-action")
             }
+            core.onMouseShape = { [weak self] shape in
+                self?.applyMouseShape(shape)
+            }
             core.onPostRender = { [weak self] in
                 self?.enforceSublayerScale()
             }

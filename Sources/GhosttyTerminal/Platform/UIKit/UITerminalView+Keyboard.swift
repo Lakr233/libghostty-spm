@@ -44,6 +44,9 @@
         /// Presses whose began was forwarded to `super`; their ended must
         /// complete there too.
         var pressesForwardedToInputMethod: Set<UIPress> = []
+        /// Last hardware modifier flags seen on a `UIKey`. Pointer events
+        /// read this when the hover recognizer is not the live source.
+        var heldModifierFlags: UIKeyModifierFlags = []
     }
 
     /// Software-keyboard visibility and tap-to-toggle state; behavior in
@@ -333,6 +336,7 @@
             _ key: UIKey,
             action: ghostty_input_action_e
         ) {
+            notePointerModifierFlags(key.modifierFlags)
             guard let surface else {
                 TerminalDebugLog.log(.input, "uikit key ignored: missing surface")
                 return
@@ -470,6 +474,16 @@
             }
             guard filteredModifierFlags.contains(.control) else { return nil }
             return TerminalInputText.filteredFunctionKeyText(key.charactersIgnoringModifiers)
+        }
+
+        /// Pointer-only. Does not change key routing.
+        func notePointerModifierFlags(_ flags: UIKeyModifierFlags) {
+            let relevant = flags.intersection([
+                .shift, .control, .alternate, .command, .alphaShift,
+            ])
+            guard hardwareKeyboard.heldModifierFlags != relevant else { return }
+            hardwareKeyboard.heldModifierFlags = relevant
+            refreshPointerPositionForModifierChange()
         }
 
         private func filteredModifierFlags(for key: UIKey) -> UIKeyModifierFlags {

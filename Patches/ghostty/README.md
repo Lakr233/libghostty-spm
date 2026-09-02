@@ -111,6 +111,9 @@ when the header already carries `GHOSTTY_SURFACE_IO_BACKEND_HOST_MANAGED`.
   `ghostty.h` has always declared it. The 1.3.1 export took only the text
   pointer, so a caller following the header handed the surface in its place
   and the text was never freed.
+- `0015-mouse-captured-respects-reporting.patch` — `mouseCaptured()` also
+  requires `config.mouse_reporting`, matching `isMouseReporting()`. Does
+  not land in the shipped XCFramework zip until the next source-build.
 
 ## Current goal
 
