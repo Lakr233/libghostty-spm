@@ -23,12 +23,13 @@ enum TerminalHardwareKeyRouter {
     }
 
     /// Sentinel `keycode` value for keys that have no macOS AppKit
-    /// equivalent (e.g. CUT/COPY/PASTE, media keys, CONTEXT_MENU, INSERT on
-    /// PC keyboards). Any value outside the 8-bit AppKit virtual keycode
-    /// range falls out of libghostty's native-keycode lookup and resolves
-    /// to `.unidentified`. The pinned Ghostty keycode table uses 8-bit macOS
-    /// keycodes, so `0x1_0000` stays safely outside the native range. Using
-    /// plain `0` would instead collide with AppKit's keycode for the `A` key.
+    /// equivalent in the pinned Ghostty keycode table (e.g. CUT/COPY/PASTE,
+    /// media keys, HELP, FN, NUMPAD_CLEAR). Any value outside the 8-bit
+    /// AppKit virtual keycode range falls out of libghostty's native-keycode
+    /// lookup and resolves to `.unidentified`. The pinned Ghostty keycode
+    /// table uses 8-bit macOS keycodes, so `0x1_0000` stays safely outside
+    /// the native range. Using plain `0` would instead collide with AppKit's
+    /// keycode for the `A` key.
     static let unidentifiedAppKitKeyCode: UInt32 = 0x10000
 
     /// Translate a Ghostty key enum to the macOS AppKit virtual keycode
@@ -75,6 +76,8 @@ enum TerminalHardwareKeyRouter {
         0x53: 0x47,
         // keyboardNonUSBackslash -> kVK_ISO_Section
         0x64: 0x0A,
+        // keyboardHelp -> kVK_Help, which libghostty resolves as Insert
+        0x75: 0x72,
     ]
 
     private typealias Pair = (UInt16, ghostty_input_key_e)
@@ -186,9 +189,11 @@ enum TerminalHardwareKeyRouter {
         ]
     )
 
-    /// JIS keyboard entries are still absent from this table:
-    ///   (0x5D, GHOSTTY_KEY_INTL_YEN)   // kVK_JIS_Yen
-    ///   (0x5E, GHOSTTY_KEY_INTL_RO)    // kVK_JIS_Underscore
+    /// The mac column of libghostty's `src/input/keycodes.zig` for every
+    /// code its `code_to_key` names. A row absent there (Help, Fn,
+    /// NumpadClear, IntlBackslash, IntlYen, IntlRo) stays absent here, or
+    /// `hasPlatformKeycode` would promise a key libghostty resolves to
+    /// `.unidentified`.
     private static let appKitMap = buildMap(
         literalPairs: [
             (0x00, GHOSTTY_KEY_A), (0x01, GHOSTTY_KEY_S), (0x02, GHOSTTY_KEY_D),
@@ -212,9 +217,9 @@ enum TerminalHardwareKeyRouter {
             (0x35, GHOSTTY_KEY_ESCAPE), (0x36, GHOSTTY_KEY_META_RIGHT), (0x37, GHOSTTY_KEY_META_LEFT),
             (0x38, GHOSTTY_KEY_SHIFT_LEFT), (0x39, GHOSTTY_KEY_CAPS_LOCK), (0x3A, GHOSTTY_KEY_ALT_LEFT),
             (0x3B, GHOSTTY_KEY_CONTROL_LEFT), (0x3C, GHOSTTY_KEY_SHIFT_RIGHT), (0x3D, GHOSTTY_KEY_ALT_RIGHT),
-            (0x3E, GHOSTTY_KEY_CONTROL_RIGHT), (0x3F, GHOSTTY_KEY_FN), (0x40, GHOSTTY_KEY_F17),
+            (0x3E, GHOSTTY_KEY_CONTROL_RIGHT), (0x40, GHOSTTY_KEY_F17),
             (0x41, GHOSTTY_KEY_NUMPAD_DECIMAL),
-            (0x43, GHOSTTY_KEY_NUMPAD_MULTIPLY), (0x45, GHOSTTY_KEY_NUMPAD_ADD), (0x47, GHOSTTY_KEY_NUMPAD_CLEAR),
+            (0x43, GHOSTTY_KEY_NUMPAD_MULTIPLY), (0x45, GHOSTTY_KEY_NUMPAD_ADD), (0x47, GHOSTTY_KEY_NUM_LOCK),
             (0x48, GHOSTTY_KEY_AUDIO_VOLUME_UP), (0x49, GHOSTTY_KEY_AUDIO_VOLUME_DOWN),
             (0x4A, GHOSTTY_KEY_AUDIO_VOLUME_MUTE), (0x4B, GHOSTTY_KEY_NUMPAD_DIVIDE),
             (0x4C, GHOSTTY_KEY_NUMPAD_ENTER), (0x4E, GHOSTTY_KEY_NUMPAD_SUBTRACT),
@@ -227,8 +232,9 @@ enum TerminalHardwareKeyRouter {
             (0x61, GHOSTTY_KEY_F6), (0x62, GHOSTTY_KEY_F7), (0x63, GHOSTTY_KEY_F3),
             (0x64, GHOSTTY_KEY_F8), (0x65, GHOSTTY_KEY_F9), (0x67, GHOSTTY_KEY_F11),
             (0x69, GHOSTTY_KEY_F13), (0x6A, GHOSTTY_KEY_F16), (0x6B, GHOSTTY_KEY_F14),
-            (0x6D, GHOSTTY_KEY_F10), (0x6F, GHOSTTY_KEY_F12), (0x71, GHOSTTY_KEY_F15),
-            (0x72, GHOSTTY_KEY_HELP), (0x73, GHOSTTY_KEY_HOME), (0x74, GHOSTTY_KEY_PAGE_UP),
+            (0x6D, GHOSTTY_KEY_F10), (0x6E, GHOSTTY_KEY_CONTEXT_MENU), (0x6F, GHOSTTY_KEY_F12),
+            (0x71, GHOSTTY_KEY_F15),
+            (0x72, GHOSTTY_KEY_INSERT), (0x73, GHOSTTY_KEY_HOME), (0x74, GHOSTTY_KEY_PAGE_UP),
             (0x75, GHOSTTY_KEY_DELETE), (0x76, GHOSTTY_KEY_F4), (0x77, GHOSTTY_KEY_END),
             (0x78, GHOSTTY_KEY_F2), (0x79, GHOSTTY_KEY_PAGE_DOWN), (0x7A, GHOSTTY_KEY_F1),
             (0x7B, GHOSTTY_KEY_ARROW_LEFT), (0x7C, GHOSTTY_KEY_ARROW_RIGHT),

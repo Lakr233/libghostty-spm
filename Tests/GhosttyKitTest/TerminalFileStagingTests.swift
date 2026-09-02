@@ -29,6 +29,21 @@ struct TerminalFileStagingTests {
         #expect(TerminalFileStaging.fileType(among: [UTType.folder.identifier, UTType.fileURL.identifier]) == nil)
     }
 
+    /// A rich-text or web selection registers data types beside its text
+    /// (`com.apple.flat-rtfd`, `com.apple.webarchive` conform to
+    /// `public.data`, not `public.text`); the item is still text.
+    @Test
+    func `an item that offers text is text even when it also offers data`() {
+        #expect(TerminalFileStaging.fileType(among: [
+            UTType.rtf.identifier, UTType.flatRTFD.identifier, UTType.utf8PlainText.identifier,
+        ]) == nil)
+        #expect(TerminalFileStaging.fileType(among: [
+            UTType.webArchive.identifier, UTType.utf8PlainText.identifier,
+        ]) == nil)
+        #expect(TerminalFileStaging.fileType(among: [UTType.flatRTFD.identifier]) == .flatRTFD)
+        #expect(TerminalFileStaging.fileType(among: [UTType.png.identifier, UTType.utf8PlainText.identifier]) == .png)
+    }
+
     @Test
     func `unique urls add a counter only on collision and never a separator`() throws {
         let directory = try makeDirectory()
@@ -69,6 +84,29 @@ struct TerminalFileStagingTests {
         #expect(TerminalFileStaging.prepareDirectory(directory, staleAge: 60 * 60))
         #expect(!FileManager.default.fileExists(atPath: stale.path))
         #expect(FileManager.default.fileExists(atPath: fresh.path))
+    }
+
+    /// `copyItem` keeps the source's modification date; a staged copy of a
+    /// month-old document must still count as fresh, or the next paste
+    /// would sweep it before the shell used its path.
+    @Test
+    func `a stored copy of an old file is dated from staging`() throws {
+        let directory = try makeDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let source = directory.appendingPathComponent("source.pdf")
+        try Data("old".utf8).write(to: source)
+        try FileManager.default.setAttributes(
+            [.modificationDate: Date().addingTimeInterval(-40 * 24 * 60 * 60)],
+            ofItemAtPath: source.path
+        )
+        let staged = directory.appendingPathComponent("staged", isDirectory: true)
+        try FileManager.default.createDirectory(at: staged, withIntermediateDirectories: true)
+        let path = try #require(TerminalFileStaging.store(name: "Report", extension: "pdf", in: staged) {
+            try FileManager.default.copyItem(at: source, to: $0)
+        })
+        #expect(TerminalFileStaging.prepareDirectory(staged, staleAge: 60 * 60))
+        #expect(FileManager.default.fileExists(atPath: path))
+        #expect(try String(contentsOfFile: path, encoding: .utf8) == "old")
     }
 
     @Test

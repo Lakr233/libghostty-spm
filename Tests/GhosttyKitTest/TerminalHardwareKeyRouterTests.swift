@@ -128,14 +128,32 @@ struct TerminalHardwareKeyRouterTests {
         )
     }
 
+    /// The rows libghostty's `keycodes.zig` gives a mac keycode: Insert is
+    /// 0x72 (the key AppKit calls Help), NumLock is 0x47 (AppKit's keypad
+    /// Clear), ContextMenu is 0x6E.
+    @Test
+    func `app kit key code for ghostty keys follows the pinned libghostty table`() {
+        #expect(TerminalHardwareKeyRouter.appKitKeyCode(for: GHOSTTY_KEY_INSERT) == 0x72)
+        #expect(TerminalHardwareKeyRouter.appKitKeyCode(for: GHOSTTY_KEY_NUM_LOCK) == 0x47)
+        #expect(TerminalHardwareKeyRouter.appKitKeyCode(for: GHOSTTY_KEY_CONTEXT_MENU) == 0x6E)
+        #expect(TerminalHardwareKeyRouter.ghosttyKey(forAppKitKeyCode: 0x72) == GHOSTTY_KEY_INSERT)
+        #expect(TerminalHardwareKeyRouter.ghosttyKey(forAppKitKeyCode: 0x47) == GHOSTTY_KEY_NUM_LOCK)
+    }
+
+    /// Keys libghostty gives no mac keycode (or leaves out of its
+    /// `code_to_key`) must stay unresolvable, or `hasPlatformKeycode` would
+    /// accept a press libghostty drops.
     @Test
     func `app kit key code for ghostty keys returns sentinel for keys absent from mac`() {
         let sentinel = TerminalHardwareKeyRouter.unidentifiedAppKitKeyCode
         #expect(
-            TerminalHardwareKeyRouter.appKitKeyCode(for: GHOSTTY_KEY_CONTEXT_MENU) == sentinel
+            TerminalHardwareKeyRouter.appKitKeyCode(for: GHOSTTY_KEY_HELP) == sentinel
         )
         #expect(
-            TerminalHardwareKeyRouter.appKitKeyCode(for: GHOSTTY_KEY_INSERT) == sentinel
+            TerminalHardwareKeyRouter.appKitKeyCode(for: GHOSTTY_KEY_FN) == sentinel
+        )
+        #expect(
+            TerminalHardwareKeyRouter.appKitKeyCode(for: GHOSTTY_KEY_NUMPAD_CLEAR) == sentinel
         )
         #expect(
             TerminalHardwareKeyRouter.appKitKeyCode(for: GHOSTTY_KEY_CUT) == sentinel
@@ -145,20 +163,28 @@ struct TerminalHardwareKeyRouterTests {
         )
     }
 
+    /// A PC keyboard's Insert (HID 0x49) reaches libghostty as mac 0x72,
+    /// which it resolves as Insert; a Mac keyboard's Help (HID 0x75) is the
+    /// same physical position and keeps sending 0x72, as it always did.
+    @Test
+    func `app kit key code for UI kit translates insert and help to the insert keycode`() {
+        #expect(TerminalHardwareKeyRouter.appKitKeyCodeForUIKit(usage: 0x49) == 0x72)
+        #expect(TerminalHardwareKeyRouter.appKitKeyCodeForUIKit(usage: 0x75) == 0x72)
+        #expect(TerminalHardwareKeyRouter.appKitKeyCodeForUIKit(usage: 0x65) == 0x6E)
+    }
+
     /// HID usages that have no AppKit counterpart must not collapse to `0`
     /// (AppKit's keycode for `A`). They must return the sentinel so
     /// libghostty's native-keycode lookup resolves them to `.unidentified`.
     @Test
     func `app kit key code for UI kit returns sentinel for keys absent from mac`() {
         let sentinel = TerminalHardwareKeyRouter.unidentifiedAppKitKeyCode
-        // CUT, COPY, PASTE, CONTEXT_MENU, INSERT, PRINT_SCREEN, SCROLL_LOCK,
-        // PAUSE and the higher function keys past F20 are in uiKitMap but
-        // have no AppKit virtual keycode.
+        // CUT, COPY, PASTE, PRINT_SCREEN, SCROLL_LOCK, PAUSE and the higher
+        // function keys past F20 are in uiKitMap but have no AppKit virtual
+        // keycode.
         #expect(TerminalHardwareKeyRouter.appKitKeyCodeForUIKit(usage: 0x7B) == sentinel)
         #expect(TerminalHardwareKeyRouter.appKitKeyCodeForUIKit(usage: 0x7C) == sentinel)
         #expect(TerminalHardwareKeyRouter.appKitKeyCodeForUIKit(usage: 0x7D) == sentinel)
-        #expect(TerminalHardwareKeyRouter.appKitKeyCodeForUIKit(usage: 0x65) == sentinel)
-        #expect(TerminalHardwareKeyRouter.appKitKeyCodeForUIKit(usage: 0x49) == sentinel)
         #expect(TerminalHardwareKeyRouter.appKitKeyCodeForUIKit(usage: 0x46) == sentinel)
         #expect(TerminalHardwareKeyRouter.appKitKeyCodeForUIKit(usage: 0x47) == sentinel)
         #expect(TerminalHardwareKeyRouter.appKitKeyCodeForUIKit(usage: 0x48) == sentinel)

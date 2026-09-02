@@ -15,12 +15,20 @@ public extension TerminalView {
     /// user runs a program in the pty this is that program's pid, so hosts can
     /// correlate the surface with an external process list. Nil until the
     /// surface has a process.
+    ///
+    /// On the pinned Ghostty (1.3.1) this is nil for every backend:
+    /// `ghostty_surface_foreground_pid` returns 0 there. It populates once
+    /// the pinned release carries the process-info API.
     var foregroundPid: pid_t? {
         surface?.foregroundPid
     }
 
     /// Name of the pty's controlling tty (e.g. `/dev/ttys004`), or nil until
     /// the surface has a process.
+    ///
+    /// On the pinned Ghostty (1.3.1) this is nil for every backend:
+    /// `ghostty_surface_tty_name` returns an empty name there. It populates
+    /// once the pinned release carries the process-info API.
     var ttyName: String? {
         surface?.ttyName
     }

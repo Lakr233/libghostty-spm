@@ -96,6 +96,22 @@ struct TerminalKeyPressTests {
             #expect(event.text == nil)
         }
     }
+
+    /// The US table never applies Alt, so Alt is not spent: the encoder
+    /// still sees it and can prefix ESC (Ctrl+Alt+C is `ESC 0x03`, not
+    /// `0x03`).
+    @Test
+    func `alt is not consumed because the text never used it`() {
+        TerminalKeyPress(.c, modifiers: [.ctrl, .alt]).withKeyEvent(action: GHOSTTY_ACTION_PRESS) { event in
+            #expect(event.mods.rawValue == TerminalInputModifiers([.ctrl, .alt]).rawValue)
+            #expect(event.consumed_mods.rawValue == 0)
+            #expect(event.text.map { String(cString: $0) } == "c")
+        }
+        TerminalKeyPress(.a, modifiers: [.alt, .shift]).withKeyEvent(action: GHOSTTY_ACTION_PRESS) { event in
+            #expect(event.consumed_mods.rawValue == TerminalInputModifiers.shift.rawValue)
+            #expect(event.text.map { String(cString: $0) } == "A")
+        }
+    }
 }
 
 /// End to end through libghostty's key encoder on an in-memory session:
@@ -142,6 +158,19 @@ struct TerminalKeyPressIntegrationTests {
 
         let bytes = await harness.drain()
         #expect(bytes == Data([0x03]))
+    }
+
+    /// Alt is not spent by the US table, so the encoder still sees it and
+    /// writes the ESC prefix a program reads as Meta.
+    @Test
+    func `control alt c keeps the alt escape prefix`() async {
+        let harness = KeyPressHarness()
+        defer { harness.tearDown() }
+
+        #expect(harness.surface.sendKey(.c, modifiers: [.ctrl, .alt]))
+
+        let bytes = await harness.drain()
+        #expect(bytes == Data([0x1B, 0x03]))
     }
 
     @Test

@@ -57,10 +57,11 @@ public enum TerminalPasteboardContent {
             set { TerminalFileStaging.directory = newValue }
         }
 
-        /// Whether a paste would deliver anything; the edit menu asks this
-        /// on every validation, so it stays on cheap pasteboard queries.
+        /// Whether a paste would deliver anything — what ``text(from:)`` or
+        /// ``files(from:completion:)`` would; the edit menu asks this on
+        /// every validation, so it stays on cheap pasteboard queries.
         static func hasContent(_ pasteboard: UIPasteboard = .general) -> Bool {
-            if pasteboard.hasStrings || pasteboard.hasImages { return true }
+            if pasteboard.hasStrings || pasteboard.hasURLs || pasteboard.hasImages { return true }
             if pasteboard.contains(pasteboardTypes: [UTType.fileURL.identifier]) { return true }
             return TerminalFileStaging.fileType(among: pasteboard.types) != nil
         }

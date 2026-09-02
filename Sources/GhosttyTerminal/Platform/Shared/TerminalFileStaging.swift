@@ -34,8 +34,8 @@ public enum TerminalFileStaging {
     public static var staleFileAge: TimeInterval = 24 * 60 * 60
 
     /// A provider and the type it will be asked for. `NSItemProvider` is
-    /// thread-safe by contract but not marked so; the staging queue is the
-    /// only place it travels to.
+    /// thread-safe by contract but not marked so; its own load completion
+    /// is the only place it travels to.
     struct Item: @unchecked Sendable {
         let provider: NSItemProvider
         let type: UTType
@@ -91,48 +91,50 @@ public enum TerminalFileStaging {
 
     /// Writes every provider's file representation under ``directory`` and
     /// completes on the main queue with the escaped, space-joined paths, or
-    /// `nil` when none could be written. The copying happens on a
-    /// background queue.
+    /// `nil` when none could be written. Every load is requested before this
+    /// returns — a drop session's providers only answer within the
+    /// `performDrop` call that handed them over — and the copying happens
+    /// in each load's completion, off the main thread.
     @MainActor
     static func stage(
         _ items: [Item],
         completion: @escaping @MainActor (String?) -> Void
     ) {
         let directory = directory
-        let staleAge = staleFileAge
-        DispatchQueue.global(qos: .userInitiated).async {
-            guard prepareDirectory(directory, staleAge: staleAge) else {
-                terminalRunOnMain { completion(nil) }
-                return
-            }
-            let group = DispatchGroup()
-            let paths = Paths(count: items.count)
-            for (index, item) in items.enumerated() {
-                group.enter()
-                // The representation is deleted when the completion
-                // returns, so it is copied out before then.
-                item.provider.loadFileRepresentation(forTypeIdentifier: item.type.identifier) { url, error in
-                    defer { group.leave() }
-                    guard let url else {
-                        TerminalDebugLog.log(
-                            .input,
-                            "staging file representation failed type=\(item.type.identifier) error=\(String(describing: error))"
-                        )
-                        return
-                    }
-                    let (name, fileExtension) = fileName(suggested: item.provider.suggestedName, type: item.type)
-                    let path = store(name: name, extension: fileExtension, in: directory) {
-                        try FileManager.default.copyItem(at: url, to: $0)
-                    }
-                    paths.set(path, at: index)
+        guard prepareDirectory(directory, staleAge: staleFileAge) else {
+            completion(nil)
+            return
+        }
+        let group = DispatchGroup()
+        let paths = Paths(count: items.count)
+        for (index, item) in items.enumerated() {
+            group.enter()
+            // The representation is deleted when the completion
+            // returns, so it is copied out before then.
+            item.provider.loadFileRepresentation(forTypeIdentifier: item.type.identifier) { url, error in
+                defer { group.leave() }
+                guard let url else {
+                    TerminalDebugLog.log(
+                        .input,
+                        "staging file representation failed type=\(item.type.identifier) error=\(String(describing: error))"
+                    )
+                    return
                 }
-            }
-            group.notify(queue: .main) {
-                let resolved = paths.resolved
-                TerminalDebugLog.log(.input, "staged \(resolved.count)/\(items.count) file(s)")
-                terminalRunOnMain {
-                    completion(resolved.isEmpty ? nil : resolved.map(TerminalShellEscape.escape).joined(separator: " "))
+                let (name, fileExtension) = fileName(suggested: item.provider.suggestedName, type: item.type)
+                let path = store(name: name, extension: fileExtension, in: directory) {
+                    try FileManager.default.copyItem(at: url, to: $0)
                 }
+                paths.set(path, at: index)
+            }
+        }
+        // `@Sendable` keeps the block off the main actor; formed here it
+        // would otherwise inherit `stage`'s isolation and trap on the
+        // global queue.
+        group.notify(queue: .global(qos: .userInitiated)) { @Sendable in
+            let resolved = paths.resolved
+            TerminalDebugLog.log(.input, "staged \(resolved.count)/\(items.count) file(s)")
+            terminalRunOnMain {
+                completion(resolved.isEmpty ? nil : resolved.map(TerminalShellEscape.escape).joined(separator: " "))
             }
         }
     }
@@ -163,12 +165,18 @@ public enum TerminalFileStaging {
     // MARK: - Rules
 
     /// The type worth a file among what one item offers, or `nil` when it
-    /// only carries text, a link, or a folder. Images win over anything else
-    /// the same item registers (a copied photo also registers its URL).
+    /// carries text, a link, or a folder. Images win over anything else the
+    /// same item registers (a copied photo also registers its URL); text
+    /// wins over the rest, since a rich-text or web selection also registers
+    /// data types (`com.apple.flat-rtfd`, `com.apple.webarchive`) that are
+    /// not text themselves.
     static func fileType(among identifiers: [String]) -> UTType? {
         let types = identifiers.compactMap(UTType.init)
         if let image = types.first(where: { $0.conforms(to: .image) }) {
             return image
+        }
+        if types.contains(where: { $0.conforms(to: .text) }) {
+            return nil
         }
         // Dynamic types (`dyn.a…`) are pasteboard bookkeeping.
         return types.first { type in
@@ -231,8 +239,14 @@ public enum TerminalFileStaging {
             try write(destination)
             // A copied representation keeps the provider's mode and an
             // atomic write follows the umask; the shell that opens the
-            // file may not be the app's user.
-            try FileManager.default.setAttributes([.posixPermissions: 0o644], ofItemAtPath: destination.path)
+            // file may not be the app's user. The copy also keeps the
+            // source's modification date, which the sweep would read as
+            // age, so the file is stamped with the time its path was
+            // handed out.
+            try FileManager.default.setAttributes(
+                [.posixPermissions: 0o644, .modificationDate: Date()],
+                ofItemAtPath: destination.path
+            )
             return destination.path
         } catch {
             TerminalDebugLog.log(.input, "staged file write failed: \(error)")
