@@ -58,15 +58,54 @@ echo "    target: $ZIG_TARGET"
 echo "    source: $SOURCE_DIR"
 echo "    output: $OUTPUT_DIR"
 
-rm -rf "$OUTPUT_DIR" "$LOCAL_CACHE_DIR" "$MODULE_CACHE_DIR"
+# Incremental by default. Zig's local and module caches are the whole point
+# of having a cache -- wiping them on every invocation turns every build into
+# a from-scratch compile, which for a Swift-only change upstream is pure waste.
+#
+# They are only invalidated when something that actually affects the compiled
+# output changes: the Ghostty source revision, the patch set applied to it, or
+# the zig version. Those are hashed into a stamp beside the cache; a mismatch
+# (or no stamp -- first run, or a hand-cleared one) forces the clean rather
+# than silently reusing a cache built from different inputs.
+#
+# Set GHOSTTY_FORCE_CLEAN=1 to clean regardless.
+STAMP_FILE="$CACHE_ROOT/.build-inputs-stamp"
+CURRENT_STAMP=$(
+    {
+        git -C "$SOURCE_DIR" rev-parse HEAD 2>/dev/null || echo "no-source-rev"
+        zig version 2>/dev/null || echo "no-zig"
+        echo "$ZIG_TARGET" "${ZIG_OPTIMIZE:-ReleaseFast}"
+        # Patch *content*, not just names -- editing a patch in place must
+        # invalidate, which a filename listing would miss.
+        cat "$ROOT_DIR"/Patches/ghostty/* 2>/dev/null
+    } | shasum -a 256 | cut -d' ' -f1
+)
+
+NEEDS_CLEAN=0
+if [[ "${GHOSTTY_FORCE_CLEAN:-0}" == "1" ]]; then
+    NEEDS_CLEAN=1
+    echo "[*] GHOSTTY_FORCE_CLEAN=1 -- forcing a clean build"
+elif [[ ! -f "$STAMP_FILE" ]] || [[ "$(<"$STAMP_FILE")" != "$CURRENT_STAMP" ]]; then
+    NEEDS_CLEAN=1
+    echo "[*] build inputs changed (source rev, patches, or zig) -- cleaning caches"
+else
+    echo "[*] build inputs unchanged -- reusing zig caches (incremental)"
+fi
+
+if (( NEEDS_CLEAN )); then
+    rm -rf "$OUTPUT_DIR" "$LOCAL_CACHE_DIR" "$MODULE_CACHE_DIR" "$SOURCE_DIR/zig-out"
+else
+    # The output dir is cheap to rebuild and must not carry stale artifacts
+    # from a previous run; the caches are what we are preserving.
+    rm -rf "$OUTPUT_DIR"
+fi
+
 mkdir -p \
     "$OUTPUT_DIR/lib" \
     "$OUTPUT_DIR/include" \
     "$GLOBAL_CACHE_DIR" \
     "$LOCAL_CACHE_DIR" \
     "$MODULE_CACHE_DIR"
-
-rm -rf "$SOURCE_DIR/zig-out"
 
 ZIG_BUILD_COMMAND=(
     zig build
@@ -153,3 +192,6 @@ module libghostty {
 EOF
 
 echo "[*] built archive: $OUTPUT_DIR/lib/libghostty.a"
+
+# Record the inputs this cache was built from (success path only).
+printf "%s" "$CURRENT_STAMP" > "$STAMP_FILE"
