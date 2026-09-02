@@ -443,15 +443,13 @@
             isCommandModified: Bool
         ) -> Bool {
             guard !isCommandModified else { return false }
-            // Ctrl combos travel the key path above — the text system's
-            // rendition is a bare control byte with the modifier context
-            // stripped (`sendTypedText` zeroes mods), which double-fires the
-            // combo at best and loses the ctrl semantics at worst. Alt stays
-            // on the text path: option+letter legitimately types the
-            // composed character.
-            guard key.modifierFlags.intersection([.alternate]).isEmpty else {
-                return false
-            }
+            // Ctrl and Alt combos travel the key path above, which already
+            // carries the composed character (option+a → "å") with alt
+            // consumed, exactly as AppKit's keyDown does. The text system's
+            // echo would type it a second time; for Ctrl it is a bare
+            // control byte with the modifier context stripped
+            // (`sendTypedText` zeroes mods), which loses the ctrl semantics
+            // as well.
             guard !key.characters.isEmpty else {
                 return key.keyCode == .keyboardDeleteOrBackspace
             }

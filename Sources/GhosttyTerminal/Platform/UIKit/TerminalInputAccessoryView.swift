@@ -44,7 +44,7 @@
             setupViews()
             applyBarChrome()
             refreshContent()
-            terminalView.stickyModifiers.onChange = { [weak self] in
+            terminalView.stickyModifiers.onBarChange = { [weak self] in
                 self?.refreshContent()
             }
         }

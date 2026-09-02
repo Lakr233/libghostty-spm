@@ -80,6 +80,18 @@
             )
             event.mods = additionalMods.ghosttyMods
             _ = surface.sendKeyEvent(event)
+            sendSyntheticRelease(for: event)
+        }
+
+        /// The matching release for a synthetic press, so a program on the
+        /// kitty protocol with event reporting never sees the key held
+        /// down — the same pairing `TerminalSurface.sendKey` guarantees.
+        func sendSyntheticRelease(for press: ghostty_input_key_s) {
+            guard let surface else { return }
+            var release = press
+            release.action = GHOSTTY_ACTION_RELEASE
+            release.text = nil
+            _ = surface.sendKeyEvent(release)
         }
 
         @discardableResult
@@ -101,22 +113,12 @@
             guard stickyModifiers.hasActiveModifiers else { return false }
 
             let keyText = String(text.prefix(1))
-            guard !keyText.isEmpty else {
-                stickyModifiers.reset()
-                return false
-            }
-
             let mods = stickyModifiers.consumeForNextKey()
-            let handled: Bool
             if mods == .ctrl, let controlByte = controlByte(for: keyText) {
                 sendControlByte(controlByte, modifiers: mods)
-                handled = true
-            } else {
-                handled = sendModifiedTextKey(keyText, modifiers: mods)
+                return true
             }
-
-            stickyModifiers.reset()
-            return handled
+            return sendModifiedTextKey(keyText, modifiers: mods)
         }
 
         @discardableResult
@@ -166,6 +168,7 @@
             // the press without it (see "Key Path vs Text Path" in AGENTS.md).
             event.unshifted_codepoint = scalar.value
             _ = surface.sendKeyEvent(event)
+            sendSyntheticRelease(for: event)
         }
 
         private func controlByte(for text: String) -> UInt8? {
@@ -208,6 +211,7 @@
             } else {
                 _ = surface.sendKeyEvent(event)
             }
+            sendSyntheticRelease(for: event)
 
             return true
         }
@@ -237,6 +241,16 @@
             case "7": return (GHOSTTY_KEY_DIGIT_7, [], scalar)
             case "8": return (GHOSTTY_KEY_DIGIT_8, [], scalar)
             case "9": return (GHOSTTY_KEY_DIGIT_9, [], scalar)
+            case ")": return (GHOSTTY_KEY_DIGIT_0, [.shift], "0")
+            case "!": return (GHOSTTY_KEY_DIGIT_1, [.shift], "1")
+            case "@": return (GHOSTTY_KEY_DIGIT_2, [.shift], "2")
+            case "#": return (GHOSTTY_KEY_DIGIT_3, [.shift], "3")
+            case "$": return (GHOSTTY_KEY_DIGIT_4, [.shift], "4")
+            case "%": return (GHOSTTY_KEY_DIGIT_5, [.shift], "5")
+            case "^": return (GHOSTTY_KEY_DIGIT_6, [.shift], "6")
+            case "&": return (GHOSTTY_KEY_DIGIT_7, [.shift], "7")
+            case "*": return (GHOSTTY_KEY_DIGIT_8, [.shift], "8")
+            case "(": return (GHOSTTY_KEY_DIGIT_9, [.shift], "9")
             case "`": return (GHOSTTY_KEY_BACKQUOTE, [], scalar)
             case "~": return (GHOSTTY_KEY_BACKQUOTE, [.shift], "`")
             case "-": return (GHOSTTY_KEY_MINUS, [], scalar)

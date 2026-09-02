@@ -16,7 +16,11 @@
         private(set) var alt: Activation = .inactive
         private(set) var command: Activation = .inactive
 
+        /// The host's slot (`setStickyModifierChangeHandler`). The bundled
+        /// bar has its own so neither can overwrite the other — the lazy
+        /// bar is materialised by paths a custom-bar host cannot avoid.
         var onChange: (() -> Void)?
+        var onBarChange: (() -> Void)?
 
         private var lastCtrlTap: Date = .distantPast
         private var lastAltTap: Date = .distantPast
@@ -35,7 +39,7 @@
                 command = nextActivation(command, lastTap: lastCommandTap)
                 lastCommandTap = Date()
             }
-            onChange?()
+            notifyChange()
         }
 
         func consumeForNextKey() -> TerminalInputModifiers {
@@ -46,7 +50,7 @@
             if ctrl == .armed { ctrl = .inactive }
             if alt == .armed { alt = .inactive }
             if command == .armed { command = .inactive }
-            onChange?()
+            notifyChange()
             return mods
         }
 
@@ -59,7 +63,12 @@
             ctrl = .inactive
             alt = .inactive
             command = .inactive
+            notifyChange()
+        }
+
+        private func notifyChange() {
             onChange?()
+            onBarChange?()
         }
 
         private func nextActivation(
