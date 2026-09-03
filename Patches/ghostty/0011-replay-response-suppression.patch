@@ -1,20 +1,18 @@
 diff --git a/include/ghostty.h b/include/ghostty.h
-index 567fbd4f9..4192ba3d4 100644
 --- a/include/ghostty.h
 +++ b/include/ghostty.h
-@@ -1097,6 +1097,7 @@ void ghostty_surface_update_config(ghostty_surface_t, ghostty_config_t);
- bool ghostty_surface_needs_confirm_quit(ghostty_surface_t);
- bool ghostty_surface_process_exited(ghostty_surface_t);
- void ghostty_surface_write_buffer(ghostty_surface_t, const uint8_t*, uintptr_t);
-+void ghostty_surface_write_buffer_replay(ghostty_surface_t, const uint8_t*, uintptr_t);
- uint64_t ghostty_surface_foreground_pid(ghostty_surface_t);
- ghostty_string_s ghostty_surface_tty_name(ghostty_surface_t);
- void ghostty_surface_process_exit(ghostty_surface_t, uint32_t, uint64_t);
+@@ -1193,6 +1193,7 @@
+ GHOSTTY_API bool ghostty_surface_needs_confirm_quit(ghostty_surface_t);
+ GHOSTTY_API bool ghostty_surface_process_exited(ghostty_surface_t);
+ GHOSTTY_API void ghostty_surface_write_buffer(ghostty_surface_t, const uint8_t*, uintptr_t);
++GHOSTTY_API void ghostty_surface_write_buffer_replay(ghostty_surface_t, const uint8_t*, uintptr_t);
+ GHOSTTY_API void ghostty_surface_process_exit(ghostty_surface_t, uint32_t, uint64_t);
+ GHOSTTY_API void ghostty_surface_refresh(ghostty_surface_t);
+ GHOSTTY_API void ghostty_surface_draw(ghostty_surface_t);
 diff --git a/src/apprt/embedded.zig b/src/apprt/embedded.zig
-index 4f163229b..d7b0fcd9d 100644
 --- a/src/apprt/embedded.zig
 +++ b/src/apprt/embedded.zig
-@@ -1662,6 +1662,21 @@ pub const CAPI = struct {
+@@ -1921,6 +1921,21 @@
          surface.core_surface.io.processOutput(ptr[0..len]);
      }
  
@@ -33,14 +31,13 @@ index 4f163229b..d7b0fcd9d 100644
 +        surface.core_surface.io.processOutputSuppressingResponses(ptr[0..len]);
 +    }
 +
-     /// The pty's foreground process group pid. This release predates the
-     /// upstream process-info API, and a host-managed surface has no
-     /// in-process pty at all, so this reports "no process yet" (0) — the
+     export fn ghostty_surface_process_exit(
+         surface: *Surface,
+         exit_code: u32,
 diff --git a/src/apprt/surface.zig b/src/apprt/surface.zig
-index 3cb0016fa..0c94e53d2 100644
 --- a/src/apprt/surface.zig
 +++ b/src/apprt/surface.zig
-@@ -108,6 +108,17 @@ pub const Message = union(enum) {
+@@ -153,6 +153,27 @@
      /// Selected search index change
      search_selected: ?usize,
  
@@ -48,6 +45,16 @@ index 3cb0016fa..0c94e53d2 100644
 +    /// terminal protocol response. These requests must not escape a
 +    /// reconstructed-history replay scope through the asynchronous surface
 +    /// mailbox.
++    ///
++    /// `kitty_clipboard_read`/`kitty_clipboard_write` are deliberately not
++    /// covered here: the receiver takes ownership of the boxed request state
++    /// and must destroy it, and this classifier only knows how to drop a
++    /// message, not release owned state (see `termio.Message.write_alloc`
++    /// for the pattern this would need). Replaying reconstructed history
++    /// that contains a Kitty clipboard protocol sequence can still leak a
++    /// confirmation to the host; this is a pre-existing gap, not a
++    /// regression, since Kitty clipboard support did not exist when replay
++    /// suppression was introduced.
 +    pub fn discardIfTerminalResponse(self: Message) bool {
 +        return switch (self) {
 +            .report_title, .clipboard_read => true,
@@ -58,11 +65,10 @@ index 3cb0016fa..0c94e53d2 100644
      pub const ReportTitleStyle = enum {
          csi_21_t,
  
-@@ -195,3 +206,13 @@ pub fn newConfig(
- 
+@@ -241,6 +262,16 @@
      return copy;
  }
-+
+ 
 +test "replay response classification for surface messages" {
 +    const testing = std.testing;
 +
@@ -72,11 +78,14 @@ index 3cb0016fa..0c94e53d2 100644
 +    const bell: Message = .ring_bell;
 +    try testing.expect(!bell.discardIfTerminalResponse());
 +}
++
+ test "DesktopNotification init" {
+     const notification = Message.DesktopNotification.init("Title", "Body");
+ 
 diff --git a/src/termio/Termio.zig b/src/termio/Termio.zig
-index dcd0d8cf7..ec01af0ca 100644
 --- a/src/termio/Termio.zig
 +++ b/src/termio/Termio.zig
-@@ -683,6 +683,21 @@ pub fn processOutput(self: *Termio, buf: []const u8) void {
+@@ -668,6 +668,21 @@
      self.processOutputLocked(buf);
  }
  
@@ -85,8 +94,8 @@ index dcd0d8cf7..ec01af0ca 100644
 +/// the terminal-state mutex is held. The prior suppression state is restored
 +/// before this call returns.
 +pub fn processOutputSuppressingResponses(self: *Termio, buf: []const u8) void {
-+    self.renderer_state.mutex.lock();
-+    defer self.renderer_state.mutex.unlock();
++    self.renderer_state.mutex.lockUncancelable(global.io());
++    defer self.renderer_state.mutex.unlock(global.io());
 +
 +    const previous = self.terminal_stream.handler.suppress_terminal_responses;
 +    self.terminal_stream.handler.suppress_terminal_responses = true;
@@ -99,10 +108,9 @@ index dcd0d8cf7..ec01af0ca 100644
  fn processOutputLocked(self: *Termio, buf: []const u8) void {
      // Schedule a render. We can call this first because we have the lock.
 diff --git a/src/termio/message.zig b/src/termio/message.zig
-index d7a59bf5e..2545a7c40 100644
 --- a/src/termio/message.zig
 +++ b/src/termio/message.zig
-@@ -93,6 +93,27 @@ pub const Message = union(enum) {
+@@ -115,6 +115,27 @@
          };
      }
  
@@ -127,10 +135,10 @@ index d7a59bf5e..2545a7c40 100644
 +        }
 +    }
 +
-     /// The types of size reports that we support
-     pub const SizeReport = enum {
-         mode_2048,
-@@ -111,3 +132,17 @@ test {
+     /// Free resources owned by a message that will not be processed.
+     /// The message is invalid after this call.
+     pub fn deinit(self: *const Message) void {
+@@ -144,3 +165,17 @@
      const testing = std.testing;
      try testing.expectEqual(@as(usize, 40), @sizeOf(Message));
  }
@@ -149,10 +157,9 @@ index d7a59bf5e..2545a7c40 100644
 +    try testing.expect(!(Message{ .linefeed_mode = true }).discardIfTerminalResponse());
 +}
 diff --git a/src/termio/stream_handler.zig b/src/termio/stream_handler.zig
-index 8c1b5b8ab..51afd8bbf 100644
 --- a/src/termio/stream_handler.zig
 +++ b/src/termio/stream_handler.zig
-@@ -78,6 +78,15 @@ pub const StreamHandler = struct {
+@@ -85,6 +85,15 @@
      /// to wake up the termio thread.
      termio_messaged: bool = false,
  
@@ -168,7 +175,7 @@ index 8c1b5b8ab..51afd8bbf 100644
      /// This is set to true when we've seen a title escape sequence. We use
      /// this to determine if we need to default the window title.
      seen_title: bool = false,
-@@ -126,9 +135,15 @@ pub const StreamHandler = struct {
+@@ -131,9 +140,15 @@
          self: *StreamHandler,
          msg: apprt.surface.Message,
      ) void {
@@ -181,10 +188,10 @@ index 8c1b5b8ab..51afd8bbf 100644
 +            const suppress = self.suppress_terminal_responses;
 +            self.suppress_terminal_responses = false;
 +            defer self.suppress_terminal_responses = suppress;
-             self.renderer_state.mutex.unlock();
-             defer self.renderer_state.mutex.lock();
+             self.renderer_state.mutex.unlock(global.io());
+             defer self.renderer_state.mutex.lockUncancelable(global.io());
              _ = self.surface_mailbox.push(msg, .{ .forever = {} });
-@@ -136,6 +151,13 @@ pub const StreamHandler = struct {
+@@ -141,6 +156,13 @@
      }
  
      inline fn messageWriter(self: *StreamHandler, msg: termio.Message) void {
@@ -198,13 +205,13 @@ index 8c1b5b8ab..51afd8bbf 100644
          self.termio_mailbox.send(msg, self.renderer_state.mutex);
          self.termio_messaged = true;
      }
-@@ -158,6 +180,9 @@ pub const StreamHandler = struct {
+@@ -163,6 +185,9 @@
          // Instant would have blocked. Release the renderer mutex,
          // wake up the renderer to allow it to process the message,
          // and then try again.
 +        const suppress = self.suppress_terminal_responses;
 +        self.suppress_terminal_responses = false;
 +        defer self.suppress_terminal_responses = suppress;
-         self.renderer_state.mutex.unlock();
-         defer self.renderer_state.mutex.lock();
+         self.renderer_state.mutex.unlock(global.io());
+         defer self.renderer_state.mutex.lockUncancelable(global.io());
          self.renderer_wakeup.notify() catch |err| {

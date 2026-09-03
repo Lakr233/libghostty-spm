@@ -59,6 +59,26 @@ if grep -q "GHOSTTY_SURFACE_IO_BACKEND_HOST_MANAGED" "$SOURCE_DIR/include/ghostt
     host_io_applied=true
 fi
 
+# Upstream renamed the global-state env accessors sometime after 35e1a01
+# (internal_os.getEnvMap/std.process.EnvMap/global_state.resources_dir ->
+# global.environMap()/std.process.Environ.Map/global.resourcesDir()). The
+# host-managed-io patch's Surface.zig hunk touches that exact code, so it
+# needs a context-updated variant once the rename has landed.
+global_env_refactored=false
+if grep -q "pub fn environMap" "$SOURCE_DIR/src/global.zig" 2>/dev/null; then
+    global_env_refactored=true
+fi
+
+# Zig 0.16 moved addCSourceFile/linkSystemLibrary/linkLibrary/linkLibC off
+# std.Build.Step.Compile onto its root_module, and dropped linkSystemLibrary2
+# in favor of linkSystemLibrary. GhosttyFrameData.zig's framegen build step
+# uses these, so the prebuilt-framedata patch needs a context-updated variant
+# once the source requires Zig 0.16.
+zig_build_api_v2=false
+if grep -q 'minimum_zig_version = "0\.16' "$SOURCE_DIR/build.zig.zon" 2>/dev/null; then
+    zig_build_api_v2=true
+fi
+
 for patch_file in "$PATCH_DIR"/*; do
     [ -e "$patch_file" ] || continue
 
@@ -74,11 +94,45 @@ for patch_file in "$PATCH_DIR"/*; do
             ;;
         0002-host-managed-io-modern.patch)
             [ "$modern_host_io" = true ] || continue
+            [ "$global_env_refactored" = false ] || continue
             if [ "$host_io_applied" = true ]; then
                 echo "[+] patch already applied: $patch_name"
                 continue
             fi
             apply_unified_patch "$patch_file"
+            ;;
+        0002-host-managed-io-modern-v2.patch)
+            [ "$modern_host_io" = true ] || continue
+            [ "$global_env_refactored" = true ] || continue
+            if [ "$host_io_applied" = true ]; then
+                echo "[+] patch already applied: $patch_name"
+                continue
+            fi
+            apply_unified_patch "$patch_file"
+            ;;
+        0003-prebuilt-framedata.patch)
+            [ "$zig_build_api_v2" = false ] || continue
+            apply_unified_patch "$patch_file"
+            ;;
+        0003-prebuilt-framedata-v2.patch)
+            [ "$zig_build_api_v2" = true ] || continue
+            apply_unified_patch "$patch_file"
+            ;;
+        0005-ios-metal-rendering.sh)
+            [ "$global_env_refactored" = false ] || continue
+            "$patch_file" "$SOURCE_DIR"
+            ;;
+        0005-ios-metal-rendering-v2.sh)
+            [ "$global_env_refactored" = true ] || continue
+            "$patch_file" "$SOURCE_DIR"
+            ;;
+        0006-disable-custom-shaders.sh)
+            [ "$zig_build_api_v2" = false ] || continue
+            "$patch_file" "$SOURCE_DIR"
+            ;;
+        0006-disable-custom-shaders-v2.sh)
+            [ "$zig_build_api_v2" = true ] || continue
+            "$patch_file" "$SOURCE_DIR"
             ;;
         *.md) ;;
         *.patch)

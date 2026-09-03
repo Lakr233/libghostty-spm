@@ -202,4 +202,175 @@ final class TerminalCallbackBridge {
             )
         )
     }
+
+    // MARK: - Clipboard read confirmation bookkeeping
+
+    /// Guards `pendingClipboardRequests`. Two independent callers can reach
+    /// for the same entry — the host's confirmation UI answering
+    /// (``PendingClipboardRequest/resolve(_:contents:available:)``, normally
+    /// main-actor via `terminalRunOnMain`) and surface teardown denying
+    /// everything outstanding (``denyAllPendingClipboardRequests()``, called
+    /// from `TerminalSurfaceCoordinator.deinit`, which — a `@MainActor`
+    /// class's deinit is `nonisolated` by default — only *assumes* main-actor
+    /// isolation rather than the runtime enforcing it, and that assumption
+    /// silently no-ops in a release build if it's ever wrong). Without a
+    /// real lock, "exactly one of complete/deny fires for every request" was
+    /// a single unsynchronized `Bool` read-then-write on
+    /// ``PendingClipboardRequest``, which is a genuine data race, not just a
+    /// theoretical one, whenever those two callers overlap: both could pass
+    /// the check and both call into libghostty for the same, already-freed
+    /// `apprt.ClipboardRequest*`, corrupting the heap. The lock is held only
+    /// across the map mutation, never across the libghostty call itself.
+    private let pendingClipboardRequestsLock = NSLock()
+
+    /// Requests awaiting the host's answer, keyed by the opaque
+    /// `apprt.ClipboardRequest` pointer libghostty gave us, guarded by
+    /// `pendingClipboardRequestsLock`. Guarantees "exactly one of
+    /// complete/deny fires for every request" even when the host's
+    /// confirmation UI never answers — see
+    /// ``denyAllPendingClipboardRequests()``.
+    nonisolated(unsafe) private var pendingClipboardRequests: [Int: PendingClipboardRequest] = [:]
+
+    /// Registers a newly received confirm request and returns the token the
+    /// caller resolves once the host answers.
+    nonisolated func registerPendingClipboardRequest(_ statePtr: UnsafeMutableRawPointer) -> PendingClipboardRequest {
+        let token = PendingClipboardRequest(statePtr: statePtr, bridge: self)
+        pendingClipboardRequestsLock.lock()
+        pendingClipboardRequests[Int(bitPattern: statePtr)] = token
+        pendingClipboardRequestsLock.unlock()
+        return token
+    }
+
+    /// Atomically removes and returns the pending request for `statePtr`, if
+    /// it is still outstanding. Whichever caller receives the non-nil result
+    /// is the *only* one allowed to answer it — this is what makes "exactly
+    /// one of complete/deny fires" hold even when
+    /// ``PendingClipboardRequest/resolve(_:contents:available:)`` and
+    /// ``denyAllPendingClipboardRequests()`` race for the same request: the
+    /// loser finds nothing left to take and no-ops.
+    nonisolated fileprivate func takePendingClipboardRequest(
+        _ statePtr: UnsafeMutableRawPointer
+    ) -> PendingClipboardRequest? {
+        pendingClipboardRequestsLock.lock()
+        defer { pendingClipboardRequestsLock.unlock() }
+        return pendingClipboardRequests.removeValue(forKey: Int(bitPattern: statePtr))
+    }
+
+    /// Denies every clipboard-read confirmation still waiting on the host's
+    /// answer. **Must run while `rawSurface` is still the live surface** —
+    /// call before nil-ing it out and before `TerminalSurface.free()`. This
+    /// is the wrapper-level backstop for "exactly one of complete/deny
+    /// fires for every request": a Pane/Session/Window tearing down while a
+    /// confirmation prompt is still open must not leave the requesting
+    /// program hanging forever, regardless of whether the host's own UI
+    /// (``TerminalClipboardConfirmationRequest``) ever answers or is
+    /// released. The map is drained under the lock before any request is
+    /// answered, so a concurrent `resolve` either wins the race for a given
+    /// entry (and this loop never sees it) or loses it (and its own
+    /// `takePendingClipboardRequest` finds nothing) — never both.
+    nonisolated func denyAllPendingClipboardRequests() {
+        pendingClipboardRequestsLock.lock()
+        guard !pendingClipboardRequests.isEmpty else {
+            pendingClipboardRequestsLock.unlock()
+            return
+        }
+        let tokens = Array(pendingClipboardRequests.values)
+        pendingClipboardRequests.removeAll()
+        pendingClipboardRequestsLock.unlock()
+        for token in tokens {
+            token.forceDeny()
+        }
+    }
+
+    #if DEBUG
+        /// Test-only count of ``finishClipboardRequest`` invocations, guarded
+        /// by `pendingClipboardRequestsLock`. Exists because a live
+        /// `ghostty_surface_t` isn't available in unit tests, so
+        /// "exactly one of complete/deny fires per request" — including
+        /// under the ``resolve(_:contents:available:)`` /
+        /// ``denyAllPendingClipboardRequests()`` race this file's locking
+        /// exists to prevent — needs some observable signal other than the
+        /// (untestable) libghostty call itself.
+        nonisolated(unsafe) private var _testHooks_clipboardAnswerCount = 0
+        var testHooks_clipboardAnswerCount: Int {
+            pendingClipboardRequestsLock.lock()
+            defer { pendingClipboardRequestsLock.unlock() }
+            return _testHooks_clipboardAnswerCount
+        }
+    #endif
+
+    nonisolated fileprivate func finishClipboardRequest(
+        _ statePtr: UnsafeMutableRawPointer,
+        allowed: Bool,
+        contents: [TerminalClipboardContent],
+        available: [String]
+    ) {
+        #if DEBUG
+            pendingClipboardRequestsLock.lock()
+            _testHooks_clipboardAnswerCount += 1
+            pendingClipboardRequestsLock.unlock()
+        #endif
+
+        guard let surface = rawSurface else {
+            TerminalDebugLog.log(.input, "clipboard confirm resolve skipped: missing surface")
+            return
+        }
+
+        guard allowed else {
+            ghostty_surface_deny_clipboard_request(surface, statePtr)
+            TerminalDebugLog.log(.input, "clipboard confirm denied")
+            return
+        }
+
+        withClipboardCompletePayload(
+            contents: contents,
+            available: available,
+            confirmed: true,
+            remember: false
+        ) { complete in
+            ghostty_surface_complete_clipboard_request(surface, complete, statePtr)
+        }
+        TerminalDebugLog.log(.input, "clipboard confirm allowed")
+    }
+}
+
+/// Tracks one clipboard-read confirmation from request to answer. Resolves
+/// at most once: a second `resolve`/`forceDeny` call (e.g. the host answers
+/// after the wrapper already denied at teardown) is a documented no-op, not
+/// a double free of libghostty's request state. "At most once" is enforced
+/// by `TerminalCallbackBridge.takePendingClipboardRequest(_:)` atomically
+/// removing this token's entry from the bridge's pending map — whichever
+/// caller performs that removal is the only one that proceeds — not by a
+/// flag on this instance, since `resolve` (normally main-actor, via
+/// `terminalRunOnMain`) and `forceDeny` (called from
+/// `TerminalSurfaceCoordinator.deinit`, which only *assumes* main-actor
+/// isolation) can genuinely run concurrently on different threads.
+///
+/// `@unchecked Sendable` so a token created on the (nonisolated) clipboard
+/// callback thread can be captured by the main-actor-isolated closure that
+/// answers it later.
+final class PendingClipboardRequest: @unchecked Sendable {
+    private let statePtr: UnsafeMutableRawPointer
+    private weak var bridge: TerminalCallbackBridge?
+
+    fileprivate init(statePtr: UnsafeMutableRawPointer, bridge: TerminalCallbackBridge) {
+        self.statePtr = statePtr
+        self.bridge = bridge
+    }
+
+    /// Answers the request with the host's decision. Intended to be used as
+    /// the completion passed to a ``TerminalClipboardConfirmationRequest``.
+    func resolve(_ allowed: Bool, contents: [TerminalClipboardContent], available: [String]) {
+        guard let bridge, bridge.takePendingClipboardRequest(statePtr) != nil else { return }
+        bridge.finishClipboardRequest(statePtr, allowed: allowed, contents: contents, available: available)
+    }
+
+    /// Called by `TerminalCallbackBridge.denyAllPendingClipboardRequests()`
+    /// at teardown, once per token *after* that method has already atomically
+    /// drained the whole pending map under its lock — so, unlike `resolve`,
+    /// this never needs to re-take the entry; a concurrent `resolve` for this
+    /// same token already lost the race the moment the map was cleared.
+    fileprivate func forceDeny() {
+        bridge?.finishClipboardRequest(statePtr, allowed: false, contents: [], available: [])
+    }
 }
