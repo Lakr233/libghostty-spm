@@ -17,17 +17,12 @@ SOURCE_DIR=${1:?usage: $0 <ghostty_source_dir>}
 cd "$SOURCE_DIR"
 
 if ! ls -d zig-pkg/libxev-* zig-pkg/aro-* >/dev/null 2>&1; then
-    # The same -D set build-ghostty.sh builds with, so the lazy dependencies
-    # are part of what gets fetched. Cache dirs come from the environment
-    # when the caller exported them.
-    zig build --fetch \
-        -Dapp-runtime=none \
-        -Demit-exe=false \
-        -Demit-xcframework=false \
-        -Dsentry=false \
-        -Dcustom-shaders=false \
-        -Dinspector=false \
-        -Dtarget=aarch64-maccatalyst >/dev/null
+    # Both packages are lazy dependencies, and the default `--fetch`
+    # (`needed`) unpacks only the eager ones — on a fresh clone it returned
+    # in under a second with neither. `all` fetches the whole tree (about
+    # 110 MB, a minute on CI). Cache dirs come from the environment when the
+    # caller exported them.
+    zig build --fetch=all >/dev/null
 fi
 
 for dir in zig-pkg/libxev-*; do

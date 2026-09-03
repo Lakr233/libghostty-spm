@@ -144,8 +144,9 @@ when the header already carries `GHOSTTY_SURFACE_IO_BACKEND_HOST_MANAGED`.
   beside its Darwin arms, and aro (the C frontend behind 0.16's
   translate-c) gets a `.visionos` arm for the Apple version macro it would
   otherwise abort on. Packages are unpacked by 0.16 under
-  `<source>/zig-pkg/`, so the script runs `zig build --fetch` when they are
-  missing (a fresh clone) and edits the unpacked copies, which later builds
+  `<source>/zig-pkg/`, so the script runs `zig build --fetch=all` when they
+  are missing (a fresh clone; both are lazy dependencies, which the default
+  `needed` mode skips) and edits the unpacked copies, which later builds
   leave alone; `build-ghostty.sh` hands `apply-patches.sh` the build's
   `ZIG_GLOBAL_CACHE_DIR` so the fetch reuses its cache.
 
