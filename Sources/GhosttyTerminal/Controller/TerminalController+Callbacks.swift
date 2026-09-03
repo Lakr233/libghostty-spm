@@ -177,11 +177,13 @@ private enum TerminalCallbacks {
             return GHOSTTY_CLIPBOARD_READ_UNSUPPORTED
         }
 
-        #if canImport(UIKit)
-            let string = UIPasteboard.general.string
-        #elseif canImport(AppKit)
-            let string = NSPasteboard.general.string(forType: .string)
-        #endif
+        // Text and file URLs only, through the shared reader: a file copied
+        // in Finder or Files pastes as its escaped path, not its display
+        // name. This also serves a program's OSC 52 read, which must not
+        // write files as a side effect; a host paste that finds image or
+        // document data materialises it itself
+        // (`UITerminalView.pasteFromPasteboard`).
+        let string = TerminalPasteboardContent.text()
 
         let hasText = string.map { !$0.isEmpty } ?? false
         let available = listAvailable && hasText ? ["text/plain"] : []

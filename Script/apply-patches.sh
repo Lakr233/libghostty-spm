@@ -40,13 +40,23 @@ apply_unified_patch() {
         return
     fi
 
-    if ! git -C "$SOURCE_DIR" apply --check "$patch_file" >/dev/null 2>&1; then
-        echo "[-] failed to validate patch: $patch_file"
-        exit 1
+    if git -C "$SOURCE_DIR" apply --check "$patch_file" >/dev/null 2>&1; then
+        git -C "$SOURCE_DIR" apply "$patch_file"
+        echo "[+] applied patch: $(basename "$patch_file")"
+        return
     fi
 
-    git -C "$SOURCE_DIR" apply "$patch_file"
-    echo "[+] applied patch: $(basename "$patch_file")"
+    # Context drifted. A patch with `index` lines names the blobs it was
+    # cut against, and upstream's clone has them, so git can merge the hunks
+    # three-way instead of matching context byte for byte; a hunk that
+    # really conflicts leaves markers and fails here.
+    if git -C "$SOURCE_DIR" apply --3way "$patch_file" >/dev/null 2>&1; then
+        echo "[+] applied patch with a 3-way merge (context drifted; regenerate it): $(basename "$patch_file")"
+        return
+    fi
+
+    echo "[-] failed to validate patch: $patch_file"
+    exit 1
 }
 
 modern_host_io=false
@@ -73,10 +83,11 @@ fi
 # std.Build.Step.Compile onto its root_module, and dropped linkSystemLibrary2
 # in favor of linkSystemLibrary. GhosttyFrameData.zig's framegen build step
 # uses these, so the prebuilt-framedata patch needs a context-updated variant
-# once the source requires Zig 0.16.
-zig_build_api_v2=false
-if grep -q 'minimum_zig_version = "0\.16' "$SOURCE_DIR/build.zig.zon" 2>/dev/null; then
-    zig_build_api_v2=true
+# once the source has moved. Keyed off the code the patch touches, not the
+# Zig version string, so 0.17 does not fall back to the 0.15 variant.
+zig_build_api_v2=true
+if grep -q "linkSystemLibrary2" "$SOURCE_DIR/src/build/GhosttyFrameData.zig" 2>/dev/null; then
+    zig_build_api_v2=false
 fi
 
 for patch_file in "$PATCH_DIR"/*; do

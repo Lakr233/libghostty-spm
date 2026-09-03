@@ -36,21 +36,29 @@ if ! command -v zig >/dev/null 2>&1; then
     exit 1
 fi
 
-./Script/apply-patches.sh "$SOURCE_DIR"
-
 CACHE_ROOT="${BUILD_CACHE_ROOT:-$ROOT_DIR/build/cache}"
 GLOBAL_CACHE_DIR="${ZIG_GLOBAL_CACHE_DIR:-$CACHE_ROOT/zig-global}"
 LOCAL_CACHE_DIR="$CACHE_ROOT/$ZIG_TARGET/zig-local"
 MODULE_CACHE_DIR="${CLANG_MODULE_CACHE_ROOT:-$CACHE_ROOT/clang-module-cache}/$ZIG_TARGET"
 
-# visionOS is a target the pinned Zig only half knows: its std leaves the
-# `visionos` tag out of a few Darwin switches. Build those targets against a
-# patched copy of the std (Patches/zig/, staged by prepare-zig-lib.sh) — the
-# toolchain on PATH is left untouched, and every other target still uses it.
+# A patch that has to fetch a Zig package (0017) shares the build's cache.
+ZIG_GLOBAL_CACHE_DIR="$GLOBAL_CACHE_DIR" ./Script/apply-patches.sh "$SOURCE_DIR"
+
+# visionOS is a target some Zigs only half know: 0.15.2's std left the
+# `visionos` tag out of a few Darwin switches. When Patches/zig/ carries a
+# std patch for the Zig on PATH, build those targets against a patched copy
+# of the std (staged by prepare-zig-lib.sh) — the toolchain itself is left
+# untouched, and every other target still uses it. With no patch for this
+# Zig the stock std is used; a `@compileError("unimplemented")` there means
+# the patch needs porting (see Patches/zig/README.md).
 if [[ "$ZIG_TARGET" == *visionos* ]]; then
-    ZIG_LIB_DIR=$(./Script/prepare-zig-lib.sh "$CACHE_ROOT")
-    export ZIG_LIB_DIR
-    echo "[*] visionOS target: ZIG_LIB_DIR=$ZIG_LIB_DIR"
+    if [ -f "$ROOT_DIR/Patches/zig/$(zig version)-visionos-std.patch" ]; then
+        ZIG_LIB_DIR=$(./Script/prepare-zig-lib.sh "$CACHE_ROOT")
+        export ZIG_LIB_DIR
+        echo "[*] visionOS target: ZIG_LIB_DIR=$ZIG_LIB_DIR"
+    else
+        echo "[*] visionOS target: no std patch for Zig $(zig version), using the stock std"
+    fi
 fi
 
 echo "[*] building Ghostty static library…"

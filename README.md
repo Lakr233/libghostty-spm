@@ -209,7 +209,7 @@ the software keyboard.
 The package downloads a pre-built XCFramework. To rebuild libghostty from the Ghostty source:
 
 ```bash
-# Requires: zig (CI builds with 0.15.2 — the pinned upstream's minimum_zig_version)
+# Requires: zig (CI builds with 0.16.0 — the pinned upstream's minimum_zig_version)
 ./build.sh
 ./build.sh --platforms macos,ios --source /path/to/ghostty --skip-tests
 ```
@@ -225,30 +225,37 @@ against the result unless `--skip-tests` is given. `Package.local.swift`
 points the binary target at that local `BinaryTarget/` build; `--download-url`
 regenerates `Package.swift` from `Package.swift.template` for an uploaded zip.
 
-The `visionos` group builds against a patched copy of Zig 0.15.2's standard
-library (`Patches/zig/`, staged under `build/cache` by
-`Script/prepare-zig-lib.sh`; the toolchain itself is not modified). On a Mac
-with Xcode 27 the pinned Zig cannot link its own build runner against the
-macOS SDK; `eval "$(./Script/support/xcode27-sdk-overlay.sh)"` puts a
-per-checkout SDK overlay on PATH that fixes that for the shell.
+The `visionos` group builds against a patched copy of the Zig standard
+library only when `Patches/zig/` holds a patch for the Zig on PATH (staged
+under `build/cache` by `Script/prepare-zig-lib.sh`; the toolchain itself is
+never modified). Zig 0.16.0 needs none. Xcode 27 needs the Metal toolchain
+component installed (`xcodebuild -downloadComponent MetalToolchain`); the
+`Script/support/xcode27-sdk-overlay.sh` SDK overlay was for Zig 0.15.2,
+which could not link its build runner against that SDK, and 0.16 does not
+need it.
 
 ## Versions
 
 Pin `1.5.2` or later (`from: "1.5.2"`). The `1.4.0` … `1.4.13` and `1.5.0`
 tags and releases were withdrawn and no longer exist; `1.5.1` is the
-oldest live tag on this track and the first with visionOS slices. Package
-versions are independent of Ghostty's own version — every release so far ships Ghostty
-v1.3.1 (`Ghostty.version`; `Ghostty.ref` pins its commit). Package tags are
-cut by the "Release Package" workflow only; `Script/audit-releases.sh`
-checks every tag's manifest against the asset it downloads.
+oldest live tag on this track and the first with visionOS slices. Versions
+after `1.5.2` are `<major.minor>.<UTC YYYYMMDD>` (`1.5.20260903`): a
+release lands every week with Ghostty pinned to upstream main's head of
+that Monday (`Ghostty.ref`, a commit rather than a release, because
+upstream tags rarely and main carries the fixes we need), the date is the
+patch number so a `from:` pin takes each one, and major.minor moves only
+for a breaking change to this package's API. Package tags are cut by the
+"Release Package" workflow only; `Script/audit-releases.sh` checks every
+tag's manifest against the asset it downloads.
 
-`upstream.<X.Y.Z>` releases carry the XCFramework built from Ghostty `X.Y.Z`
-(`upstream.<X.Y.Z>-<N>` when the same Ghostty was rebuilt with a changed patch
-stack or target set — `Ghostty.build` holds `N`; `upstream.1.3.1-2` is the
-first asset with visionOS slices); each package tag's `Package.swift`
-downloads one of them. Those and the older
-`storage.*` tags are XCFramework assets, not package versions. SPM should not
-depend on them.
+`upstream.<sha12>` releases carry the XCFramework built from that Ghostty
+commit (`upstream.<sha12>-<N>` when the same commit was rebuilt with a
+changed patch stack or target set — `Ghostty.build` holds `N`). The older
+`upstream.1.3.1`, `upstream.1.3.1-2` (the first asset with visionOS slices)
+and `upstream.1.3.1-3` were named after the upstream release instead; each
+package tag's `Package.swift` downloads one of these. Those and the still
+older `storage.*` tags are XCFramework assets, not package versions. SPM
+should not depend on them.
 
 ## Trimmed Build
 

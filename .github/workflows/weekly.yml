@@ -1,0 +1,69 @@
+name: Weekly Upstream
+
+# Once a week: pin Ghostty.ref to upstream main's head, publish the
+# XCFramework for it (build.yml) and cut a package release against it
+# (release.yml). Each stage is the existing workflow, dispatched and watched
+# (Script/dispatch-workflow.sh), so a failure stops the chain where it
+# happened: a pin that does not build leaves main pointing at it with a red
+# run to fix, and no package is released until its asset exists. The
+# release step is skipped when main has not moved since the latest package
+# tag.
+
+on:
+  schedule:
+    - cron: "0 2 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: weekly-upstream
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Pin Upstream Head
+        run: |
+          OLD=$(tr -d '[:space:]' < Ghostty.ref)
+          NEW=$(gh api repos/ghostty-org/ghostty/commits/main --jq '.sha')
+          if [ "$OLD" = "$NEW" ]; then
+            echo "[*] already pinned to $NEW"
+            exit 0
+          fi
+          echo "$NEW" > Ghostty.ref
+          git rm -q --ignore-unmatch Ghostty.build
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git commit -am "Pin Ghostty $NEW"
+          git push
+          echo "[*] pinned $OLD -> $NEW"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build XCFramework
+        run: ./Script/dispatch-workflow.sh build.yml
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Release Package
+        run: |
+          git fetch --tags origin
+          LATEST=$(git tag --list | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n 1 || true)
+          if [ -n "$LATEST" ] && [ "$(git rev-parse "$LATEST^{commit}")" = "$(git rev-parse HEAD)" ]; then
+            echo "[*] main has not moved since $LATEST, nothing to release"
+            exit 0
+          fi
+          ./Script/dispatch-workflow.sh release.yml
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

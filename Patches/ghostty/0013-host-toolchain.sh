@@ -26,8 +26,11 @@ fi
 if grep -q 'LIBGHOSTTY_SPM_NO_VT_DYLIB' build.zig; then
     echo "[+] libghostty-vt.dylib install already skipped"
 else
-    perl -0pi -e 's/^    libghostty_vt_shared\.install\(b\.getInstallStep\(\)\);\n/    \/\/ LIBGHOSTTY_SPM_NO_VT_DYLIB: the XCFramework ships libghostty.a only.\n/m' build.zig
-    grep -q 'LIBGHOSTTY_SPM_NO_VT_DYLIB' build.zig && ! grep -q 'libghostty_vt_shared.install(b.getInstallStep())' build.zig || { echo "[!] build.zig vt install patch failed"; exit 1; }
+    # `libghostty_vt_shared.install(...)` through 1.3.1; since upstream
+    # made the shared lib optional it is `shared.install(...)` inside
+    # `if (libghostty_vt_shared) |shared|` (`shared` stays used below it).
+    perl -0pi -e 's/^( *)(?:libghostty_vt_shared|shared)\.install\(b\.getInstallStep\(\)\);\n/$1\/\/ LIBGHOSTTY_SPM_NO_VT_DYLIB: the XCFramework ships libghostty.a only.\n/m' build.zig
+    grep -q 'LIBGHOSTTY_SPM_NO_VT_DYLIB' build.zig && ! grep -qE '(libghostty_vt_shared|shared)\.install\(b\.getInstallStep\(\)\)' build.zig || { echo "[!] build.zig vt install patch failed"; exit 1; }
     echo "[+] patched build.zig: libghostty-vt.dylib not installed"
 fi
 echo "[+] all host-toolchain patches applied"

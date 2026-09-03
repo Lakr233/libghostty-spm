@@ -80,7 +80,7 @@ if ! command -v zig >/dev/null 2>&1; then
 fi
 
 if [ ! -d "$SOURCE_DIR" ]; then
-    echo "[*] Ghostty source not found, cloning into $SOURCE_DIR…"
+    echo "[*] Ghostty source not found, cloning into ${SOURCE_DIR}…"
     mkdir -p "$(dirname "$SOURCE_DIR")"
     git clone https://github.com/ghostty-org/ghostty "$SOURCE_DIR"
     if [ -z "$GHOSTTY_REF" ]; then
@@ -89,8 +89,10 @@ if [ ! -d "$SOURCE_DIR" ]; then
 fi
 
 if [ -n "$GHOSTTY_REF" ]; then
-    echo "[*] checking out Ghostty ref: $GHOSTTY_REF…"
-    git -C "$SOURCE_DIR" fetch --tags origin
+    echo "[*] checking out Ghostty ref: ${GHOSTTY_REF}…"
+    # --force: upstream moves its `tip` tag, and a plain --tags fetch
+    # refuses to clobber the one an earlier fetch left behind.
+    git -C "$SOURCE_DIR" fetch --tags --force origin
     git -C "$SOURCE_DIR" checkout "$GHOSTTY_REF"
 fi
 

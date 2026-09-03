@@ -1,9 +1,8 @@
 # Ghostty Patches
 
 This directory is the single place for local upstream Ghostty patches used by
-the `libghostty-spm` build pipeline. They target the pinned upstream release
-(`Ghostty.version` and `Ghostty.ref` at the repository root), not upstream
-main.
+the `libghostty-spm` build pipeline. They target the pinned upstream commit
+(`Ghostty.ref` at the repository root), not whatever upstream main is today.
 
 ## How they apply
 
@@ -19,7 +18,10 @@ extension:
   be installed (0003 carries a binary hunk `patch(1)` cannot apply), but the
   source may be a clone, a worktree or an extracted tarball. A patch that
   already reverse-applies is reported as applied and skipped; one that fails
-  `--check` aborts the build.
+  `--check` is retried with `git apply --3way`, which merges the hunks
+  against the blobs named in the patch's `index` lines (so cut every patch
+  with `git diff`, which writes them, and regenerate a patch the log says
+  needed the 3-way merge); one that conflicts even then aborts the build.
 - `.sh` is executed as `<script> <source_dir>`; each script checks for its
   own changes (a marker or the edited text) and skips whatever is already
   applied, so re-running it is a no-op.
@@ -39,7 +41,11 @@ when the header already carries `GHOSTTY_SURFACE_IO_BACKEND_HOST_MANAGED`.
 - Use executable patch scripts (`.sh`) only when upstream context is too
   unstable for a reliable diff.
 - Keep version-specific variants beside the original patch and select them in
-  `Script/apply-patches.sh` using an upstream API marker.
+  `Script/apply-patches.sh` using an upstream API marker — a grep for the
+  code the patch touches (`linkSystemLibrary2` in `GhosttyFrameData.zig`,
+  `pub fn environMap` in `global.zig`), never a version string: a version
+  test picks the wrong variant the moment the next version lands, a code
+  test keeps picking the right one until that code moves again.
 - Preserve newer Ghostty's renamed internal-library outputs
   (`ghostty-internal.*`) when extending its Darwin static-library build path.
 - Every patch in this directory must be safe to re-run: the pipeline applies
@@ -63,12 +69,24 @@ when the header already carries `GHOSTTY_SURFACE_IO_BACKEND_HOST_MANAGED`.
 - `0002-host-managed-io-modern.patch` — the same backend rebased onto upstream
   main (`GHOSTTY_API`, env API rename), for a release that declares
   `ghostty_surface_foreground_pid` itself.
+- `0002-host-managed-io-modern-v2.patch` — the `-modern` patch after
+  upstream's `global.environMap()` / `global.resourcesDir()` rename
+  (selected when `src/global.zig` declares `environMap`). The variant the
+  pinned commit selects.
 - `0003-prebuilt-framedata.patch` — commit
   `src/build/framegen/framedata.compressed` and use it instead of building and
   running the `framegen` host tool.
+- `0003-prebuilt-framedata-v2.patch` — the same for a source that requires
+  Zig 0.16 (`addCSourceFile` / `linkSystemLibrary` moved onto
+  `root_module`); `0005-ios-metal-rendering-v2.sh` and
+  `0006-disable-custom-shaders-v2.sh` are the matching variants of 0005
+  and 0006, selected by the same markers in `apply-patches.sh`.
 - `0004-ios-fixes.sh` — ignore cf_release_thread loop errors, stub the private
   `CGSSetWindowBackgroundBlurRadius` call (App Store), link Metal and MetalKit
-  in `pkg/macos`, iOS deployment target 15.0.
+  in `pkg/macos`, iOS deployment target 15.0, and turn upstream's "iOS is
+  not a supported target for the full Ghostty build" refusal in
+  `Config.zig` into a comptime-false branch (marker
+  `LIBGHOSTTY_SPM_IOS_FULL_BUILD`; skipped on a source without the guard).
 - `0005-ios-metal-rendering.sh` — iOS rendering: IOSurfaceLayer ±1 px
   tolerance on `CAIOSurfaceLayer`, first-frame display and synchronous present
   in `Metal.zig`, no CF release thread in coretext on iOS, 64-byte-aligned
@@ -113,23 +131,36 @@ when the header already carries `GHOSTTY_SURFACE_IO_BACKEND_HOST_MANAGED`.
   installed (nothing ships it, and its libc++ sub-compile is what fails
   under Xcode 27 and on visionOS everywhere; marker
   `LIBGHOSTTY_SPM_NO_VT_DYLIB`).
-- `0014-free-text-signature.patch` — upstream commit `4803d58b`:
-  `ghostty_surface_free_text` takes the surface as its first parameter, as
-  `ghostty.h` has always declared it. The 1.3.1 export took only the text
-  pointer, so a caller following the header handed the surface in its place
-  and the text was never freed.
-- `0015-mouse-captured-respects-reporting.patch` — `mouseCaptured()` also
-  requires `config.mouse_reporting`, matching `isMouseReporting()`. Does
-  not land in the shipped XCFramework zip until the next source-build.
+- `0016-maccatalyst.sh` — Zig 0.16 made Mac Catalyst its own OS tag
+  (`aarch64-maccatalyst`; 0.15 spelled it `aarch64-ios-macabi`, os `.ios`
+  + abi `.macabi`), so the `.ios` arms stopped covering it. `.maccatalyst`
+  takes the iOS arm wherever 0012 gives `.visionos` one, `osVersionMin`
+  gets a 15.0 arm (Catalyst versions follow iOS), `MetallibStep` compiles
+  the shaders as for device iOS (what the 0.15 fall-through shipped), and
+  `apple-sdk/native_link.zig` learns the macOS SDK + `-macabi` triple
+  (marker `LIBGHOSTTY_SPM_MACCATALYST_PATCH`; runs after 0012).
+- `0017-zig-pkg-apple-targets.sh` — the Zig packages Ghostty pulls in that
+  predate one of our targets: libxev (the event loop) gets `.maccatalyst`
+  beside its Darwin arms, and aro (the C frontend behind 0.16's
+  translate-c) gets a `.visionos` arm for the Apple version macro it would
+  otherwise abort on. Packages are unpacked by 0.16 under
+  `<source>/zig-pkg/`, so the script runs `zig build --fetch` when they are
+  missing (a fresh clone) and edits the unpacked copies, which later builds
+  leave alone; `build-ghostty.sh` hands `apply-patches.sh` the build's
+  `ZIG_GLOBAL_CACHE_DIR` so the fetch reuses its cache.
+
+Dropped once upstream carried them: `0014-free-text-signature.patch`
+(`ghostty_surface_free_text` taking the surface, upstream `4803d58b`). A
+patch that only "already applies" is a liability — the day its context
+moves, both the forward and the reverse check fail on a change we no
+longer need — so delete one as soon as the pin includes it.
 
 ## Current goal
 
 This patch workflow exists so we can carry the host-managed IO work required
 for sandboxed iOS, macOS, and Mac Catalyst integration without hiding upstream
-modifications inside ad-hoc build script edits. The stack currently applies to
-upstream v1.3.1 (`Ghostty.version`), whose header lacks
-`ghostty_surface_foreground_pid`, so `apply-patches.sh` selects
-`0002-host-managed-io.patch`; the `-modern` twin waits for a release that
-carries the process-info API. When bumping `Ghostty.version` and
-`Ghostty.ref`, re-run the stack against the new tag and update whichever
-variant or script no longer validates.
+modifications inside ad-hoc build script edits. The pin (`Ghostty.ref`)
+moves to upstream main's head every week (weekly.yml), so the stack is
+exercised against a fresh tree each time: a variant that stops validating
+fails that week's build, and the fix is a new `-vN` variant selected by an
+upstream marker in `apply-patches.sh`, never an edit to the older one.

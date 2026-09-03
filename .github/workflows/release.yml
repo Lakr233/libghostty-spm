@@ -2,15 +2,16 @@ name: Release Package
 
 # Cuts a Swift package release (bare semver tag, 1.4.0+). No Zig build
 # happens here: the manifest points at the XCFramework already published on
-# the `upstream.<Ghostty.version>` release by build.yml, so a Swift-only
-# change releases in minutes.
+# the `upstream.<sha12>` release build.yml cut for the pinned Ghostty commit
+# (Ghostty.ref, via Script/storage-tag.sh), so a Swift-only change releases
+# in minutes.
 
 on:
   workflow_dispatch:
     inputs:
       package_version:
-        description: "Package version to publish, for example 1.4.0."
-        required: true
+        description: "Package version to publish. Empty derives <latest major.minor>.<UTC YYYYMMDD>; pass one to move major or minor, or for a second release on one day."
+        required: false
         type: string
 
 permissions:
@@ -41,27 +42,38 @@ jobs:
         id: release
         run: |
           PACKAGE_VERSION="${{ github.event.inputs.package_version }}"
-          if ! echo "$PACKAGE_VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
-            echo "[!] package_version must be semantic, for example 1.4.0: $PACKAGE_VERSION"
-            exit 1
-          fi
 
           git fetch --tags origin
+          LATEST_PACKAGE_VERSION=$(
+            git tag --list |
+              python3 -c 'import re, sys; versions = [tuple(int(part) for part in tag.split(".")) for tag in (line.strip() for line in sys.stdin) if re.fullmatch(r"\d+\.\d+\.\d+", tag)]; print(".".join(map(str, max(versions))), end="") if versions else None'
+          )
+
+          # Package versions are <major.minor>.<UTC YYYYMMDD>: the patch is
+          # a date, so every weekly release is a compatible update for a
+          # `from:` pin, and major.minor moves only by hand.
+          if [ -z "$PACKAGE_VERSION" ]; then
+            if [ -z "$LATEST_PACKAGE_VERSION" ]; then
+              echo "[!] no package tag to derive major.minor from; pass package_version"
+              exit 1
+            fi
+            PACKAGE_VERSION="${LATEST_PACKAGE_VERSION%.*}.$(date -u +%Y%m%d)"
+          fi
+          if ! echo "$PACKAGE_VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "[!] package_version must be semantic, for example 1.5.20260903: $PACKAGE_VERSION"
+            exit 1
+          fi
           if git rev-parse "refs/tags/$PACKAGE_VERSION" >/dev/null 2>&1; then
             echo "[!] package tag already exists: $PACKAGE_VERSION"
             exit 1
           fi
 
-          LATEST_PACKAGE_VERSION=$(
-            git tag --list |
-              python3 -c 'import re, sys; versions = [tuple(int(part) for part in tag.split(".")) for tag in (line.strip() for line in sys.stdin) if re.fullmatch(r"\d+\.\d+\.\d+", tag)]; print(".".join(map(str, max(versions))), end="") if versions else None'
-          )
           if [ -n "$LATEST_PACKAGE_VERSION" ] && ! python3 -c 'import sys; latest = tuple(map(int, sys.argv[1].split("."))); requested = tuple(map(int, sys.argv[2].split("."))); raise SystemExit(0 if requested > latest else 1)' "$LATEST_PACKAGE_VERSION" "$PACKAGE_VERSION"; then
             echo "[!] package_version must be newer than $LATEST_PACKAGE_VERSION: $PACKAGE_VERSION"
             exit 1
           fi
 
-          GHOSTTY_VERSION=$(tr -d '[:space:]' < Ghostty.version)
+          GHOSTTY_REF=$(tr -d '[:space:]' < Ghostty.ref)
           STORAGE_TAG=$(./Script/storage-tag.sh)
           if ! gh release view "$STORAGE_TAG" >/dev/null 2>&1; then
             echo "[!] upstream release not found: $STORAGE_TAG — run the Build Upstream XCFramework workflow first"
@@ -70,7 +82,7 @@ jobs:
 
           echo "[*] package_version=$PACKAGE_VERSION storage_tag=$STORAGE_TAG"
           echo "package_version=$PACKAGE_VERSION" >> "$GITHUB_OUTPUT"
-          echo "ghostty_version=$GHOSTTY_VERSION" >> "$GITHUB_OUTPUT"
+          echo "ghostty_ref=$GHOSTTY_REF" >> "$GITHUB_OUTPUT"
           echo "storage_tag=$STORAGE_TAG" >> "$GITHUB_OUTPUT"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -130,7 +142,7 @@ jobs:
             GhosttyKit ${{ steps.release.outputs.package_version }}
 
             Package version: ${{ steps.release.outputs.package_version }}
-            Ghostty release: v${{ steps.release.outputs.ghostty_version }} (${{ steps.release.outputs.storage_tag }})
+            Ghostty commit: https://github.com/ghostty-org/ghostty/commit/${{ steps.release.outputs.ghostty_ref }} (${{ steps.release.outputs.storage_tag }})
           draft: false
           prerelease: false
 

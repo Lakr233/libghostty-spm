@@ -1,11 +1,12 @@
 #!/bin/bash
 
-# Print the release tag that stores the XCFramework for the pinned Ghostty.
-# `upstream.<Ghostty.version>` for the first asset built from a release;
-# `upstream.<Ghostty.version>-<Ghostty.build>` when the patch stack or the
-# target set changed without a Ghostty bump (Ghostty.build counts from 2 —
-# a missing file or a 1 is the bare tag). build.yml and release.yml both
-# read it from here so the two can never disagree.
+# Print the release tag that stores the XCFramework for the pinned Ghostty
+# commit: `upstream.<first 12 hex of Ghostty.ref>`, with `-<Ghostty.build>`
+# appended when the patch stack or the target set changed without a Ghostty
+# bump (Ghostty.build counts from 2 — a missing file or a 1 is the bare
+# tag). build.yml and release.yml both read it from here so the two can
+# never disagree. Ghostty is pinned to a commit, not a release: upstream
+# tags rarely, and main carries the fixes we need.
 
 set -euo pipefail
 
@@ -16,9 +17,9 @@ if [ ! -f .root ]; then
     exit 1
 fi
 
-GHOSTTY_VERSION=$(tr -d '[:space:]' < Ghostty.version)
-if ! echo "$GHOSTTY_VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
-    echo "[!] Ghostty.version must be semantic, for example 1.3.1: $GHOSTTY_VERSION" >&2
+GHOSTTY_REF=$(tr -d '[:space:]' < Ghostty.ref)
+if ! echo "$GHOSTTY_REF" | grep -Eq '^[0-9a-f]{40}$'; then
+    echo "[!] Ghostty.ref must contain one full lowercase commit sha: $GHOSTTY_REF" >&2
     exit 1
 fi
 
@@ -31,8 +32,9 @@ if [ -f Ghostty.build ]; then
     fi
 fi
 
+STORAGE_TAG="upstream.${GHOSTTY_REF:0:12}"
 if [ "$GHOSTTY_BUILD" -eq 1 ]; then
-    echo "upstream.$GHOSTTY_VERSION"
+    echo "$STORAGE_TAG"
 else
-    echo "upstream.$GHOSTTY_VERSION-$GHOSTTY_BUILD"
+    echo "$STORAGE_TAG-$GHOSTTY_BUILD"
 fi

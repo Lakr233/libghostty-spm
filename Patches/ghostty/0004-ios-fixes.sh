@@ -141,8 +141,39 @@ if [ -f "$CONFIG_ZIG" ]; then
             exit 1
         }
         echo "[+] patched: iOS deployment target -> 15.0"
+    elif grep -q 'pub fn osVersionMin(tag: std.Target.Os.Tag)' "$CONFIG_ZIG"; then
+        # Upstream dropped the .ios arm from osVersionMin altogether when it
+        # stopped building the full Ghostty for iOS (only lib-vt keeps one,
+        # in osVersionMinLibVt); with no arm the apple-sdk step fails with
+        # AppleDeploymentTargetMissing. Put ours back as the first arm.
+        perl -0pi -e 's/(pub fn osVersionMin\(tag: std\.Target\.Os\.Tag\) \?std\.Target\.Query\.OsVersion \{\n    return switch \(tag\) \{\n)/$1        \/\/ LIBGHOSTTY_SPM_IOS_MIN: our iOS slices are the full build.\n        .ios => .{ .semver = .{\n            .major = 15,\n            .minor = 0,\n            .patch = 0,\n        } },\n\n/' "$CONFIG_ZIG"
+        grep -A1 '\.ios => \.{ \.semver = \.{' "$CONFIG_ZIG" | grep -q '\.major = 15,' || {
+            echo "[-] could not add an iOS arm to osVersionMin; upstream changed, update this patch"
+            exit 1
+        }
+        echo "[+] patched: iOS deployment target 15.0 added to osVersionMin"
     else
-        echo "[+] iOS deployment target already patched"
+        echo "[-] osVersionMin not found in Config.zig; upstream changed, update this patch"
+        exit 1
+    fi
+fi
+
+# Patch 5: upstream refuses an iOS target for the full build (only
+# libghostty-vt "supports" iOS there). Our iOS slices are that full build
+# plus the patches in this directory, so the refusal is turned into a
+# comptime-false branch; the surrounding code stays intact.
+if [ -f "$CONFIG_ZIG" ]; then
+    if grep -q 'LIBGHOSTTY_SPM_IOS_FULL_BUILD' "$CONFIG_ZIG"; then
+        echo "[+] iOS full-build guard already disabled"
+    elif grep -q 'os.tag == .ios and !emit_lib_vt' "$CONFIG_ZIG"; then
+        perl -0pi -e 's/if \(result\.result\.os\.tag == \.ios and !emit_lib_vt\) \{/if (false) { \/\/ LIBGHOSTTY_SPM_IOS_FULL_BUILD: our iOS slices are the full build/' "$CONFIG_ZIG"
+        grep -q 'LIBGHOSTTY_SPM_IOS_FULL_BUILD' "$CONFIG_ZIG" || {
+            echo "[-] iOS full-build guard not patched; upstream changed, update this patch"
+            exit 1
+        }
+        echo "[+] patched: iOS full-build guard disabled"
+    else
+        echo "[+] no iOS full-build guard in this upstream"
     fi
 fi
 

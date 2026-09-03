@@ -35,9 +35,6 @@ let package = Package(
             resources: [
                 .copy("Resources/Ghostty"),
                 .copy("Resources/terminfo"),
-            ],
-            linkerSettings: [
-                .linkedFramework("GameController", .when(platforms: [.iOS])),
             ]
         ),
         .target(

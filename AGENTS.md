@@ -77,8 +77,10 @@ swift test
 ./build.sh
 ./build.sh --platforms macos,ios --source /path/to/ghostty --skip-tests
 
-# On a Mac with Xcode 27, first: eval "$(./Script/support/xcode27-sdk-overlay.sh)"
-# (Zig 0.15.2 cannot link its build runner against that macOS SDK otherwise)
+# On a Mac with Xcode 27, install the Metal toolchain component first:
+#   xcodebuild -downloadComponent MetalToolchain
+# (the Script/support/xcode27-sdk-overlay.sh SDK overlay was for Zig 0.15.2;
+# 0.16 links its build runner against that SDK unaided)
 
 # Generate Package.swift from Package.swift.template (release.yml runs this)
 ./Script/build-manifest.sh <xcframework_zip> <download_url>
@@ -406,15 +408,19 @@ so in the code — "it's just text" is the mistake this section exists to preven
   `TerminalScrollWheelGestureRecognizer` accepts scroll events only
   (`allowedScrollTypesMask` plus `shouldReceive(_:)`): a scroll event is
   neither a touch nor a pointer drag, so without it a mouse scrolls nothing
-  on iOS, and with it a finger or a pointer drag never lands on it. Two
-  recognizers split `.continuous` (`precision: true`, trackpad) from
-  `.discrete` (`precision: false`, mouse wheel). The wheel path sends the
-  last pointer position (view points; Ghostty applies content scale) before
-  `sendMouseScroll` so a captured TUI can associate the wheel with the cell
-  under the pointer. Pointer mods come from a live hover recognizer, else
-  `GCKeyboard.coalesced` on iOS, else last `UIKey` flags, else `CGEvent` on
-  Catalyst. `GHOSTTY_ACTION_MOUSE_SHAPE` sets `UIPointerStyle` on iOS and
-  `NSCursor` on Catalyst. Hosts inject the same events through public
+  on iOS, and with it a finger or a pointer drag never lands on it. Every
+  scroll is sent with `precision: true`: UIKit delivers a discrete wheel
+  notch as a point translation, not a line count, and ghostty's
+  non-precision path would read it as lines times the scroll multiplier.
+  The wheel path sends the last pointer position (view points; Ghostty
+  applies content scale) before `sendMouseScroll` so a captured TUI can
+  associate the wheel with the cell under the pointer. Pointer mods come
+  from a live hover recognizer, else `GCKeyboard.coalesced` on iOS, else
+  last `UIKey` flags, else `CGEvent` on Catalyst. `GHOSTTY_ACTION_MOUSE_SHAPE`
+  drives a `UIPointerInteraction` on iOS and Catalyst alike (region-scoped,
+  so nothing resets it when the pointer leaves; `applyMouseShape` calls
+  `invalidate()` so a change lands while the pointer is inside) — never a
+  global `NSCursor`. Hosts inject the same events through public
   `sendMousePos` / `sendMouseButton` / `sendMouseScroll` / `isMouseCaptured`
   on `TerminalSurface`, both platform views, and `TerminalViewState`. The
   hover recognizer must run simultaneously with the others and must not
@@ -470,41 +476,64 @@ the two must describe the same targets.
 
 Two release tracks, decoupled since 1.4.0:
 
-- **`upstream.<X.Y.Z>` tags own the XCFramework.** `X.Y.Z` is the upstream
-  Ghostty *release* version: `Ghostty.version` names it, `Ghostty.ref` pins
-  its tag's exact commit sha, and the "Build Upstream XCFramework" workflow
-  (build.yml, dispatch-only) verifies they agree, builds all targets with
-  Zig, and publishes `GhosttyKit.xcframework.zip` on the `upstream.<X.Y.Z>`
-  release (it exits early if that tag already exists). Both files sit at
-  the repo root, one line each. Patches in `Patches/ghostty/` target that
-  release, not upstream main; the "Source Build" workflow (source-build.yml)
+- **`upstream.<sha12>` tags own the XCFramework.** Ghostty is pinned to a
+  *commit*, not a release: `Ghostty.ref` (repo root, one line, a full
+  lowercase sha) names it, and the "Build Upstream XCFramework" workflow
+  (build.yml, dispatch-only) checks the sha resolves exactly on
+  ghostty-org/ghostty, builds all targets with Zig, and publishes
+  `GhosttyKit.xcframework.zip` on the `upstream.<first 12 hex of the sha>`
+  release (it exits early if that tag already exists). Upstream tags
+  rarely, and a release pin kept us off the fixes on main while still
+  taking upstream's regressions with each bump; a commit pin is what we
+  can actually choose. There is no `Ghostty.version` any more — the
+  `upstream.1.3.1`, `upstream.1.3.1-2` and `upstream.1.3.1-3` releases
+  predate the switch and stay as they are. Patches in `Patches/ghostty/`
+  target the pinned commit; the "Source Build" workflow (source-build.yml)
   rebuilds every target on a PR that touches `Ghostty.ref`, `Patches/`,
   `Script/apply-patches.sh`, `Script/build-ghostty.sh`,
   `Script/prepare-zig-lib.sh`, or `Script/support/`. When bumping, keep the Zig version pinned in build.yml
   *and* source-build.yml (0.15.2 today) in sync with the pinned upstream's
   `minimum_zig_version` (build.zig.zon) — and re-diff `Patches/zig/` against
   the new std, since `prepare-zig-lib.sh` looks the patch up by exact Zig
-  version. **`Ghostty.build`** is the asset revision for one Ghostty
-  release: `Script/storage-tag.sh` turns version + build into the storage
-  tag (`upstream.1.3.1` for build 1 or no file, `upstream.1.3.1-2` from 2
+  version. **`Ghostty.build`** is the asset revision for one pinned
+  commit: `Script/storage-tag.sh` turns sha + build into the storage tag
+  (`upstream.<sha12>` for build 1 or no file, `upstream.<sha12>-2` from 2
   on), and both build.yml and release.yml read it from there. Bump it when
   the patch stack or the target set changes without a Ghostty bump —
   build.yml exits early on an existing tag, so nothing else republishes
-  the asset. The visionOS slices (xros, xrsimulator) build against a
-  patched Zig std (`Patches/zig/`, `Script/prepare-zig-lib.sh` — a copy
-  under the build cache exported as `ZIG_LIB_DIR`; the toolchain on PATH
-  is never edited).
+  the asset; delete it again on the next `Ghostty.ref` bump. A new pin's
+  storage tag does not exist until build.yml has run for it, and
+  release.yml refuses to cut a package until it does. The visionOS slices (xros, xrsimulator) build against a
+  patched Zig std only when `Patches/zig/` carries a patch for the Zig on
+  PATH (`Script/prepare-zig-lib.sh` — a copy under the build cache
+  exported as `ZIG_LIB_DIR`; the toolchain itself is never edited); Zig
+  0.16.0 needs none. Zig 0.16 also renamed Mac Catalyst from
+  `*-ios-macabi` to `*-maccatalyst`, its own OS tag — `0016-maccatalyst.sh`
+  and `0017-zig-pkg-apple-targets.sh` give it the iOS arms in Ghostty and
+  in the Zig packages (libxev, aro) under `<source>/zig-pkg/`.
 - **Bare semver tags (1.4.0+) are Swift package releases** and follow their
-  own sequence, independent of upstream's. The "Release Package" workflow
-  (release.yml, dispatch with `package_version`) never runs Zig: it
-  refuses a version that is not newer than the latest semver tag, requires
-  the `upstream.<Ghostty.version>` release to exist, renders `Package.swift`
+  own sequence, independent of upstream's. Since 1.5.2 the version is
+  `<major.minor>.<UTC YYYYMMDD>` (`1.5.20260903`): the patch is the release
+  date, so a `from:` pin takes every weekly release, and major.minor moves
+  only when someone passes a version by hand. The "Release Package"
+  workflow (release.yml, dispatch; `package_version` optional, derived
+  from the latest tag when empty) never runs Zig: it refuses a version
+  that is not newer than the latest semver tag, requires the storage
+  release from `Script/storage-tag.sh` to exist, renders `Package.swift`
   against its asset, runs `Script/test.sh` and `swift test` through
   `Package.local.swift`, commits the manifest, tags, and runs
   `Script/verify-release.sh <package_tag> <upstream_tag>` to check the
   manifest's URL and checksum against the asset the tag serves. A
-  Swift-only change releases in minutes. `Script/tag-release.sh` predates
-  this track (it cuts `1.0.<epoch>` tags) and no workflow uses it.
+  Swift-only change releases in minutes. **The "Weekly Upstream" workflow
+  (weekly.yml, Monday 02:00 UTC or dispatch) chains the whole thing**: it
+  pins `Ghostty.ref` to upstream main's head (dropping `Ghostty.build`),
+  pushes that commit, then dispatches build.yml and release.yml in turn
+  through `Script/dispatch-workflow.sh`, which waits for each run and
+  fails with it — a pin that does not build stops the chain with main
+  pointing at it and a red run to fix (usually a new `-vN` patch variant,
+  see `Patches/ghostty/README.md`, or a Zig bump when upstream's
+  `minimum_zig_version` moved). The release step is skipped when main has
+  not moved since the latest package tag.
   **Never push a bare semver tag by hand**: nothing but release.yml checks
   a manifest against its asset before tagging, and a hand-pushed tag gets
   no GitHub release (1.4.8, 1.4.9 and 1.4.12 were pushed that way; their
@@ -556,7 +585,7 @@ Two release tracks, decoupled since 1.4.0:
   pipeline (`build.sh`, `Script/build*.sh`, `merge-xcframework.sh`,
   `test*.sh`, `verify-*.sh`) is `#!/bin/bash` with `[*]` progress and `[!]`
   failure; the repo-maintenance scripts (`apply-patches.sh`,
-  `generate-themes.sh`, `tag-release.sh`) are `#!/bin/zsh` with `[+]`
+  `generate-themes.sh`, `audit-releases.sh`) are `#!/bin/zsh` with `[+]`
   success and `[-]` failure. Match the file you are editing; use zsh and
   `[+]`/`[-]` for a new standalone script
 - Scripts `cd "$(dirname "$0")/.."` to the repo root first; most then

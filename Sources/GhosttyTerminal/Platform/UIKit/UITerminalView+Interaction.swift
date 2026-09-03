@@ -8,10 +8,7 @@
 #if canImport(UIKit)
     import GhosttyKit
     import UIKit
-    #if targetEnvironment(macCatalyst)
-        import AppKit
-        import CoreGraphics
-    #elseif canImport(GameController)
+    #if canImport(GameController)
         import GameController
     #endif
 
@@ -20,6 +17,7 @@
         var session = TerminalPointerButtonSession()
         var lastLocation: CGPoint?
         var hoverRecognizer: UIHoverGestureRecognizer?
+        var pointerInteraction: UIPointerInteraction?
         var selectionStartPoint: CGPoint?
         var lastSelectionRect: CGRect?
         var pendingSelectionMenuPoint: CGPoint?
@@ -42,12 +40,9 @@
     /// finger on the touch-scroll recognizer and a pointer drag on the
     /// selection one without the view's delegate having to tell them apart.
     final class TerminalScrollWheelGestureRecognizer: UIPanGestureRecognizer {
-        let precision: Bool
-
-        init(target: Any?, action: Selector?, precision: Bool) {
-            self.precision = precision
+        override init(target: Any?, action: Selector?) {
             super.init(target: target, action: action)
-            allowedScrollTypesMask = precision ? [.continuous] : [.discrete]
+            allowedScrollTypesMask = [.continuous, .discrete]
             cancelsTouchesInView = false
             delaysTouchesBegan = false
             delaysTouchesEnded = false
@@ -176,17 +171,11 @@
             setupDropInput()
             addGestureRecognizer(TerminalScrollWheelGestureRecognizer(
                 target: self,
-                action: #selector(handleScrollWheelGesture(_:)),
-                precision: true
+                action: #selector(handleScrollWheelGesture(_:))
             ))
-            addGestureRecognizer(TerminalScrollWheelGestureRecognizer(
-                target: self,
-                action: #selector(handleScrollWheelGesture(_:)),
-                precision: false
-            ))
-            #if !targetEnvironment(macCatalyst)
-                addInteraction(UIPointerInteraction(delegate: self))
-            #endif
+            let pointerInteraction = UIPointerInteraction(delegate: self)
+            addInteraction(pointerInteraction)
+            pointer.pointerInteraction = pointerInteraction
             let hover = UIHoverGestureRecognizer(
                 target: self,
                 action: #selector(handlePointerHover(_:))
@@ -239,9 +228,11 @@
             let point = pointer.lastLocation ?? gesture.location(in: self)
             sendPointerPosition(at: point, remember: pointer.lastLocation == nil)
 
-            let precision =
-                (gesture as? TerminalScrollWheelGestureRecognizer)?.precision ?? true
-            let scrollMods = TerminalScrollModifiers(precision: precision)
+            // Always precision: UIKit hands a discrete wheel notch to the pan
+            // recognizer as a point translation, not a line count, and
+            // ghostty's non-precision path reads the value as lines times
+            // the scroll multiplier.
+            let scrollMods = TerminalScrollModifiers(precision: true)
             surface?.sendMouseScroll(
                 x: Double(translation.x),
                 y: Double(translation.y),
@@ -428,21 +419,12 @@
             }
         #endif
 
+        /// The pointer style is region-scoped, so it needs no reset when
+        /// the pointer leaves the view; `invalidate` re-asks the delegate
+        /// while the pointer is already inside.
         func applyMouseShape(_ raw: ghostty_action_mouse_shape_e) {
-            let shape = TerminalMouseShape(raw)
-            pointer.mouseShape = shape
-            #if targetEnvironment(macCatalyst)
-                switch shape {
-                case .text:
-                    NSCursor.iBeam.set()
-                case .pointer:
-                    NSCursor.pointingHand.set()
-                case .notAllowed:
-                    NSCursor.operationNotAllowed.set()
-                case .default, .other:
-                    NSCursor.arrow.set()
-                }
-            #endif
+            pointer.mouseShape = TerminalMouseShape(raw)
+            pointer.pointerInteraction?.invalidate()
         }
 
         /// View points. Ghostty applies `content_scale` internally.
@@ -948,21 +930,17 @@
 
     }
 
-    #if !targetEnvironment(macCatalyst)
-        extension UITerminalView: UIPointerInteractionDelegate {
-            public func pointerInteraction(
-                _: UIPointerInteraction,
-                styleFor _: UIPointerRegion
-            ) -> UIPointerStyle? {
-                switch pointer.mouseShape {
-                case .text:
-                    return UIPointerStyle(shape: .verticalBeam(length: 24))
-                case .notAllowed:
-                    return .hidden()
-                case .pointer, .default, .other:
-                    return nil
-                }
+    extension UITerminalView: UIPointerInteractionDelegate {
+        public func pointerInteraction(
+            _: UIPointerInteraction,
+            styleFor _: UIPointerRegion
+        ) -> UIPointerStyle? {
+            switch pointer.mouseShape {
+            case .text:
+                return UIPointerStyle(shape: .verticalBeam(length: 24))
+            case .pointer, .notAllowed, .default, .other:
+                return nil
             }
         }
-    #endif
+    }
 #endif
