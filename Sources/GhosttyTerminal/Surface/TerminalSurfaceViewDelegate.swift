@@ -174,6 +174,35 @@ public protocol TerminalSurfaceHoverLinkDelegate: TerminalSurfaceViewDelegate {
     func terminalDidUpdateHoverLink(_ url: String?)
 }
 
+/// Ghostty mouse cursor shape (OSC 22 / application request).
+public enum TerminalMouseShape: Sendable, Equatable {
+    case `default`
+    case pointer
+    case text
+    case notAllowed
+    case other
+
+    init(_ raw: ghostty_action_mouse_shape_e) {
+        switch raw {
+        case GHOSTTY_MOUSE_SHAPE_DEFAULT:
+            self = .default
+        case GHOSTTY_MOUSE_SHAPE_POINTER:
+            self = .pointer
+        case GHOSTTY_MOUSE_SHAPE_TEXT, GHOSTTY_MOUSE_SHAPE_VERTICAL_TEXT, GHOSTTY_MOUSE_SHAPE_CELL:
+            self = .text
+        case GHOSTTY_MOUSE_SHAPE_NOT_ALLOWED, GHOSTTY_MOUSE_SHAPE_NO_DROP:
+            self = .notAllowed
+        default:
+            self = .other
+        }
+    }
+}
+
+@MainActor
+public protocol TerminalSurfaceMouseShapeDelegate: TerminalSurfaceViewDelegate {
+    func terminalDidChangeMouseShape(_ shape: TerminalMouseShape)
+}
+
 /// OSC 7 working-directory update.
 @MainActor
 public protocol TerminalSurfacePwdDelegate: TerminalSurfaceViewDelegate {

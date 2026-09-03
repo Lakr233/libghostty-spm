@@ -389,8 +389,16 @@ so in the code — "it's just text" is the mistake this section exists to preven
   recognizer's 0.5 s so a hold never toggles the keyboard).
 - Indirect-pointer touches (`handleIndirectPointerTouches`, iOS and
   Catalyst) are mouse events: a click makes the view first responder and
-  sends position and button; a right click inside a selection opens the copy
-  menu. On Catalyst `touchesBegan` also calls `becomeFirstResponder`.
+  sends position and button with `TerminalInputModifiers` (not zero). A
+  `UIHoverGestureRecognizer` sends `sendMousePos` while no button is down
+  so DEC 1003 apps (tmux dividers) see the pointer before a click. Ghostty
+  decides whether that position becomes application input. A right click
+  inside a selection opens the copy menu only when
+  `surface.isMouseCaptured` is false; a captured secondary click is sent
+  to Ghostty immediately. Press/release pairing lives in
+  `TerminalPointerButtonSession`: cancel and leaving the window release
+  only a button whose press was sent. On Catalyst `touchesBegan` also
+  calls `becomeFirstResponder`.
 - Three pan recognizers coexist: direct touches scroll with momentum
   (`MomentumScrollState`, a `CADisplayLink`), indirect-pointer drags select
   (`handleIndirectPointerSelectionGesture`), and wheel/trackpad scroll
@@ -398,7 +406,20 @@ so in the code — "it's just text" is the mistake this section exists to preven
   `TerminalScrollWheelGestureRecognizer` accepts scroll events only
   (`allowedScrollTypesMask` plus `shouldReceive(_:)`): a scroll event is
   neither a touch nor a pointer drag, so without it a mouse scrolls nothing
-  on iOS, and with it a finger or a pointer drag never lands on it.
+  on iOS, and with it a finger or a pointer drag never lands on it. Two
+  recognizers split `.continuous` (`precision: true`, trackpad) from
+  `.discrete` (`precision: false`, mouse wheel). The wheel path sends the
+  last pointer position (view points; Ghostty applies content scale) before
+  `sendMouseScroll` so a captured TUI can associate the wheel with the cell
+  under the pointer. Pointer mods come from a live hover recognizer, else
+  `GCKeyboard.coalesced` on iOS, else last `UIKey` flags, else `CGEvent` on
+  Catalyst. `GHOSTTY_ACTION_MOUSE_SHAPE` sets `UIPointerStyle` on iOS and
+  `NSCursor` on Catalyst. Hosts inject the same events through public
+  `sendMousePos` / `sendMouseButton` / `sendMouseScroll` / `isMouseCaptured`
+  on `TerminalSurface`, both platform views, and `TerminalViewState`. The
+  hover recognizer must run simultaneously with the others and must not
+  cancel touches. Do not wrap the view in a host `ScrollView` that steals
+  wheel or pan events.
 - A pinch (`+PinchZoom`, iOS only) steps the font size through the
   `increase_font_size:1` / `decrease_font_size:1` bindings, clamped to
   `minFontSize`…`maxFontSize` (4…64); Cmd+`=`/`-` on a hardware keyboard

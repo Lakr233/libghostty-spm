@@ -62,6 +62,15 @@ public final class TerminalSurface {
     public func sendMouseButton(
         state: ghostty_input_mouse_state_e,
         button: ghostty_input_mouse_button_e,
+        modifiers: TerminalInputModifiers = []
+    ) -> Bool {
+        sendMouseButton(state: state, button: button, mods: modifiers.ghosttyMods)
+    }
+
+    @discardableResult
+    public func sendMouseButton(
+        state: ghostty_input_mouse_state_e,
+        button: ghostty_input_mouse_button_e,
         mods: ghostty_input_mods_e
     ) -> Bool {
         guard let s = surface else {
@@ -76,6 +85,14 @@ public final class TerminalSurface {
         return result
     }
 
+    public func sendMousePos(
+        x: Double,
+        y: Double,
+        modifiers: TerminalInputModifiers = []
+    ) {
+        sendMousePos(x: x, y: y, mods: modifiers.ghosttyMods)
+    }
+
     public func sendMousePos(x: Double, y: Double, mods: ghostty_input_mods_e) {
         guard let s = surface else {
             TerminalDebugLog.log(.input, "surface mouse position ignored: missing surface")
@@ -88,6 +105,14 @@ public final class TerminalSurface {
         ghostty_surface_mouse_pos(s, x, y, mods)
     }
 
+    public func sendMouseScroll(
+        x: Double,
+        y: Double,
+        mods: TerminalScrollModifiers = TerminalScrollModifiers(precision: true)
+    ) {
+        sendMouseScroll(x: x, y: y, mods: mods.rawValue)
+    }
+
     func sendMouseScroll(x: Double, y: Double, mods: ghostty_input_scroll_mods_t) {
         guard let s = surface else {
             TerminalDebugLog.log(.input, "surface scroll ignored: missing surface")
@@ -98,6 +123,15 @@ public final class TerminalSurface {
             "surface scroll x=\(String(format: "%.2f", x)) y=\(String(format: "%.2f", y)) mods=0x\(String(mods, radix: 16))"
         )
         ghostty_surface_mouse_scroll(s, x, y, mods)
+    }
+
+    /// Whether the application currently owns the mouse (DEC 1000/1002/1003).
+    /// Host UI (copy menu, context menu) must not steal a click while this
+    /// is true. Ghostty still owns reporting vs local selection for events
+    /// that reach the surface.
+    public var isMouseCaptured: Bool {
+        guard let s = surface else { return false }
+        return ghostty_surface_mouse_captured(s)
     }
 
     func preedit(_ text: String) {

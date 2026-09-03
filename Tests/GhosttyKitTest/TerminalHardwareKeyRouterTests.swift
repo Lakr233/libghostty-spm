@@ -252,105 +252,22 @@ struct TerminalHardwareKeyRouterTests {
 struct TerminalSemanticReturnIntegrationTests {
     @Test
     func `semantic return uses kitty key encoding while bracketed paste is active`() async {
-        let outbound = KeyRouterLockedValues<Data>()
-        let session = InMemoryTerminalSession(
-            write: { outbound.append($0) },
-            resize: { _ in }
-        )
-        let platformView = NSView(frame: NSRect(x: 0, y: 0, width: 800, height: 500))
-        platformView.wantsLayer = true
+        let harness = GhosttySurfaceHarness()
+        defer { harness.tearDown() }
+        guard let surface = harness.surface else { return }
 
-        let coordinator = TerminalSurfaceCoordinator()
-        coordinator.isAttached = { true }
-        coordinator.scaleFactor = { 1 }
-        coordinator.viewSize = { (800, 500) }
-        coordinator.platformSetup = { config in
-            config.platform_tag = GHOSTTY_PLATFORM_MACOS
-            config.platform = ghostty_platform_u(
-                macos: ghostty_platform_macos_s(
-                    nsview: Unmanaged.passUnretained(platformView).toOpaque()
-                )
-            )
-        }
-        coordinator.configuration = TerminalSurfaceOptions(
-            backend: .inMemory(session)
-        )
-        coordinator.controller = TerminalController()
-        defer { coordinator.freeSurface() }
-
-        #expect(session.currentSurface != nil)
         // Kitty keeps Enter in legacy form unless report-all (bit 8) is
         // active, so combine it with disambiguate (bit 1).
-        session.receive(Data("\u{1B}[?2004h\u{1B}[>9u".utf8))
-        session.waitForPendingOutput()
-        outbound.removeAll()
+        harness.receive("\u{1B}[?2004h\u{1B}[>9u")
 
         var enter = ghostty_input_key_s()
         enter.action = GHOSTTY_ACTION_PRESS
         enter.keycode = TerminalHardwareKeyRouter.appKitKeyCodeForUIKit(usage: 0x28)
-        #expect(coordinator.surface?.sendKeyEvent(enter) == true)
+        #expect(surface.sendKeyEvent(enter) == true)
 
-        session.receive(Data("\u{1B}[c".utf8))
-        session.waitForPendingOutput()
-        #expect(await waitForKeyRouterDeviceAttributes(in: outbound))
-
-        let bytes = outbound.values.reduce(into: Data()) { $0.append($1) }
-        #expect(bytes.nonOverlappingCount(of: Data("\u{1B}[13u".utf8)) == 1)
+        let bytes = await harness.drain()
+        #expect(bytes.count(of: "\u{1B}[13u") == 1)
         #expect(!bytes.contains(0x0A))
         #expect(!bytes.contains(0x0D))
-    }
-}
-
-private final class KeyRouterLockedValues<Value: Sendable>: @unchecked Sendable {
-    private let lock = NSLock()
-    private var storage: [Value] = []
-
-    var values: [Value] {
-        lock.lock()
-        defer { lock.unlock() }
-        return storage
-    }
-
-    func append(_ value: Value) {
-        lock.lock()
-        storage.append(value)
-        lock.unlock()
-    }
-
-    func removeAll() {
-        lock.lock()
-        storage.removeAll(keepingCapacity: true)
-        lock.unlock()
-    }
-}
-
-private func waitForKeyRouterDeviceAttributes(
-    in outbound: KeyRouterLockedValues<Data>
-) async -> Bool {
-    let clock = ContinuousClock()
-    let deadline = clock.now + .seconds(2)
-    let prefix = Data("\u{1B}[?62;22".utf8)
-    while clock.now < deadline {
-        let bytes = outbound.values.reduce(into: Data()) { $0.append($1) }
-        if bytes.range(of: prefix) != nil {
-            return true
-        }
-        await Task.yield()
-    }
-    return false
-}
-
-private extension Data {
-    func nonOverlappingCount(of needle: Data) -> Int {
-        guard !needle.isEmpty else { return 0 }
-        var count = 0
-        var searchStart = startIndex
-        while searchStart < endIndex,
-              let range = range(of: needle, in: searchStart ..< endIndex)
-        {
-            count += 1
-            searchStart = range.upperBound
-        }
-        return count
     }
 }
