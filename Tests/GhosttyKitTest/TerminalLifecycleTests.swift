@@ -5,6 +5,25 @@ import Testing
 @MainActor
 struct TerminalLifecycleTests {
     @Test
+    func `generated configs stay in the host directory and follow controller lifetime`() throws {
+        let manager = FileManager.default
+        var controller: TerminalController? = TerminalController(theme: TerminalTheme()) { builder in
+            builder.withFontSize(14)
+        }
+        let first = try #require(controller?.managedConfigURL)
+        #expect(first.deletingLastPathComponent() == TerminalController.managedConfigDirectory)
+        #expect(try String(contentsOf: first, encoding: .utf8).contains("font-size = 14"))
+
+        #expect(controller?.updateConfigSource(.generated("font-size = 16")) == true)
+        let replacement = try #require(controller?.managedConfigURL)
+        #expect(!manager.fileExists(atPath: first.path))
+        #expect(try String(contentsOf: replacement, encoding: .utf8).contains("font-size = 16"))
+
+        controller = nil
+        #expect(!manager.fileExists(atPath: replacement.path))
+    }
+
+    @Test
     func `rejected config file survives init and is not the base`() {
         let path = "/nonexistent-\(UUID().uuidString).conf"
         let controller = TerminalController(configFilePath: path)

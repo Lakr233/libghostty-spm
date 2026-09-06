@@ -7,6 +7,17 @@ import Foundation
 import GhosttyKit
 
 extension TerminalController {
+    /// Generated config files belong to the host app. Hosts may remove this
+    /// directory before creating any controllers and when terminating, so a
+    /// forced exit does not leave files behind indefinitely. Never clear it
+    /// while controllers are in use. User-supplied config files live elsewhere.
+    public static var managedConfigDirectory: URL {
+        FileManager.default.temporaryDirectory.appendingPathComponent(
+            Bundle.main.bundleIdentifier ?? ProcessInfo.processInfo.processName,
+            isDirectory: true
+        )
+    }
+
     @discardableResult
     public func updateConfigSource(_ source: ConfigSource) -> Bool {
         // No same-source short-circuit: a host re-giving `.file(path)` is
@@ -191,11 +202,13 @@ extension TerminalController {
     }
 
     private static func writeManagedConfig(contents: String) -> Result<URL, ConfigurationIssue> {
-        let url = FileManager.default.temporaryDirectory
+        let directory = managedConfigDirectory
+        let url = directory
             .appendingPathComponent("ghostty-config-\(UUID().uuidString)")
             .appendingPathExtension("conf")
 
         do {
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
             try contents.write(to: url, atomically: true, encoding: .utf8)
             return .success(url)
         } catch {

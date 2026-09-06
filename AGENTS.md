@@ -459,6 +459,14 @@ In iPhone UI tests, synthesize ordinary terminal taps as explicitly short presse
 
 ### Manifest Sync
 
+Generated configs live in `TerminalController.managedConfigDirectory`
+(`<tmp>/<host bundle identifier>/ghostty-config-<UUID>.conf`, with the
+process name as the fallback for an unbundled host). Controllers remove their
+files on replacement and destruction. A host can clear the directory before
+creating controllers and on termination to recover leftovers from force-quits;
+never clear it during a live controller's use. The old loose files in shared
+tmp have no host identity, so the library does not sweep them across apps.
+
 When changing SwiftPM products, targets, or test dependencies, update all three together:
 
 - `Package.swift` — production manifest (remote XCFramework URL + checksum)
