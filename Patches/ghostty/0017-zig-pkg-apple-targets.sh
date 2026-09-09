@@ -6,7 +6,13 @@
 #   backend for this target".
 # - aro (the C frontend behind 0.16's translate-c) writes the Apple
 #   `__ENVIRONMENT_*_VERSION_MIN_REQUIRED__` macro from a switch with no
-#   `.visionos` arm and aborts on `unreachable`.
+#   `.visionos` arm and aborts on `unreachable`. aro f97cdfc3 (pulled by
+#   translate-c 4e879eb8, which Ghostty 82938b63 pins) grew its own arm —
+#   a labelled break, since visionOS has no platform-specific define — so
+#   the arm is only inserted into an aro that still lacks one. The guard
+#   greps the switch body rather than our own inserted text: matching the
+#   text we write made the patch insert a second `.visionos` arm into the
+#   newer aro and every target failed with "duplicate switch value".
 #
 # Zig 0.16 unpacks packages under <source>/zig-pkg/<name-version-hash>/
 # (gitignored upstream), so they are patched there: fetched first when the
@@ -45,8 +51,8 @@ done
 for dir in zig-pkg/aro-*; do
     [ -d "$dir" ] || { echo "[!] no aro package under zig-pkg/ after fetch"; exit 1; }
     f="$dir/src/aro/Compilation.zig"
-    if grep -q '\.visionos => "__ENVIRONMENT_OS_VERSION_MIN_REQUIRED__"' "$f"; then
-        echo "[+] aro visionos patch already applied: $(basename "$dir")"
+    if awk '/__ENVIRONMENT_TV_OS_VERSION_MIN_REQUIRED__/,/else => unreachable/' "$f" | grep -q '\.visionos'; then
+        echo "[+] aro already has a visionos arm: $(basename "$dir")"
         continue
     fi
     perl -pi -e 's/^(\s+)\.macos => "__ENVIRONMENT_MAC_OS_X_VERSION_MIN_REQUIRED__",$/$1.macos => "__ENVIRONMENT_MAC_OS_X_VERSION_MIN_REQUIRED__",\n$1.visionos => "__ENVIRONMENT_OS_VERSION_MIN_REQUIRED__",/' "$f"
