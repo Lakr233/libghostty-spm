@@ -9,7 +9,7 @@ actor Engine {
     }
 
     private let shell: ShellDefinition
-    private let sessionBridge: SessionBridge
+    private weak var session: InMemoryTerminalSession?
     private var startedAt = Date()
     private var currentInput = ""
     private var cursorPosition = 0
@@ -35,9 +35,9 @@ actor Engine {
         heightPixels: 0
     )
 
-    init(shell: ShellDefinition, sessionBridge: SessionBridge) {
+    init(shell: ShellDefinition, session: InMemoryTerminalSession) {
         self.shell = shell
-        self.sessionBridge = sessionBridge
+        self.session = session
     }
 
     /// Consumes the session's events one at a time so writes are parsed in
@@ -125,9 +125,7 @@ actor Engine {
         switch escapeState {
         case .escape:
             flushPendingText()
-            if byte == 0x5B {
-                escapeState = .csi(Data())
-            } else if byte == 0x4F {
+            if byte == 0x5B || byte == 0x4F {
                 escapeState = .csi(Data())
             } else {
                 escapeState = .none
@@ -534,7 +532,7 @@ actor Engine {
         case .exit:
             isTerminated = true
             send("logout\r\n")
-            sessionBridge.session?.finish(
+            session?.finish(
                 exitCode: 0,
                 runtimeMilliseconds: elapsedMilliseconds
             )
@@ -565,10 +563,6 @@ actor Engine {
             cursorPosition: currentInput.count,
             terminalColumns: Int(terminalSize.columns)
         )
-        let linesToClear = max(
-            renderedInputState.totalLineCount,
-            nextState.totalLineCount
-        )
 
         shellDebugLog(
             .actions,
@@ -576,7 +570,7 @@ actor Engine {
         )
 
         moveCursorToRenderedInputStart(renderedInputState)
-        clearRenderedBlock(linesToClear)
+        clearRenderedBlock()
         send(shell.prompt)
         send(currentInput)
         moveCursor(
@@ -658,12 +652,7 @@ actor Engine {
         send("\u{1B}[\(state.cursorLineOffset)A\r")
     }
 
-    private func clearRenderedBlock(_ count: Int) {
-        guard count > 0 else { return }
-        shellDebugLog(
-            .actions,
-            "shell clear rendered block lines=\(count)"
-        )
+    private func clearRenderedBlock() {
         send("\u{1B}[J")
     }
 
@@ -682,11 +671,7 @@ actor Engine {
     }
 
     private func send(_ string: String) {
-        sessionBridge.session?.receive(string)
-    }
-
-    private func send(_ data: Data) {
-        sessionBridge.session?.receive(data)
+        session?.receive(string)
     }
 
     private var elapsedMilliseconds: UInt64 {
@@ -830,39 +815,15 @@ func terminalPreviousShellWordBoundary(
     )
 }
 
-func terminalNextShellWordBoundary(
-    in input: String,
-    from cursorPosition: Int
-) -> Int {
-    terminalNextBoundary(
-        in: input,
-        from: cursorPosition,
-        skippingLeadingCharactersWhere: { $0.isTerminalWordWhitespace },
-        consumingCharactersWhere: { !$0.isTerminalWordWhitespace }
-    )
-}
-
 func terminalDeleteBackwardWord(
     input: String,
     cursorPosition: Int
 ) -> (input: String, cursorPosition: Int) {
-    let clampedCursorPosition = min(max(cursorPosition, 0), input.count)
-    let boundary = terminalPreviousWordBoundary(
-        in: input,
-        from: clampedCursorPosition
+    terminalDeleteBackward(
+        input: input,
+        cursorPosition: cursorPosition,
+        boundary: terminalPreviousWordBoundary
     )
-    guard boundary < clampedCursorPosition else {
-        return (input, clampedCursorPosition)
-    }
-
-    var updatedInput = input
-    let start = updatedInput.index(updatedInput.startIndex, offsetBy: boundary)
-    let end = updatedInput.index(
-        updatedInput.startIndex,
-        offsetBy: clampedCursorPosition
-    )
-    updatedInput.removeSubrange(start ..< end)
-    return (updatedInput, boundary)
 }
 
 func terminalDeleteForwardWord(
@@ -892,11 +853,20 @@ func terminalDeleteBackwardShellWord(
     input: String,
     cursorPosition: Int
 ) -> (input: String, cursorPosition: Int) {
-    let clampedCursorPosition = min(max(cursorPosition, 0), input.count)
-    let boundary = terminalPreviousShellWordBoundary(
-        in: input,
-        from: clampedCursorPosition
+    terminalDeleteBackward(
+        input: input,
+        cursorPosition: cursorPosition,
+        boundary: terminalPreviousShellWordBoundary
     )
+}
+
+private func terminalDeleteBackward(
+    input: String,
+    cursorPosition: Int,
+    boundary resolveBoundary: (String, Int) -> Int
+) -> (input: String, cursorPosition: Int) {
+    let clampedCursorPosition = min(max(cursorPosition, 0), input.count)
+    let boundary = resolveBoundary(input, clampedCursorPosition)
     guard boundary < clampedCursorPosition else {
         return (input, clampedCursorPosition)
     }
@@ -909,19 +879,6 @@ func terminalDeleteBackwardShellWord(
     )
     updatedInput.removeSubrange(start ..< end)
     return (updatedInput, boundary)
-}
-
-func terminalCursorColumn(
-    promptDisplayWidth: Int,
-    input: String,
-    cursorPosition: Int
-) -> Int {
-    terminalRenderedInputState(
-        promptDisplayWidth: promptDisplayWidth,
-        input: input,
-        cursorPosition: cursorPosition,
-        terminalColumns: .max
-    ).cursorColumn
 }
 
 struct TerminalRenderedInputState: Equatable {

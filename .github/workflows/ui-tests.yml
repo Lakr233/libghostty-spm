@@ -13,34 +13,48 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  ios-iphone:
-    name: iPhone Simulator UI Tests
+  ios-simulator:
+    name: ${{ matrix.label }} Simulator UI Tests
     runs-on: macos-26
     timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - slug: ios
+            label: iPhone
+            devices: iPhone Air|iPhone 16|iPhone
+          - slug: ipad
+            label: iPad
+            devices: iPad Air 13-inch (M3)|iPad Air 13-inch|iPad Pro 13-inch|iPad
     steps:
       - name: Checkout
         uses: actions/checkout@v5
         with:
           persist-credentials: false
 
-      - name: Set up Xcode
+      - name: Xcode Version
         run: xcodebuild -version
 
-      - name: Run iPhone UI Tests
+      - name: Run ${{ matrix.label }} UI Tests
+        env:
+          DEVICE_LABEL: ${{ matrix.label }}
+          # Device type patterns, most specific first; the first match wins.
+          DEVICE_PATTERNS: ${{ matrix.devices }}
+          RESULT_BUNDLE: ${{ runner.temp }}/libghostty-ui-${{ matrix.slug }}.xcresult
         run: |
           set -euo pipefail
-          rm -rf "$RUNNER_TEMP/libghostty-ui-ios.xcresult"
+          rm -rf "$RESULT_BUNDLE"
           RUNTIME=$(xcrun simctl list runtimes available | awk '/^iOS .*com\.apple\.CoreSimulator\.SimRuntime\.iOS/ { runtime=$NF } END { print runtime }')
           [ -n "$RUNTIME" ] || { echo "no available iOS simulator runtime"; exit 1; }
-          DEVICE=$(xcrun simctl list devicetypes | sed -n '/iPhone Air/s/.*(\(com\.apple\.CoreSimulator\.SimDeviceType\.[^)]*\)).*/\1/p' | head -1)
-          if [ -z "$DEVICE" ]; then
-            DEVICE=$(xcrun simctl list devicetypes | sed -n '/iPhone 16/s/.*(\(com\.apple\.CoreSimulator\.SimDeviceType\.[^)]*\)).*/\1/p' | head -1)
-          fi
-          if [ -z "$DEVICE" ]; then
-            DEVICE=$(xcrun simctl list devicetypes | sed -n '/iPhone/s/.*(\(com\.apple\.CoreSimulator\.SimDeviceType\.[^)]*\)).*/\1/p' | head -1)
-          fi
-          [ -n "$DEVICE" ] || { echo "no available iPhone simulator device type"; exit 1; }
-          UDID=$(xcrun simctl create "libghostty-ui-iPhone-${GITHUB_RUN_ID}" "$DEVICE" "$RUNTIME")
+          DEVICE=
+          IFS='|' read -ra PATTERNS <<< "$DEVICE_PATTERNS"
+          for pattern in "${PATTERNS[@]}"; do
+            DEVICE=$(xcrun simctl list devicetypes | sed -n "/$pattern/s/.*(\(com\.apple\.CoreSimulator\.SimDeviceType\.[^)]*\)).*/\1/p" | head -1)
+            if [ -n "$DEVICE" ]; then break; fi
+          done
+          [ -n "$DEVICE" ] || { echo "no available $DEVICE_LABEL simulator device type"; exit 1; }
+          UDID=$(xcrun simctl create "libghostty-ui-${DEVICE_LABEL}-${GITHUB_RUN_ID}" "$DEVICE" "$RUNTIME")
           trap 'xcrun simctl shutdown "$UDID" >/dev/null 2>&1 || true; xcrun simctl delete "$UDID" >/dev/null 2>&1 || true' EXIT
           # Hosted runner cleanup: avoid stale simulator windows stealing UI automation focus.
           xcrun simctl shutdown all >/dev/null 2>&1 || true
@@ -50,70 +64,17 @@ jobs:
             -project Example/MobileGhosttyApp.xcodeproj \
             -scheme MobileGhosttyApp \
             -destination "id=$UDID" \
-            -resultBundlePath "$RUNNER_TEMP/libghostty-ui-ios.xcresult" \
+            -resultBundlePath "$RESULT_BUNDLE" \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY=""
 
-      - name: Upload iPhone Result Bundle
+      - name: Upload ${{ matrix.label }} Result Bundle
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: libghostty-ui-ios-xcresult
-          path: ${{ runner.temp }}/libghostty-ui-ios.xcresult
-          retention-days: 7
-
-  ios-ipad:
-    name: iPad Simulator UI Tests
-    runs-on: macos-26
-    timeout-minutes: 30
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v5
-        with:
-          persist-credentials: false
-
-      - name: Set up Xcode
-        run: xcodebuild -version
-
-      - name: Run iPad UI Tests
-        run: |
-          set -euo pipefail
-          rm -rf "$RUNNER_TEMP/libghostty-ui-ipad.xcresult"
-          RUNTIME=$(xcrun simctl list runtimes available | awk '/^iOS .*com\.apple\.CoreSimulator\.SimRuntime\.iOS/ { runtime=$NF } END { print runtime }')
-          [ -n "$RUNTIME" ] || { echo "no available iOS simulator runtime"; exit 1; }
-          DEVICE=$(xcrun simctl list devicetypes | sed -n '/iPad Air 13-inch (M3)/s/.*(\(com\.apple\.CoreSimulator\.SimDeviceType\.[^)]*\)).*/\1/p' | head -1)
-          if [ -z "$DEVICE" ]; then
-            DEVICE=$(xcrun simctl list devicetypes | sed -n '/iPad Air 13-inch/s/.*(\(com\.apple\.CoreSimulator\.SimDeviceType\.[^)]*\)).*/\1/p' | head -1)
-          fi
-          if [ -z "$DEVICE" ]; then
-            DEVICE=$(xcrun simctl list devicetypes | sed -n '/iPad Pro 13-inch/s/.*(\(com\.apple\.CoreSimulator\.SimDeviceType\.[^)]*\)).*/\1/p' | head -1)
-          fi
-          if [ -z "$DEVICE" ]; then
-            DEVICE=$(xcrun simctl list devicetypes | sed -n '/iPad/s/.*(\(com\.apple\.CoreSimulator\.SimDeviceType\.[^)]*\)).*/\1/p' | head -1)
-          fi
-          [ -n "$DEVICE" ] || { echo "no available iPad simulator device type"; exit 1; }
-          UDID=$(xcrun simctl create "libghostty-ui-iPad-${GITHUB_RUN_ID}" "$DEVICE" "$RUNTIME")
-          trap 'xcrun simctl shutdown "$UDID" >/dev/null 2>&1 || true; xcrun simctl delete "$UDID" >/dev/null 2>&1 || true' EXIT
-          # Hosted runner cleanup: avoid stale simulator windows stealing UI automation focus.
-          xcrun simctl shutdown all >/dev/null 2>&1 || true
-          xcrun simctl boot "$UDID"
-          xcrun simctl bootstatus "$UDID" -b
-          xcodebuild test \
-            -project Example/MobileGhosttyApp.xcodeproj \
-            -scheme MobileGhosttyApp \
-            -destination "id=$UDID" \
-            -resultBundlePath "$RUNNER_TEMP/libghostty-ui-ipad.xcresult" \
-            CODE_SIGNING_ALLOWED=NO \
-            CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGN_IDENTITY=""
-
-      - name: Upload iPad Result Bundle
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: libghostty-ui-ipad-xcresult
-          path: ${{ runner.temp }}/libghostty-ui-ipad.xcresult
+          name: libghostty-ui-${{ matrix.slug }}-xcresult
+          path: ${{ runner.temp }}/libghostty-ui-${{ matrix.slug }}.xcresult
           retention-days: 7
 
   mac-catalyst:
@@ -126,7 +87,7 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Set up Xcode
+      - name: Xcode Version
         run: xcodebuild -version
 
       - name: Run Mac Catalyst UI Tests
@@ -161,7 +122,7 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Set up Xcode
+      - name: Xcode Version
         run: xcodebuild -version
 
       - name: Run macOS AppKit UI Tests

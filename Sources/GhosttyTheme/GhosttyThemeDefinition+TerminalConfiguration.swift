@@ -22,10 +22,8 @@ public extension GhosttyThemeDefinition {
             if let selectionForeground {
                 builder.withSelectionForeground(selectionForeground)
             }
-            for index in palette.keys.sorted() {
-                if let color = palette[index] {
-                    builder.withPalette(index, color: "#\(color)")
-                }
+            for (index, color) in palette.sorted(by: { $0.key < $1.key }) {
+                builder.withPalette(index, color: "#\(color)")
             }
         }
     }
@@ -37,7 +35,6 @@ public extension GhosttyThemeDefinition {
 
     /// Whether this theme appears to be a dark theme based on background luminance.
     var isDark: Bool {
-        guard background.count >= 6 else { return true }
         let hex = background.hasPrefix("#") ? String(background.dropFirst()) : background
         guard hex.count >= 6,
               let r = UInt8(hex.prefix(2), radix: 16),

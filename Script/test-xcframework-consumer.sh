@@ -77,9 +77,8 @@ test_build() {
         -destination "$destination"
         -derivedDataPath "$WORK_DIR/DerivedData"
         -packageCachePath "$WORK_DIR/PackageCache"
+        build
     )
-
-    command+=(build)
 
     echo "[*] consumer build destination=$destination"
     "${command[@]}" 2>&1 | format_output

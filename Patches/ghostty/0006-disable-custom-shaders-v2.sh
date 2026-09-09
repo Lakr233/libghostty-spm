@@ -68,15 +68,14 @@ print("[+] patched Config.zig")
 shared_path = source_dir / "src/build/SharedDeps.zig"
 text = shared_path.read_text()
 
-# Gate glslang — wrap with custom_shaders check
-old_glslang_open = '    // Glslang\n    if (b.lazyDependency("glslang", .{'
-new_glslang_open = '    // Glslang — only needed for custom shaders\n    if (self.config.custom_shaders) if (b.lazyDependency("glslang", .{'
-if old_glslang_open not in text:
-    print("[!] glslang open-if block not found")
-    sys.exit(1)
-text = text.replace(old_glslang_open, new_glslang_open)
-# Close the extra if at end of glslang block
-old_glslang_close = """            step.root_module.linkLibrary(glslang_dep.artifact("glslang"));
+# Gate glslang and spirv-cross — wrap each block with a custom_shaders check
+# and close the extra `if` at its end. The trim these edits do is not verified
+# by anything downstream, so a drifted anchor is fatal here.
+shared_edits = [(
+    '    // Glslang\n    if (b.lazyDependency("glslang", .{',
+    '    // Glslang — only needed for custom shaders\n    if (self.config.custom_shaders) if (b.lazyDependency("glslang", .{',
+), (
+    """            step.root_module.linkLibrary(glslang_dep.artifact("glslang"));
             try static_libs.append(
                 b.allocator,
                 glslang_dep.artifact("glslang").getEmittedBin(),
@@ -84,8 +83,8 @@ old_glslang_close = """            step.root_module.linkLibrary(glslang_dep.arti
         }
     }
 
-    // Spirv-cross"""
-new_glslang_close = """            step.root_module.linkLibrary(glslang_dep.artifact("glslang"));
+    // Spirv-cross""",
+    """            step.root_module.linkLibrary(glslang_dep.artifact("glslang"));
             try static_libs.append(
                 b.allocator,
                 glslang_dep.artifact("glslang").getEmittedBin(),
@@ -93,20 +92,12 @@ new_glslang_close = """            step.root_module.linkLibrary(glslang_dep.arti
         }
     };
 
-    // Spirv-cross"""
-if old_glslang_close not in text:
-    print("[!] glslang close-if block not found")
-    sys.exit(1)
-text = text.replace(old_glslang_close, new_glslang_close)
-
-# Gate spirv-cross — wrap with custom_shaders check
-old_spirv_open = '    // Spirv-cross\n    if (b.lazyDependency("spirv_cross", .{'
-new_spirv_open = '    // Spirv-cross — only needed for custom shaders\n    if (self.config.custom_shaders) if (b.lazyDependency("spirv_cross", .{'
-if old_spirv_open not in text:
-    print("[!] spirv-cross open-if block not found")
-    sys.exit(1)
-text = text.replace(old_spirv_open, new_spirv_open)
-old_spirv_close = """            step.root_module.linkLibrary(spirv_cross_dep.artifact("spirv_cross"));
+    // Spirv-cross""",
+), (
+    '    // Spirv-cross\n    if (b.lazyDependency("spirv_cross", .{',
+    '    // Spirv-cross — only needed for custom shaders\n    if (self.config.custom_shaders) if (b.lazyDependency("spirv_cross", .{',
+), (
+    """            step.root_module.linkLibrary(spirv_cross_dep.artifact("spirv_cross"));
             try static_libs.append(
                 b.allocator,
                 spirv_cross_dep.artifact("spirv_cross").getEmittedBin(),
@@ -114,8 +105,8 @@ old_spirv_close = """            step.root_module.linkLibrary(spirv_cross_dep.ar
         }
     }
 
-    // Sentry"""
-new_spirv_close = """            step.root_module.linkLibrary(spirv_cross_dep.artifact("spirv_cross"));
+    // Sentry""",
+    """            step.root_module.linkLibrary(spirv_cross_dep.artifact("spirv_cross"));
             try static_libs.append(
                 b.allocator,
                 spirv_cross_dep.artifact("spirv_cross").getEmittedBin(),
@@ -123,11 +114,15 @@ new_spirv_close = """            step.root_module.linkLibrary(spirv_cross_dep.ar
         }
     };
 
-    // Sentry"""
-if old_spirv_close not in text:
-    print("[!] spirv-cross close-if block not found")
-    sys.exit(1)
-text = text.replace(old_spirv_close, new_spirv_close)
+    // Sentry""",
+)]
+
+for old, new in shared_edits:
+    if old not in text:
+        print("[-] pattern not found in src/build/SharedDeps.zig; upstream changed, update this patch:")
+        print(f"    {old[:80]}...")
+        sys.exit(1)
+    text = text.replace(old, new)
 
 shared_path.write_text(text)
 print("[+] patched SharedDeps.zig")

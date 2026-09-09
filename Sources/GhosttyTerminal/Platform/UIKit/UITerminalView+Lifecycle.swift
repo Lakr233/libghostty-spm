@@ -91,7 +91,6 @@
                     core.synchronizeMetrics()
                 }
                 updateColorScheme()
-                core.startDisplayLink()
                 core.requestImmediateTick()
                 // Defer sublayer frame and metrics sync to the next runloop
                 // so that AutoLayout has resolved final bounds.

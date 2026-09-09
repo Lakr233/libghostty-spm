@@ -107,12 +107,11 @@ echo "[*] zig version: $(zig version)"
 echo "[*] Ghostty source: $SOURCE_DIR"
 echo "[*] platform groups: $PLATFORMS"
 
-OLD_IFS=$IFS
-IFS=','
-set -- $PLATFORMS
-IFS=$OLD_IFS
+IFS=',' read -ra PLATFORM_GROUPS <<<"$PLATFORMS"
 
-for platform_group in "$@"; do
+# :- yields one empty word for an empty array, which the guard below drops.
+# Without it, macOS bash 3.2 aborts on "${PLATFORM_GROUPS[@]}" under set -u.
+for platform_group in "${PLATFORM_GROUPS[@]:-}"; do
     platform_group=$(echo "$platform_group" | xargs)
     [ -n "$platform_group" ] || continue
     ./Script/build-platform.sh "$SOURCE_DIR" "$platform_group" "$ARTIFACTS_DIR"

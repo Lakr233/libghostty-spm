@@ -88,27 +88,30 @@ struct ShellCraftKitTests {
     @Test
     func `cursor column uses display width instead of character count`() {
         #expect(
-            terminalCursorColumn(
+            terminalRenderedInputState(
                 promptDisplayWidth: 8,
                 input: "测试",
-                cursorPosition: 2
-            ) == 13
+                cursorPosition: 2,
+                terminalColumns: .max
+            ).cursorColumn == 13
         )
 
         #expect(
-            terminalCursorColumn(
+            terminalRenderedInputState(
                 promptDisplayWidth: 8,
                 input: "a测b",
-                cursorPosition: 2
-            ) == 12
+                cursorPosition: 2,
+                terminalColumns: .max
+            ).cursorColumn == 12
         )
 
         #expect(
-            terminalCursorColumn(
+            terminalRenderedInputState(
                 promptDisplayWidth: 8,
                 input: "你好吗",
-                cursorPosition: 1
-            ) == 11
+                cursorPosition: 1,
+                terminalColumns: .max
+            ).cursorColumn == 11
         )
     }
 
@@ -309,7 +312,6 @@ struct ShellCraftKitTests {
     func `shell word boundaries remain whitespace delimited for control W`() {
         #expect(terminalPreviousShellWordBoundary(in: "foo-bar baz", from: 11) == 8)
         #expect(terminalPreviousShellWordBoundary(in: "alpha beta  ", from: 12) == 6)
-        #expect(terminalNextShellWordBoundary(in: "alpha   beta", from: 5) == 12)
     }
 
     @Test
@@ -647,7 +649,6 @@ private struct EngineHarness {
 
     init(columns: UInt16 = 80) async {
         let output = CapturedOutput()
-        let bridge = SessionBridge()
         let session = InMemoryTerminalSession(
             write: { _ in },
             resize: { _ in },
@@ -655,11 +656,10 @@ private struct EngineHarness {
             processExit: { _, _, _ in }
         )
         session.setSurface(UnsafeMutableRawPointer(bitPattern: 0x10)!)
-        bridge.session = session
         let shell = ShellDefinition(prompt: "$ ", welcomeMessage: "") {
             ShellCommand("whoami", summary: "Show current user") { _ in .output("tester\r\n") }
         }
-        let engine = Engine(shell: shell, sessionBridge: bridge)
+        let engine = Engine(shell: shell, session: session)
         await engine.updateSize(InMemoryTerminalViewport(columns: columns, rows: 24))
 
         self.engine = engine

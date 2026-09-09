@@ -41,7 +41,6 @@ if [ ! -f "$SHIM_DIR/xcrun" ] || [ ! -f "$OVERLAY_SDK/usr/lib/libSystem.tbd" ]; 
     rm -rf "$OVERLAY_ROOT"
     mkdir -p "$OVERLAY_SDK/usr" "$SHIM_DIR"
     for entry in "$REAL_SDK"/* "$REAL_SDK"/.[!.]*; do
-        [ -e "$entry" ] || continue
         [ "$(basename "$entry")" = "usr" ] && continue
         ln -s "$entry" "$OVERLAY_SDK/$(basename "$entry")"
     done

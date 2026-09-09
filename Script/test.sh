@@ -27,9 +27,8 @@ test_build() {
         -scheme "$scheme"
         -destination "$destination"
         -derivedDataPath "$DERIVED_DATA"
+        build
     )
-
-    command+=(build)
 
     echo "[*] build scheme=$scheme destination=$destination"
     "${command[@]}" 2>&1 | format_output

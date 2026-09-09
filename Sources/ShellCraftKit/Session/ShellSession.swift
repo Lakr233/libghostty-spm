@@ -12,8 +12,6 @@ public final class ShellSession {
     private let events: AsyncStream<ShellSessionEvent>.Continuation
 
     public init(shell: ShellDefinition) {
-        let sessionBridge = SessionBridge()
-        let engine = Engine(shell: shell, sessionBridge: sessionBridge)
         let (stream, events) = AsyncStream.makeStream(of: ShellSessionEvent.self)
         let terminalSession = InMemoryTerminalSession(
             write: { data in
@@ -23,7 +21,7 @@ public final class ShellSession {
                 events.yield(.resize(size))
             }
         )
-        sessionBridge.session = terminalSession
+        let engine = Engine(shell: shell, session: terminalSession)
 
         self.terminalSession = terminalSession
         self.events = events

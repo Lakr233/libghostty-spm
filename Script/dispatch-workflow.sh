@@ -30,7 +30,6 @@ before=$(latest_run)
 gh workflow run "$WORKFLOW" --ref main "$@"
 echo "[*] dispatched $WORKFLOW"
 
-run_id=$before
 for _ in $(seq 1 60); do
     sleep 5
     run_id=$(latest_run)

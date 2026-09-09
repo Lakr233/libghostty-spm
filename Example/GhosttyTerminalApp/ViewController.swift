@@ -12,9 +12,7 @@ private final class AppearanceAwareView: NSView {
 }
 
 final class ViewController: NSViewController {
-    private lazy var terminalView: TerminalView = .init(
-        frame: NSRect(x: 0, y: 0, width: 720, height: 480)
-    )
+    private lazy var terminalView: TerminalView = .init(frame: .zero)
 
     private lazy var shellSession: ShellSession = .init(shell: defaultSandboxShell)
 
@@ -33,7 +31,8 @@ final class ViewController: NSViewController {
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        configureView()
+        view.wantsLayer = true
+        applyWindowBackgroundColor()
         configureTerminalView()
     }
 
@@ -45,11 +44,6 @@ final class ViewController: NSViewController {
     override func viewDidLayout() {
         super.viewDidLayout()
         terminalView.fitToSize()
-    }
-
-    private func configureView() {
-        view.wantsLayer = true
-        applyWindowBackgroundColor()
     }
 
     private func applyWindowBackgroundColor() {
@@ -93,14 +87,11 @@ final class ViewController: NSViewController {
 
 extension ViewController:
     TerminalSurfaceTitleDelegate,
-    TerminalSurfaceResizeDelegate,
     TerminalSurfaceCloseDelegate
 {
     func terminalDidChangeTitle(_ title: String) {
         view.window?.title = title
     }
-
-    func terminalDidResize(columns _: Int, rows _: Int) {}
 
     func terminalDidClose(processAlive _: Bool) {
         view.window?.close()

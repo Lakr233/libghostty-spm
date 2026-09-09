@@ -117,7 +117,7 @@ if anchor not in text:
 path.write_text(text.replace(anchor, anchor + addition))
 print("[+] patched: linked Metal frameworks (direct linkFramework, outside frameworks table)")
 PY
-    elif ! grep -q 'lib.linkFramework("Metal")' "$BUILD_ZIG"; then
+    else
         perl -0pi -e 's/lib\.linkFramework\("IOSurface"\);/lib.linkFramework("IOSurface");\n    lib.linkFramework("Metal");\n    lib.linkFramework("MetalKit");/g' "$BUILD_ZIG"
         perl -0pi -e 's/module\.linkFramework\("IOSurface", \.\{\}\);/module.linkFramework("IOSurface", .{});\n        module.linkFramework("Metal", .{});\n        module.linkFramework("MetalKit", .{});/g' "$BUILD_ZIG"
         grep -q 'lib.linkFramework("Metal")' "$BUILD_ZIG" &&
@@ -126,8 +126,6 @@ PY
             exit 1
         }
         echo "[+] patched: linked Metal frameworks"
-    else
-        echo "[+] Metal frameworks already linked"
     fi
 fi
 
@@ -156,13 +154,11 @@ if [ -f "$CONFIG_ZIG" ]; then
         echo "[-] osVersionMin not found in Config.zig; upstream changed, update this patch"
         exit 1
     fi
-fi
 
-# Patch 5: upstream refuses an iOS target for the full build (only
-# libghostty-vt "supports" iOS there). Our iOS slices are that full build
-# plus the patches in this directory, so the refusal is turned into a
-# comptime-false branch; the surrounding code stays intact.
-if [ -f "$CONFIG_ZIG" ]; then
+    # Patch 5: upstream refuses an iOS target for the full build (only
+    # libghostty-vt "supports" iOS there). Our iOS slices are that full build
+    # plus the patches in this directory, so the refusal is turned into a
+    # comptime-false branch; the surrounding code stays intact.
     if grep -q 'LIBGHOSTTY_SPM_IOS_FULL_BUILD' "$CONFIG_ZIG"; then
         echo "[+] iOS full-build guard already disabled"
     elif grep -q 'os.tag == .ios and !emit_lib_vt' "$CONFIG_ZIG"; then

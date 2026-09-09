@@ -28,8 +28,4 @@ public struct ShellCommand: Sendable {
         self.summary = summary
         self.handler = handler
     }
-
-    func execute(_ context: CommandContext) -> CommandResult {
-        handler(context)
-    }
 }

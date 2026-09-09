@@ -79,6 +79,14 @@ if grep -q "pub fn environMap" "$SOURCE_DIR/src/global.zig" 2>/dev/null; then
     global_env_refactored=true
 fi
 
+if [ "$modern_host_io" = false ]; then
+    host_io_patch=0002-host-managed-io.patch
+elif [ "$global_env_refactored" = false ]; then
+    host_io_patch=0002-host-managed-io-modern.patch
+else
+    host_io_patch=0002-host-managed-io-modern-v2.patch
+fi
+
 # Zig 0.16 moved addCSourceFile/linkSystemLibrary/linkLibrary/linkLibC off
 # std.Build.Step.Compile onto its root_module, and dropped linkSystemLibrary2
 # in favor of linkSystemLibrary. GhosttyFrameData.zig's framegen build step
@@ -95,26 +103,8 @@ for patch_file in "$PATCH_DIR"/*; do
 
     patch_name=$(basename "$patch_file")
     case "$patch_name" in
-        0002-host-managed-io.patch)
-            [ "$modern_host_io" = false ] || continue
-            if [ "$host_io_applied" = true ]; then
-                echo "[+] patch already applied: $patch_name"
-                continue
-            fi
-            apply_unified_patch "$patch_file"
-            ;;
-        0002-host-managed-io-modern.patch)
-            [ "$modern_host_io" = true ] || continue
-            [ "$global_env_refactored" = false ] || continue
-            if [ "$host_io_applied" = true ]; then
-                echo "[+] patch already applied: $patch_name"
-                continue
-            fi
-            apply_unified_patch "$patch_file"
-            ;;
-        0002-host-managed-io-modern-v2.patch)
-            [ "$modern_host_io" = true ] || continue
-            [ "$global_env_refactored" = true ] || continue
+        0002-host-managed-io*.patch)
+            [ "$patch_name" = "$host_io_patch" ] || continue
             if [ "$host_io_applied" = true ]; then
                 echo "[+] patch already applied: $patch_name"
                 continue

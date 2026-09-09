@@ -13,5 +13,4 @@ MainActor.assumeIsolated {
     app.setActivationPolicy(.regular)
     app.delegate = delegate
     app.run()
-    fatalError()
 }

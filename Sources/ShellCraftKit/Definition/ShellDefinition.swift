@@ -89,7 +89,7 @@ public struct ShellDefinition: Sendable {
             terminalSize: terminalSize
         )
 
-        return command.execute(context)
+        return command.handler(context)
     }
 
     private func generateHelp() -> String {

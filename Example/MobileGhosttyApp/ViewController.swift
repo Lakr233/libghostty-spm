@@ -14,14 +14,10 @@ final class ViewController: UIViewController {
     ) { builder in
         builder.withBackgroundOpacity(0)
     }
-    #if DEBUG
-        private var uiTestOutputView: TerminalOutputAccessibilityView?
-    #endif
 
     override func viewDidLoad() {
         super.viewDidLoad()
         title = "Terminal"
-        view.backgroundColor = .systemBackground
         view.isOpaque = true
         configureTerminalView()
         configureThemeMenu()
@@ -81,7 +77,6 @@ final class ViewController: UIViewController {
                     output.widthAnchor.constraint(equalToConstant: 1),
                     output.heightAnchor.constraint(equalToConstant: 1),
                 ])
-                uiTestOutputView = output
             }
         #endif
     }
@@ -197,10 +192,10 @@ final class ViewController: UIViewController {
             grouped[key, default: []].append(theme)
         }
 
-        return grouped.keys.sorted().map { key in
+        return grouped.sorted { $0.key < $1.key }.map { key, themes in
             UIMenu(
                 title: key,
-                children: grouped[key]!.map { themeAction(for: $0) }
+                children: themes.map { themeAction(for: $0) }
             )
         }
     }
@@ -214,10 +209,7 @@ final class ViewController: UIViewController {
     private func applyTheme(_ theme: GhosttyThemeDefinition) {
         saveTheme(theme)
         controller.setTheme(Self.savedTerminalTheme())
-
-        if let bgColor = UIColor(hexString: theme.background) {
-            view.backgroundColor = bgColor
-        }
+        applyBackgroundForCurrentAppearance()
     }
 }
 
@@ -251,7 +243,6 @@ final class ViewController: UIViewController {
 
 extension ViewController:
     TerminalSurfaceTitleDelegate,
-    TerminalSurfaceResizeDelegate,
     TerminalSurfaceCloseDelegate,
     TerminalSurfaceTextSelectionRequestDelegate,
     UIAdaptivePresentationControllerDelegate
@@ -259,8 +250,6 @@ extension ViewController:
     func terminalDidChangeTitle(_ title: String) {
         self.title = title
     }
-
-    func terminalDidResize(columns _: Int, rows _: Int) {}
 
     func terminalDidClose(processAlive _: Bool) {
         ApplicationExitController.requestExit()

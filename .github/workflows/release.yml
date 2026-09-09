@@ -121,7 +121,7 @@ jobs:
 
       - name: Restore Release Manifest
         run: |
-          git clean -fdx -f
+          git clean -fdx
           git reset --hard
           cp /tmp/Package.release.swift Package.swift
 

@@ -42,8 +42,8 @@ def patch_file(rel_path, replacements):
 patch_file("src/build/Config.zig", [
     # Add field after custom_shaders (added by 0006)
     (
-        f"custom_shaders: bool = true, // LIBGHOSTTY_SPM_TRIM_PATCH",
-        f"custom_shaders: bool = true, // LIBGHOSTTY_SPM_TRIM_PATCH\n"
+        "custom_shaders: bool = true, // LIBGHOSTTY_SPM_TRIM_PATCH",
+        "custom_shaders: bool = true, // LIBGHOSTTY_SPM_TRIM_PATCH\n"
         f"inspector: bool = true, // {marker}",
     ),
     # Add option parsing after the custom_shaders option block (added by 0006)
@@ -234,9 +234,9 @@ text = text.replace(old, new, 1)
 # 6b. Gate the Inspector struct definition using brace-depth counting
 # Find the struct opening
 struct_marker = 'pub const Inspector = struct {\n    const cimgui = @import("dcimgui");'
-assert struct_marker in text, f"Inspector struct marker not found"
+assert struct_marker in text, "Inspector struct marker not found"
 
-struct_start_idx = text.index('pub const Inspector = struct {\n    const cimgui = @import("dcimgui");')
+struct_start_idx = text.index(struct_marker)
 # Find the opening brace
 brace_start = text.index('{', struct_start_idx)
 # Count braces to find the matching close
@@ -325,78 +325,47 @@ text = text.replace(old_free, new_free, 1)
 
 # 6e. Gate CAPI inspector functions that call methods on Inspector
 # These functions take *Inspector and call methods that don't exist on the stub struct.
-# We add comptime early-returns so the method calls are never analyzed.
+# We add comptime early-returns so the method calls are never analyzed. The guard
+# goes immediately before the anchor's first `ptr.` line, at that line's indentation,
+# and returns whatever the enclosing export fn returns.
+INSPECTOR = '@import("../build_config.zig").inspector'
 capi_guards = [
     ('    export fn ghostty_inspector_set_size(ptr: *Inspector, w: u32, h: u32) void {\n'
-     '        ptr.updateSize(w, h);',
-     '    export fn ghostty_inspector_set_size(ptr: *Inspector, w: u32, h: u32) void {\n'
-     '        if (comptime !@import("../build_config.zig").inspector) return;\n'
-     '        ptr.updateSize(w, h);'),
+     '        ptr.updateSize(w, h);', 'return;'),
     ('    export fn ghostty_inspector_set_content_scale(ptr: *Inspector, x: f64, y: f64) void {\n'
-     '        ptr.updateContentScale(x, y);',
-     '    export fn ghostty_inspector_set_content_scale(ptr: *Inspector, x: f64, y: f64) void {\n'
-     '        if (comptime !@import("../build_config.zig").inspector) return;\n'
-     '        ptr.updateContentScale(x, y);'),
+     '        ptr.updateContentScale(x, y);', 'return;'),
     ('        ptr.mouseButtonCallback(\n'
      '            action,\n'
-     '            button,',
-     '        if (comptime !@import("../build_config.zig").inspector) return;\n'
-     '        ptr.mouseButtonCallback(\n'
-     '            action,\n'
-     '            button,'),
+     '            button,', 'return;'),
     ('    export fn ghostty_inspector_mouse_pos(ptr: *Inspector, x: f64, y: f64) void {\n'
-     '        ptr.cursorPosCallback(x, y);',
-     '    export fn ghostty_inspector_mouse_pos(ptr: *Inspector, x: f64, y: f64) void {\n'
-     '        if (comptime !@import("../build_config.zig").inspector) return;\n'
-     '        ptr.cursorPosCallback(x, y);'),
+     '        ptr.cursorPosCallback(x, y);', 'return;'),
     ('        ptr.scrollCallback(\n'
      '            x,\n'
-     '            y,',
-     '        if (comptime !@import("../build_config.zig").inspector) return;\n'
-     '        ptr.scrollCallback(\n'
-     '            x,\n'
-     '            y,'),
+     '            y,', 'return;'),
     ('        ptr.keyCallback(\n'
      '            action,\n'
-     '            key,',
-     '        if (comptime !@import("../build_config.zig").inspector) return;\n'
-     '        ptr.keyCallback(\n'
-     '            action,\n'
-     '            key,'),
+     '            key,', 'return;'),
     ('    export fn ghostty_inspector_text(\n'
      '        ptr: *Inspector,\n'
      '        str: [*:0]const u8,\n'
      '    ) void {\n'
-     '        ptr.textCallback(std.mem.sliceTo(str, 0));',
-     '    export fn ghostty_inspector_text(\n'
-     '        ptr: *Inspector,\n'
-     '        str: [*:0]const u8,\n'
-     '    ) void {\n'
-     '        if (comptime !@import("../build_config.zig").inspector) return;\n'
-     '        ptr.textCallback(std.mem.sliceTo(str, 0));'),
+     '        ptr.textCallback(std.mem.sliceTo(str, 0));', 'return;'),
     ('    export fn ghostty_inspector_set_focus(ptr: *Inspector, focused: bool) void {\n'
-     '        ptr.focusCallback(focused);',
-     '    export fn ghostty_inspector_set_focus(ptr: *Inspector, focused: bool) void {\n'
-     '        if (comptime !@import("../build_config.zig").inspector) return;\n'
-     '        ptr.focusCallback(focused);'),
+     '        ptr.focusCallback(focused);', 'return;'),
     ('        export fn ghostty_inspector_metal_init(ptr: *Inspector, device: objc.c.id) bool {\n'
-     '            return ptr.initMetal(.fromId(device));',
-     '        export fn ghostty_inspector_metal_init(ptr: *Inspector, device: objc.c.id) bool {\n'
-     '            if (comptime !@import("../build_config.zig").inspector) return false;\n'
-     '            return ptr.initMetal(.fromId(device));'),
+     '            return ptr.initMetal(.fromId(device));', 'return false;'),
     ('            return ptr.renderMetal(\n'
-     '                .fromId(command_buffer),',
-     '            if (comptime !@import("../build_config.zig").inspector) return;\n'
-     '            return ptr.renderMetal(\n'
-     '                .fromId(command_buffer),'),
+     '                .fromId(command_buffer),', 'return;'),
     ('        export fn ghostty_inspector_metal_shutdown(ptr: *Inspector) void {\n'
-     '            if (ptr.backend) |v| {',
-     '        export fn ghostty_inspector_metal_shutdown(ptr: *Inspector) void {\n'
-     '            if (comptime !@import("../build_config.zig").inspector) return;\n'
-     '            if (ptr.backend) |v| {'),
+     '            if (ptr.backend) |v| {', 'return;'),
 ]
-for old_capi, new_capi in capi_guards:
+for old_capi, ret in capi_guards:
     assert old_capi in text, f"CAPI pattern not found: {old_capi[:60]}..."
+    lines = old_capi.split('\n')
+    idx = next(i for i, line in enumerate(lines) if 'ptr.' in line)
+    indent = lines[idx][:len(lines[idx]) - len(lines[idx].lstrip())]
+    guard = f'{indent}if (comptime !{INSPECTOR}) {ret}'
+    new_capi = '\n'.join(lines[:idx] + [guard] + lines[idx:])
     text = text.replace(old_capi, new_capi, 1)
 
 embedded_path.write_text(text)

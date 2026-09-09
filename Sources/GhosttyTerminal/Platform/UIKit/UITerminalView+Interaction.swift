@@ -386,12 +386,8 @@
                     return live
                 }
             #endif
-            if !hardwareKeyboard.heldModifierFlags.isEmpty {
-                return TerminalInputModifiers(from: hardwareKeyboard.heldModifierFlags)
-                    .ghosttyMods
-            }
             #if targetEnvironment(macCatalyst)
-                if let flags = CGEvent(source: nil)?.flags {
+                if hardwareKeyboard.heldModifierFlags.isEmpty, let flags = CGEvent(source: nil)?.flags {
                     var mods = TerminalInputModifiers()
                     if flags.contains(.maskCommand) { mods.insert(.super_) }
                     if flags.contains(.maskControl) { mods.insert(.ctrl) }
@@ -516,7 +512,7 @@
         }
 
         @IBAction override open func copy(_: Any?) {
-            guard copySelectedTextToPasteboard() else { return }
+            copySelectedTextToPasteboard()
         }
 
         /// A paste has to reach the surface as a paste.

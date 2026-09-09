@@ -16,40 +16,25 @@ SOURCE_DIR="${1:?Usage: $0 <ghostty-source-dir>}"
 # -Wno-macro-redefined: zig predefines the macro to 0 on its own command
 # line; our -D override redefines it.
 
-# Patch 1: highway flags (hwy/abort.cc et al reference __libcpp_verbose_abort
-# through the -fno-exceptions throw helpers)
-HIGHWAY_BUILD="${SOURCE_DIR}/pkg/highway/build.zig"
-if [ ! -f "$HIGHWAY_BUILD" ]; then
-    echo "[-] missing: $HIGHWAY_BUILD; upstream changed, update this patch"
-    exit 1
-fi
-if ! grep -q '_LIBCPP_HAS_VENDOR_AVAILABILITY_ANNOTATIONS' "$HIGHWAY_BUILD"; then
-    perl -0pi -e 's/try flags\.appendSlice\(b\.allocator, &\.\{\n/try flags.appendSlice(b.allocator, &.{\n        "-D_LIBCPP_HAS_VENDOR_AVAILABILITY_ANNOTATIONS=1",\n        "-Wno-macro-redefined",\n/' "$HIGHWAY_BUILD"
-    grep -q '_LIBCPP_HAS_VENDOR_AVAILABILITY_ANNOTATIONS' "$HIGHWAY_BUILD" || {
-        echo "[-] highway flags block not found; upstream changed, update this patch"
+# Patches 1 and 2: highway and simdutf flags (hwy/abort.cc et al reference
+# __libcpp_verbose_abort through the -fno-exceptions throw helpers)
+for pkg in highway simdutf; do
+    pkg_build="${SOURCE_DIR}/pkg/$pkg/build.zig"
+    if [ ! -f "$pkg_build" ]; then
+        echo "[-] missing: $pkg_build; upstream changed, update this patch"
         exit 1
-    }
-    echo "[+] patched: highway libc++ availability annotations"
-else
-    echo "[+] highway libc++ availability already patched"
-fi
-
-# Patch 2: simdutf flags
-SIMDUTF_BUILD="${SOURCE_DIR}/pkg/simdutf/build.zig"
-if [ ! -f "$SIMDUTF_BUILD" ]; then
-    echo "[-] missing: $SIMDUTF_BUILD; upstream changed, update this patch"
-    exit 1
-fi
-if ! grep -q '_LIBCPP_HAS_VENDOR_AVAILABILITY_ANNOTATIONS' "$SIMDUTF_BUILD"; then
-    perl -0pi -e 's/try flags\.appendSlice\(b\.allocator, &\.\{\n/try flags.appendSlice(b.allocator, &.{\n        "-D_LIBCPP_HAS_VENDOR_AVAILABILITY_ANNOTATIONS=1",\n        "-Wno-macro-redefined",\n/' "$SIMDUTF_BUILD"
-    grep -q '_LIBCPP_HAS_VENDOR_AVAILABILITY_ANNOTATIONS' "$SIMDUTF_BUILD" || {
-        echo "[-] simdutf flags block not found; upstream changed, update this patch"
-        exit 1
-    }
-    echo "[+] patched: simdutf libc++ availability annotations"
-else
-    echo "[+] simdutf libc++ availability already patched"
-fi
+    fi
+    if ! grep -q '_LIBCPP_HAS_VENDOR_AVAILABILITY_ANNOTATIONS' "$pkg_build"; then
+        perl -0pi -e 's/try flags\.appendSlice\(b\.allocator, &\.\{\n/try flags.appendSlice(b.allocator, &.{\n        "-D_LIBCPP_HAS_VENDOR_AVAILABILITY_ANNOTATIONS=1",\n        "-Wno-macro-redefined",\n/' "$pkg_build"
+        grep -q '_LIBCPP_HAS_VENDOR_AVAILABILITY_ANNOTATIONS' "$pkg_build" || {
+            echo "[-] $pkg flags block not found; upstream changed, update this patch"
+            exit 1
+        }
+        echo "[+] patched: $pkg libc++ availability annotations"
+    else
+        echo "[+] $pkg libc++ availability already patched"
+    fi
+done
 
 # Patch 3: ghostty's own C++ SIMD sources (src/simd/*.cpp)
 SHARED_DEPS="${SOURCE_DIR}/src/build/SharedDeps.zig"

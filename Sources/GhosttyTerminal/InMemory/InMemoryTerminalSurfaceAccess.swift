@@ -105,8 +105,7 @@ final class InMemoryTerminalSurfaceAccess: @unchecked Sendable {
         return surface
     }
 
-    @discardableResult
-    func enqueueWrite(_ data: Data) -> Bool {
+    func enqueueWrite(_ data: Data) {
         condition.lock()
         guard surface != nil else {
             pendingWrites.append(data)
@@ -115,7 +114,7 @@ final class InMemoryTerminalSurfaceAccess: @unchecked Sendable {
                 pendingWrites.removeFirst(excess)
             }
             condition.unlock()
-            return true
+            return
         }
         let writeGeneration = generation
         condition.unlock()
@@ -124,7 +123,6 @@ final class InMemoryTerminalSurfaceAccess: @unchecked Sendable {
                 write(surface, data)
             }
         }
-        return true
     }
 
     func enqueueProcessExit(

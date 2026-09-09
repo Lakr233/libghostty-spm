@@ -110,7 +110,6 @@ fi
 
 mkdir -p \
     "$OUTPUT_DIR/lib" \
-    "$OUTPUT_DIR/include" \
     "$GLOBAL_CACHE_DIR" \
     "$LOCAL_CACHE_DIR" \
     "$MODULE_CACHE_DIR"

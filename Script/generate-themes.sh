@@ -101,7 +101,7 @@ def swift_identifier(name):
 def swift_string(s):
     return '"' + s.replace('\\', '\\\\').replace('"', '\\"') + '"'
 
-def optional_field(data, ghostty_key, swift_type="String"):
+def optional_field(data, ghostty_key):
     val = data.get(ghostty_key)
     if val:
         return swift_string(val)
@@ -133,12 +133,7 @@ for name in sorted(theme_names, key=str.lower):
         first_char = 'Symbols'
 
     palette = data.get('_palette', {})
-    palette_str = '['
-    for i in sorted(palette.keys()):
-        palette_str += f'{i}: {swift_string(palette[i])}, '
-    if palette_str.endswith(', '):
-        palette_str = palette_str[:-2]
-    palette_str += ']'
+    palette_str = '[' + ', '.join(f'{i}: {swift_string(palette[i])}' for i in sorted(palette)) + ']'
 
     entry = {
         'name': name,
@@ -150,7 +145,6 @@ for name in sorted(theme_names, key=str.lower):
         'selectionBackground': optional_field(data, 'selection-background'),
         'selectionForeground': optional_field(data, 'selection-foreground'),
         'palette': palette_str,
-        'group': first_char,
     }
 
     groups.setdefault(first_char, []).append(entry)

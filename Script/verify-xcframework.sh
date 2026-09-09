@@ -36,7 +36,7 @@ if [[ "$INPUT_PATH" == *.zip ]]; then
     XCFRAMEWORK_PATH=$(find "$TEMP_DIR" -maxdepth 1 -name "*.xcframework" -type d | head -1)
 fi
 
-if [ -z "$XCFRAMEWORK_PATH" ] || [ ! -d "$XCFRAMEWORK_PATH" ]; then
+if [ ! -d "$XCFRAMEWORK_PATH" ]; then
     echo "[!] xcframework not found in input: $INPUT_PATH"
     exit 1
 fi

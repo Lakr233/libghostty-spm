@@ -68,7 +68,6 @@
                 }
                 updateMetalLayerMetrics()
                 updateColorScheme()
-                core.startDisplayLink()
                 core.requestImmediateTick()
 
                 NotificationCenter.default.addObserver(

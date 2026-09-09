@@ -36,19 +36,10 @@ jobs:
         id: release
         run: |
           GHOSTTY_REF=$(tr -d '[:space:]' < Ghostty.ref)
-
-          if ! echo "$GHOSTTY_REF" | grep -Eq '^[0-9a-f]{40}$'; then
-            echo "[!] Ghostty.ref must contain one full lowercase commit sha"
-            exit 1
-          fi
-
-          RESOLVED_SHA=$(gh api "repos/ghostty-org/ghostty/commits/$GHOSTTY_REF" --jq '.sha')
-          if [ "$RESOLVED_SHA" != "$GHOSTTY_REF" ]; then
-            echo "[!] pinned Ghostty commit did not resolve exactly: $GHOSTTY_REF"
-            exit 1
-          fi
-
           STORAGE_TAG=$(./Script/storage-tag.sh)
+
+          gh api "repos/ghostty-org/ghostty/commits/$GHOSTTY_REF" --jq '.sha' >/dev/null
+
           git fetch --tags origin
           if git rev-parse "refs/tags/$STORAGE_TAG" >/dev/null 2>&1; then
             echo "[*] $STORAGE_TAG already published, nothing to build"
@@ -56,7 +47,7 @@ jobs:
             exit 0
           fi
 
-          echo "[*] building $GHOSTTY_REF build $(cat Ghostty.build 2>/dev/null || echo 1) -> $STORAGE_TAG"
+          echo "[*] building $GHOSTTY_REF -> $STORAGE_TAG"
           echo "build_needed=true" >> "$GITHUB_OUTPUT"
           echo "ghostty_ref=$GHOSTTY_REF" >> "$GITHUB_OUTPUT"
           echo "storage_tag=$STORAGE_TAG" >> "$GITHUB_OUTPUT"
