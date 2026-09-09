@@ -143,8 +143,19 @@ to move back.
   default `needed` mode skips) and edits the unpacked copy, which later
   builds leave alone; `build-ghostty.sh` hands `apply-patches.sh` the
   build's `ZIG_GLOBAL_CACHE_DIR` so the fetch reuses its cache. It also
-  carried a `.visionos` arm for aro's Apple version macro until aro
-  `f97cdfc3` grew its own.
+  fixes two of aro's Apple `TARGET_OS_*` conditionals, which must match what
+  the SDK's own `TargetConditionals.h` defines: `TARGET_OS_IPHONE` gets
+  `.maccatalyst` and `.visionos` (Apple sets it for both), `TARGET_OS_IOS`
+  gets `.maccatalyst`. With them 0, CoreFoundation never declares
+  `CFTypeRef` / `CFAttributedStringRef`, every CoreText prototype fails to
+  parse, and aro panics on the invalid type (`TypeStore.zig`
+  `.invalid => unreachable`) — maccatalyst, xros and xrsimulator all died at
+  `CTLine.h:140` that way while macos, ios and the ios simulator built. Both
+  edits are anchored to the macro name and skipped when the arm is already
+  present, so an aro that grows its own gets no duplicate. It also carried a
+  `.visionos` arm for aro's Apple version macro until aro `f97cdfc3` grew
+  its own — a bare insert with no such guard, which is how it once produced
+  `duplicate switch value` on all ten targets.
 
 Dropped once upstream carried them: `0014-free-text-signature.patch`
 (`ghostty_surface_free_text` taking the surface, upstream `4803d58b`). A
