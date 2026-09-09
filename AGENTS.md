@@ -192,7 +192,7 @@ All example apps run in App Sandbox. Use `GHOSTTY_SURFACE_IO_BACKEND_HOST_MANAGE
 `UITerminalView` conforms to `UITextInput` (which includes `UIKeyInput`) to receive both software keyboard and hardware keyboard input on iOS/Catalyst. The input chain:
 
 1. **Hardware keys** → `pressesBegan`/`pressesEnded` in `+Keyboard.swift` → `handleKeyPress` builds `ghostty_input_key_s` (HID usage translated to an AppKit keycode by `TerminalHardwareKeyRouter.appKitKeyCodeForUIKit`) → `surface.sendKeyEvent()`. Sets `hardwareKeyboard.keyHandled = true` (`HardwareKeyboardState`) to suppress the duplicate `insertText`/`deleteBackward` that UIKit would otherwise deliver. Ctrl combos never reach `pressesBegan` — the text-input system consumes them first, on iPadOS and Catalyst alike — so `keyCommands` registers a `UIKeyCommand` for every Ctrl+letter/digit/symbol with `wantsPriorityOverSystemBehavior`; `handleControlKeyCommand` sends it as a `TerminalKeyPress` on the key path, and `claimKeyCommandDelivery` dedupes per runloop turn against systems that deliver both the command and the press. Escape takes the same route for a different reason, on iPadOS and Catalyst alike: UIKit's system behaviour for a hardware Escape on a `UITextInput` first responder ends editing — the view resigns, the keyboard drops on iOS, and on Catalyst every later key goes nowhere until the next click — so `escapeKeyCommands` claims it under every non-Cmd modifier set and `handleEscapeKeyCommand` sends `.escape` to the surface; the commands are withheld while text is marked, since then the key is the input method's (it cancels the composition). On iOS (not Catalyst) a printable press under a composing input mode (`TerminalIMEComposition.shouldDeferKey`) is loaned to the input method as a `DeferredInputMethodKey`; any UITextInput mutation claims it (`claimPendingInputMethodKeys`), and an unclaimed one is forwarded to `super` or replayed to the surface.
-2. **Software keyboard** → UIKit calls `insertText(_:)` / `deleteBackward()` via UIKeyInput. `TerminalSoftwareKeyCommitRouter.route` (`Shared/TerminalInputText.swift`) reads the `hardwareKeyboard.keyHandled` flag to drop a hardware duplicate and turns a lone unmarked `"\n"`/`"\r"` into a synthetic Return key event (`sendSyntheticKey(usage: 0x28)` on iOS, `sendReturnKey()` on Catalyst). Other text is re-encoded as a key event (`sendTypedText`), **not** handed to `surface.sendText` — see "Key Path vs Text Path" below.
+2. **Software keyboard** → UIKit calls `insertText(_:)` / `deleteBackward()` via UIKeyInput. `TerminalSoftwareKeyCommitRouter.route` (`Shared/TerminalInputText.swift`) reads the `hardwareKeyboard.keyHandled` flag to drop a hardware duplicate and turns a lone unmarked `"\n"`/`"\r"` into a synthetic Return key event (`sendSyntheticKey(usage: 0x28)` on iOS, `sendReturnKey()` on Catalyst). Other text is re-encoded as a key event (`sendTypedText`), **not** handed to `surface.paste(text:)` — see "Key Path vs Text Path" below.
 3. **Input accessory bar** (iOS only, excludes Catalyst) → `TerminalInputAccessoryView` provides a toolbar above the software keyboard with Esc, Tab, arrow keys, modifier keys (Ctrl/Alt/Cmd), symbol keys, and Paste. The layout is `UITerminalView.inputAccessoryItems: [TerminalInputAccessoryItem]` (`defaultItems`; an empty array removes the bar). Modifier keys support **sticky states**: tap to arm (consumed after next key), double-tap to lock (persists until toggled off). Sticky modifier state is tracked by `TerminalStickyModifierState`; `+PublicSticky.swift` exposes it (`toggleStickyModifier`, `stickyActivation(for:)`, `resetStickyModifiers`, `setStickyModifierChangeHandler`) for hosts that draw their own bar. Actions are dispatched via `UITerminalView+InputAccessory.swift` (`handleInputBarKey`: keys go through `sendSyntheticKey`, symbols through `handleStickyTextInput`, Paste through `pasteFromPasteboard`). Button colors are configurable via `TerminalInputAccessoryStyle` (regular/active background and foreground), exposed as `UITerminalView.inputAccessoryStyle`. A clean direct-touch tap sends its click, then calls `toggleSoftwareKeyboard()` — an `open func` declared in the class body (not an extension) precisely so a host's `makePlatformView` subclass can override it; a keyboard lock overrides it to do nothing, and the tap's click still lands on the program.
 4. **IME / marked text** → `setMarkedText` / `unmarkText` delegate to `TerminalTextInputHandler`, which keeps the composition in a `TerminalMarkedTextState` and calls `surface.preedit()` for inline composition preview. Committed text goes through `insertText`. Sticky modifiers are respected during IME composition (`handleStickyMarkedText` / `handleStickyCommittedText`).
 5. **Text positioning** → `TerminalTextPosition` / `TerminalTextRange` (UITextPosition/UITextRange subclasses) provide minimal cursor geometry. `caretRect`/`firstRect` use `surface.imePoint()` for IME candidate window placement.
@@ -262,11 +262,12 @@ US-layout table (`usLayoutCharacters`); `TerminalKeyPress`
 macOS keycode (`hasPlatformKeycode`). It is re-exposed on `TerminalViewState`
 and on both views in `+PublicInput.swift` — the UIKit one commits an open
 composition and spends armed sticky modifiers first, the AppKit one commits
-the composition. `paste(text:)` on the same three is the text path.
-`TerminalViewState.send(_:)` and `AppTerminalView.sendText(_:)` are
-deprecated names of `paste(text:)` because hosts read them as "type this" and
-sent `"ls\r"` through a paste. `TerminalSurface.sendText` stays the primitive
-under `paste`.
+the composition. `paste(text:)` on the same three is the text path, and it is
+the only name that path answers to: 2.0.0 removed
+`TerminalViewState.send(_:)`, `AppTerminalView.sendText(_:)` and the
+`TerminalSurface.sendText(_:)` primitive they wrapped, because hosts read
+those names as "type this" and sent `"ls\r"` through a paste.
+`TerminalSurface.paste(text:)` is the primitive the other two call.
 
 Getting this backwards does not fail loudly — it produces symptoms that look
 like rendering or cursor bugs, because the shell is the thing that behaves
@@ -284,7 +285,7 @@ differently:
   turns a lone unmarked `insertText("\n")` / `"\r"` into a synthetic Return
   key event).
 - A host that tries to rewrite the outbound byte stream to add modifiers hits
-  the bracketed-paste markers wrapped around every `sendText` call, which is
+  the bracketed-paste markers wrapped around every `paste(text:)` call, which is
   why the sticky-modifier state machine is exposed instead
   (`UITerminalView+PublicSticky.swift`).
 
@@ -294,7 +295,7 @@ Neither the AppKit path nor the sample app can catch a regression here:
   event (`startCollectingText` / `finishCollectingText` in
   `TerminalTextInputHandler@AppKit.swift`), so it never touches the text path
   for typed characters; only an `insertText` outside a key event — an IME
-  commit from the candidate window — reaches `sendText`.
+  commit from the candidate window — reaches `paste(text:)`.
 - `Example/MobileGhosttyApp` drives a ShellCraftKit simulated shell, which has
   no bracketed paste at all. **Only a real shell over a pty shows the bug**, so
   verify iOS input against one (`zsh` on device), not against the sample app.

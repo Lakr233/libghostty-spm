@@ -110,10 +110,11 @@ terminal.paste(text: "ls -la")                   // A paste, not keystrokes.
 mirrors every libghostty key, the press is encoded the way the program's key
 mode expects, and a release follows. `paste(text:)` is the text path: a
 program that enabled bracketed paste receives it framed as a paste, so a `\r`
-in it is a pasted character, not Enter. `TerminalViewState.send(_:)` and
-`AppTerminalView.sendText(_:)` are deprecated names of `paste(text:)` for that
-reason — they never sent keystrokes. On `TerminalSurface` the text path keeps
-its primitive name, `sendText(_:)`.
+in it is a pasted character, not Enter. `paste(text:)` is the only name the
+text path answers to on all three: 2.0.0 removed `TerminalViewState.send(_:)`,
+`AppTerminalView.sendText(_:)` and the `TerminalSurface.sendText(_:)`
+primitive, because none of them ever sent keystrokes and the names said
+otherwise.
 
 ### Prompt and Scrollback Navigation
 

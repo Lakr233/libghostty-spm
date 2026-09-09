@@ -84,7 +84,7 @@
         /// as a pure text event — the same shape IME commits already had.
         ///
         /// Real pastes (the accessory's Paste button, the edit menu's
-        /// `paste(_:)`) keep using `sendText`, where the bracketed-paste
+        /// `paste(_:)`) keep using `paste(text:)`, where the bracketed-paste
         /// markers belong. Text with newlines is routed there too: whatever
         /// produced it, a shell must not see those lines as Return presses.
         private func sendTypedText(_ text: String) {
@@ -95,7 +95,7 @@
                     .input,
                     "typed text has newlines, sending as paste bytes=\(text.utf8.count)"
                 )
-                view.surface?.sendText(text)
+                view.surface?.paste(text: text)
                 return
             }
 

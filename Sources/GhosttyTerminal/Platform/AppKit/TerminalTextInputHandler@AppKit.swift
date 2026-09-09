@@ -59,7 +59,7 @@
             if accumulatedTexts != nil {
                 accumulatedTexts?.append(text)
             } else {
-                view?.surface?.sendText(text)
+                view?.surface?.paste(text: text)
             }
         }
 

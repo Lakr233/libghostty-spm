@@ -46,7 +46,7 @@
                         return
                     }
                     TerminalDebugLog.log(.input, "drop files bytes=\(paths.utf8.count)")
-                    _ = surface?.sendText(paths)
+                    _ = surface?.paste(text: paths)
                 }
                 return
             }
@@ -55,7 +55,7 @@
                     let urls = objects.compactMap { ($0 as? NSURL).map { $0 as URL } }
                     guard let self, let text = TerminalPasteboardContent.text(string: nil, urls: urls) else { return }
                     TerminalDebugLog.log(.input, "drop urls count=\(urls.count)")
-                    _ = surface?.sendText(text)
+                    _ = surface?.paste(text: text)
                 }
                 return
             }
@@ -64,7 +64,7 @@
                     let text = objects.compactMap { ($0 as? NSString).map { $0 as String } }.joined()
                     guard let self, !text.isEmpty else { return }
                     TerminalDebugLog.log(.input, "drop text bytes=\(text.utf8.count)")
-                    _ = surface?.sendText(text)
+                    _ = surface?.paste(text: text)
                 }
             }
         }

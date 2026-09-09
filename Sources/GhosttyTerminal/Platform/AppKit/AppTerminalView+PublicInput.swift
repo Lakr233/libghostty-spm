@@ -29,15 +29,7 @@
         /// ``sendKey(_:)``. False when the surface has not been created yet.
         @discardableResult
         public func paste(text: String) -> Bool {
-            surface?.sendText(text) ?? false
-        }
-
-        /// The old name of ``paste(text:)``. It never bypassed key
-        /// translation — the text path is a paste, and an escape sequence
-        /// sent through it is pasted, not pressed.
-        @available(*, deprecated, renamed: "paste(text:)", message: "The text path is a paste; press keys with sendKey(_:).")
-        public func sendText(_ text: String) {
-            paste(text: text)
+            surface?.paste(text: text) ?? false
         }
 
         /// Presses and releases a key, as if typed on a hardware keyboard —

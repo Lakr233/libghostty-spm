@@ -51,7 +51,7 @@
                     return
                 }
                 TerminalDebugLog.log(.input, "paste files bytes=\(paths.utf8.count)")
-                surface?.sendText(paths)
+                surface?.paste(text: paths)
             }
         }
 

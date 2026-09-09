@@ -13,7 +13,7 @@
 //      in app code (fragile, has to mirror libghostty internals), OR
 //    * intercept the outbound surface byte stream and try to transform
 //      bytes after-the-fact (breaks because libghostty wraps every
-//      `surface.sendText` call in bracketed-paste markers when the
+//      `surface.paste(text:)` call in bracketed-paste markers when the
 //      remote shell enabled mode 2004).
 //
 //  Forwarding to the existing internal `stickyModifiers` keeps a

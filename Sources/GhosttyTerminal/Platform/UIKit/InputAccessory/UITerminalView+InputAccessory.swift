@@ -104,7 +104,7 @@
         @discardableResult
         func handleStickyCommittedText(_ text: String) -> Bool {
             handleStickyTextInput(text) { [weak self] text in
-                self?.surface?.sendText(text)
+                self?.surface?.paste(text: text)
             }
         }
 

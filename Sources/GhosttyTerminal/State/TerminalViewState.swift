@@ -126,16 +126,7 @@ public final class TerminalViewState: ObservableObject {
             TerminalDebugLog.log(.input, "view state paste ignored: missing surface")
             return false
         }
-        return surface.sendText(text)
-    }
-
-    /// The old name of ``paste(text:)``. It never sent keystrokes — the
-    /// text path is a paste — and the name led hosts to `send("ls\r")`,
-    /// which a shell with bracketed paste on does not run.
-    @available(*, deprecated, renamed: "paste(text:)", message: "The text path is a paste; press keys with sendKey(_:).")
-    @discardableResult
-    public func send(_ text: String) -> Bool {
-        paste(text: text)
+        return surface.paste(text: text)
     }
 
     /// Presses and releases a key on the attached surface, as if typed on a

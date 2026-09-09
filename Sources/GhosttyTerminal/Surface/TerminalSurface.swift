@@ -42,8 +42,11 @@ public final class TerminalSurface {
         return result
     }
 
+    /// Pastes text into the surface. This is the text path: ghostty treats
+    /// it as a paste, wrapping it in bracketed-paste markers for a program
+    /// that asked for them. Keystrokes go through ``sendKey(_:)``.
     @discardableResult
-    public func sendText(_ text: String) -> Bool {
+    public func paste(text: String) -> Bool {
         guard let s = surface else {
             TerminalDebugLog.log(.input, "surface text ignored: missing surface")
             return false

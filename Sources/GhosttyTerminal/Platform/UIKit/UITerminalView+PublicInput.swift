@@ -27,7 +27,7 @@
         /// through ``sendKey(_:)``. False with no surface yet.
         @discardableResult
         public func paste(text: String) -> Bool {
-            surface?.sendText(text) ?? false
+            surface?.paste(text: text) ?? false
         }
 
         /// Presses and releases a key, as if typed on a hardware keyboard —
