@@ -27,10 +27,18 @@ extension:
   applied, so re-running it is a no-op.
 - `.md` is ignored. Any other file aborts the build.
 
-The two `0002-host-managed-io*` files are variants of one patch and only one
-is applied: `-modern` when upstream `include/ghostty.h` already declares
-`ghostty_surface_foreground_pid`, the plain one otherwise. Either is skipped
-when the header already carries `GHOSTTY_SURFACE_IO_BACKEND_HOST_MANAGED`.
+`0002-host-managed-io.patch` is skipped when upstream's header already
+carries `GHOSTTY_SURFACE_IO_BACKEND_HOST_MANAGED`; every other patch here
+applies unconditionally.
+
+There are no `-vN` variants in the tree today. The pin carried four for a
+while — pre-`ghostty_surface_foreground_pid` and pre-`global.environMap()`
+spellings of 0002, and the pre-Zig-0.16 spellings of 0003, 0005 and 0006 —
+selected by upstream API markers in `apply-patches.sh`. `Ghostty.ref` only
+ever moves forward, so once the pin passed all four markers the older
+spellings could not be chosen again and were dropped along with the
+selection logic. `git log -- Patches/ghostty/` has them if a pin ever needs
+to move back.
 
 ## Rules
 
@@ -40,12 +48,12 @@ when the header already carries `GHOSTTY_SURFACE_IO_BACKEND_HOST_MANAGED`.
   stable.
 - Use executable patch scripts (`.sh`) only when upstream context is too
   unstable for a reliable diff.
-- Keep version-specific variants beside the original patch and select them in
-  `Script/apply-patches.sh` using an upstream API marker — a grep for the
-  code the patch touches (`linkSystemLibrary2` in `GhosttyFrameData.zig`,
-  `pub fn environMap` in `global.zig`), never a version string: a version
+- When upstream context moves under a patch, add a `-vN` variant beside it
+  and select it in `Script/apply-patches.sh` with an upstream API marker — a
+  grep for the code the patch touches, never a version string: a version
   test picks the wrong variant the moment the next version lands, a code
-  test keeps picking the right one until that code moves again.
+  test keeps picking the right one until that code moves again. Drop the
+  superseded variant, and its marker, once the pin is past it for good.
 - Preserve newer Ghostty's renamed internal-library outputs
   (`ghostty-internal.*`) when extending its Darwin static-library build path.
 - Every patch in this directory must be safe to re-run: the pipeline applies
@@ -62,25 +70,13 @@ when the header already carries `GHOSTTY_SURFACE_IO_BACKEND_HOST_MANAGED`.
 - `0002-host-managed-io.patch` — the host-managed IO backend
   (`GHOSTTY_SURFACE_IO_BACKEND_HOST_MANAGED`, receive-buffer and resize
   callbacks, `ghostty_surface_write_buffer` / `_process_exit`,
-  `src/termio/HostManaged.zig`) plus `ghostty_surface_foreground_pid` /
-  `_tty_name` stubs that return 0 / empty for every backend, `.exec`
-  included: the 1.3.1 core has no process-info API to read from. The variant
-  the pinned release selects.
-- `0002-host-managed-io-modern.patch` — the same backend rebased onto upstream
-  main (`GHOSTTY_API`, env API rename), for a release that declares
-  `ghostty_surface_foreground_pid` itself.
-- `0002-host-managed-io-modern-v2.patch` — the `-modern` patch after
-  upstream's `global.environMap()` / `global.resourcesDir()` rename
-  (selected when `src/global.zig` declares `environMap`). The variant the
-  pinned commit selects.
+  `src/termio/HostManaged.zig`), against a source that declares
+  `ghostty_surface_foreground_pid` itself and has upstream's
+  `global.environMap()` / `global.resourcesDir()` rename.
 - `0003-prebuilt-framedata.patch` — commit
   `src/build/framegen/framedata.compressed` and use it instead of building and
-  running the `framegen` host tool.
-- `0003-prebuilt-framedata-v2.patch` — the same for a source that requires
-  Zig 0.16 (`addCSourceFile` / `linkSystemLibrary` moved onto
-  `root_module`); `0005-ios-metal-rendering-v2.sh` and
-  `0006-disable-custom-shaders-v2.sh` are the matching variants of 0005
-  and 0006, selected by the same markers in `apply-patches.sh`.
+  running the `framegen` host tool, against Zig 0.16's build API
+  (`addCSourceFile` / `linkSystemLibrary` on `root_module`).
 - `0004-ios-fixes.sh` — ignore cf_release_thread loop errors, stub the private
   `CGSSetWindowBackgroundBlurRadius` call (App Store), link Metal and MetalKit
   in `pkg/macos`, iOS deployment target 15.0, and turn upstream's "iOS is
@@ -139,16 +135,16 @@ when the header already carries `GHOSTTY_SURFACE_IO_BACKEND_HOST_MANAGED`.
   the shaders as for device iOS (what the 0.15 fall-through shipped), and
   `apple-sdk/native_link.zig` learns the macOS SDK + `-macabi` triple
   (marker `LIBGHOSTTY_SPM_MACCATALYST_PATCH`; runs after 0012).
-- `0017-zig-pkg-apple-targets.sh` — the Zig packages Ghostty pulls in that
-  predate one of our targets: libxev (the event loop) gets `.maccatalyst`
-  beside its Darwin arms, and aro (the C frontend behind 0.16's
-  translate-c) gets a `.visionos` arm for the Apple version macro it would
-  otherwise abort on. Packages are unpacked by 0.16 under
-  `<source>/zig-pkg/`, so the script runs `zig build --fetch=all` when they
-  are missing (a fresh clone; both are lazy dependencies, which the default
-  `needed` mode skips) and edits the unpacked copies, which later builds
-  leave alone; `build-ghostty.sh` hands `apply-patches.sh` the build's
-  `ZIG_GLOBAL_CACHE_DIR` so the fetch reuses its cache.
+- `0017-zig-pkg-apple-targets.sh` — libxev (the event loop Ghostty pulls in)
+  gets `.maccatalyst` beside its Darwin arms; without it a Catalyst build
+  stops at "no default backend for this target". Packages are unpacked by
+  0.16 under `<source>/zig-pkg/`, so the script runs `zig build --fetch=all`
+  when libxev is missing (a fresh clone; it is a lazy dependency, which the
+  default `needed` mode skips) and edits the unpacked copy, which later
+  builds leave alone; `build-ghostty.sh` hands `apply-patches.sh` the
+  build's `ZIG_GLOBAL_CACHE_DIR` so the fetch reuses its cache. It also
+  carried a `.visionos` arm for aro's Apple version macro until aro
+  `f97cdfc3` grew its own.
 
 Dropped once upstream carried them: `0014-free-text-signature.patch`
 (`ghostty_surface_free_text` taking the surface, upstream `4803d58b`). A

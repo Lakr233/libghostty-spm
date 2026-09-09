@@ -1,18 +1,14 @@
 #!/bin/bash
-# Zig packages Ghostty pulls in that predate one of our Apple targets:
+# libxev (the event loop Ghostty pulls in) picks its backend by OS tag and
+# has no arm for Zig 0.16's `.maccatalyst`, so a Catalyst build stops at
+# "no default backend for this target".
 #
-# - libxev (the event loop) picks its backend by OS tag and has no arm for
-#   Zig 0.16's `.maccatalyst`, so a Catalyst build stops at "no default
-#   backend for this target".
-# - aro (the C frontend behind 0.16's translate-c) writes the Apple
-#   `__ENVIRONMENT_*_VERSION_MIN_REQUIRED__` macro from a switch with no
-#   `.visionos` arm and aborts on `unreachable`. aro f97cdfc3 (pulled by
-#   translate-c 4e879eb8, which Ghostty 82938b63 pins) grew its own arm —
-#   a labelled break, since visionOS has no platform-specific define — so
-#   the arm is only inserted into an aro that still lacks one. The guard
-#   greps the switch body rather than our own inserted text: matching the
-#   text we write made the patch insert a second `.visionos` arm into the
-#   newer aro and every target failed with "duplicate switch value".
+# aro (the C frontend behind 0.16's translate-c) used to need the same kind
+# of help — its Apple `__ENVIRONMENT_*_VERSION_MIN_REQUIRED__` switch had no
+# `.visionos` arm and hit `unreachable`. aro f97cdfc3, pulled in by
+# translate-c 4e879eb8 which the pinned Ghostty carries, has its own arm now
+# (a labelled break, since visionOS has no platform-specific define), so
+# that half is gone. Restore it from history if a pin ever moves back.
 #
 # Zig 0.16 unpacks packages under <source>/zig-pkg/<name-version-hash>/
 # (gitignored upstream), so they are patched there: fetched first when the
@@ -22,12 +18,12 @@ set -euo pipefail
 SOURCE_DIR=${1:?usage: $0 <ghostty_source_dir>}
 cd "$SOURCE_DIR"
 
-if ! ls -d zig-pkg/libxev-* zig-pkg/aro-* >/dev/null 2>&1; then
-    # Both packages are lazy dependencies, and the default `--fetch`
-    # (`needed`) unpacks only the eager ones — on a fresh clone it returned
-    # in under a second with neither. `all` fetches the whole tree (about
-    # 110 MB, a minute on CI). Cache dirs come from the environment when the
-    # caller exported them.
+if ! ls -d zig-pkg/libxev-* >/dev/null 2>&1; then
+    # libxev is a lazy dependency, and the default `--fetch` (`needed`)
+    # unpacks only the eager ones — on a fresh clone it returned in under a
+    # second without it. `all` fetches the whole tree (about 110 MB, a
+    # minute on CI). Cache dirs come from the environment when the caller
+    # exported them.
     zig build --fetch=all >/dev/null
 fi
 
@@ -46,21 +42,6 @@ for dir in zig-pkg/libxev-*; do
         exit 1
     }
     echo "[+] patched libxev: maccatalyst takes the Darwin arms ($(basename "$dir"))"
-done
-
-for dir in zig-pkg/aro-*; do
-    [ -d "$dir" ] || { echo "[!] no aro package under zig-pkg/ after fetch"; exit 1; }
-    f="$dir/src/aro/Compilation.zig"
-    if awk '/__ENVIRONMENT_TV_OS_VERSION_MIN_REQUIRED__/,/else => unreachable/' "$f" | grep -q '\.visionos'; then
-        echo "[+] aro already has a visionos arm: $(basename "$dir")"
-        continue
-    fi
-    perl -pi -e 's/^(\s+)\.macos => "__ENVIRONMENT_MAC_OS_X_VERSION_MIN_REQUIRED__",$/$1.macos => "__ENVIRONMENT_MAC_OS_X_VERSION_MIN_REQUIRED__",\n$1.visionos => "__ENVIRONMENT_OS_VERSION_MIN_REQUIRED__",/' "$f"
-    grep -q '\.visionos => "__ENVIRONMENT_OS_VERSION_MIN_REQUIRED__"' "$f" || {
-        echo "[!] aro visionos patch failed in $dir; aro changed, update this patch"
-        exit 1
-    }
-    echo "[+] patched aro: visionos version macro ($(basename "$dir"))"
 done
 
 echo "[+] all zig-pkg Apple target patches applied"

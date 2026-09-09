@@ -75,7 +75,7 @@ shared_edits = [(
     '    // Glslang\n    if (b.lazyDependency("glslang", .{',
     '    // Glslang — only needed for custom shaders\n    if (self.config.custom_shaders) if (b.lazyDependency("glslang", .{',
 ), (
-    """            step.linkLibrary(glslang_dep.artifact("glslang"));
+    """            step.root_module.linkLibrary(glslang_dep.artifact("glslang"));
             try static_libs.append(
                 b.allocator,
                 glslang_dep.artifact("glslang").getEmittedBin(),
@@ -84,7 +84,7 @@ shared_edits = [(
     }
 
     // Spirv-cross""",
-    """            step.linkLibrary(glslang_dep.artifact("glslang"));
+    """            step.root_module.linkLibrary(glslang_dep.artifact("glslang"));
             try static_libs.append(
                 b.allocator,
                 glslang_dep.artifact("glslang").getEmittedBin(),
@@ -97,7 +97,7 @@ shared_edits = [(
     '    // Spirv-cross\n    if (b.lazyDependency("spirv_cross", .{',
     '    // Spirv-cross — only needed for custom shaders\n    if (self.config.custom_shaders) if (b.lazyDependency("spirv_cross", .{',
 ), (
-    """            step.linkLibrary(spirv_cross_dep.artifact("spirv_cross"));
+    """            step.root_module.linkLibrary(spirv_cross_dep.artifact("spirv_cross"));
             try static_libs.append(
                 b.allocator,
                 spirv_cross_dep.artifact("spirv_cross").getEmittedBin(),
@@ -106,7 +106,7 @@ shared_edits = [(
     }
 
     // Sentry""",
-    """            step.linkLibrary(spirv_cross_dep.artifact("spirv_cross"));
+    """            step.root_module.linkLibrary(spirv_cross_dep.artifact("spirv_cross"));
             try static_libs.append(
                 b.allocator,
                 spirv_cross_dep.artifact("spirv_cross").getEmittedBin(),

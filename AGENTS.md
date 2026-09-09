@@ -79,8 +79,8 @@ swift test
 
 # On a Mac with Xcode 27, install the Metal toolchain component first:
 #   xcodebuild -downloadComponent MetalToolchain
-# (the Script/support/xcode27-sdk-overlay.sh SDK overlay was for Zig 0.15.2;
-# 0.16 links its build runner against that SDK unaided)
+# (an SDK overlay script under Script/support/ was for Zig 0.15.2; 0.16
+# links its build runner against that SDK unaided, so it was removed)
 
 # Generate Package.swift from Package.swift.template (release.yml runs this)
 ./Script/build-manifest.sh <xcframework_zip> <download_url>

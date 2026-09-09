@@ -230,10 +230,10 @@ The `visionos` group builds against a patched copy of the Zig standard
 library only when `Patches/zig/` holds a patch for the Zig on PATH (staged
 under `build/cache` by `Script/prepare-zig-lib.sh`; the toolchain itself is
 never modified). Zig 0.16.0 needs none. Xcode 27 needs the Metal toolchain
-component installed (`xcodebuild -downloadComponent MetalToolchain`); the
-`Script/support/xcode27-sdk-overlay.sh` SDK overlay was for Zig 0.15.2,
-which could not link its build runner against that SDK, and 0.16 does not
-need it.
+component installed (`xcodebuild -downloadComponent MetalToolchain`). An SDK
+overlay script lived under `Script/support/` for Zig 0.15.2, which could not
+link its build runner against that SDK; 0.16 does it unaided, so the script
+was removed.
 
 ## Versions
 

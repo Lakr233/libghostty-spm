@@ -59,43 +59,11 @@ apply_unified_patch() {
     exit 1
 }
 
-modern_host_io=false
-if grep -q "ghostty_surface_foreground_pid" "$SOURCE_DIR/include/ghostty.h"; then
-    modern_host_io=true
-fi
-
+# Upstream carries the host-managed IO backend itself once the enum reaches
+# its header, and 0002 is then a no-op rather than a conflict.
 host_io_applied=false
 if grep -q "GHOSTTY_SURFACE_IO_BACKEND_HOST_MANAGED" "$SOURCE_DIR/include/ghostty.h"; then
     host_io_applied=true
-fi
-
-# Upstream renamed the global-state env accessors sometime after 35e1a01
-# (internal_os.getEnvMap/std.process.EnvMap/global_state.resources_dir ->
-# global.environMap()/std.process.Environ.Map/global.resourcesDir()). The
-# host-managed-io patch's Surface.zig hunk touches that exact code, so it
-# needs a context-updated variant once the rename has landed.
-global_env_refactored=false
-if grep -q "pub fn environMap" "$SOURCE_DIR/src/global.zig" 2>/dev/null; then
-    global_env_refactored=true
-fi
-
-if [ "$modern_host_io" = false ]; then
-    host_io_patch=0002-host-managed-io.patch
-elif [ "$global_env_refactored" = false ]; then
-    host_io_patch=0002-host-managed-io-modern.patch
-else
-    host_io_patch=0002-host-managed-io-modern-v2.patch
-fi
-
-# Zig 0.16 moved addCSourceFile/linkSystemLibrary/linkLibrary/linkLibC off
-# std.Build.Step.Compile onto its root_module, and dropped linkSystemLibrary2
-# in favor of linkSystemLibrary. GhosttyFrameData.zig's framegen build step
-# uses these, so the prebuilt-framedata patch needs a context-updated variant
-# once the source has moved. Keyed off the code the patch touches, not the
-# Zig version string, so 0.17 does not fall back to the 0.15 variant.
-zig_build_api_v2=true
-if grep -q "linkSystemLibrary2" "$SOURCE_DIR/src/build/GhosttyFrameData.zig" 2>/dev/null; then
-    zig_build_api_v2=false
 fi
 
 for patch_file in "$PATCH_DIR"/*; do
@@ -103,37 +71,12 @@ for patch_file in "$PATCH_DIR"/*; do
 
     patch_name=$(basename "$patch_file")
     case "$patch_name" in
-        0002-host-managed-io*.patch)
-            [ "$patch_name" = "$host_io_patch" ] || continue
+        0002-host-managed-io.patch)
             if [ "$host_io_applied" = true ]; then
                 echo "[+] patch already applied: $patch_name"
                 continue
             fi
             apply_unified_patch "$patch_file"
-            ;;
-        0003-prebuilt-framedata.patch)
-            [ "$zig_build_api_v2" = false ] || continue
-            apply_unified_patch "$patch_file"
-            ;;
-        0003-prebuilt-framedata-v2.patch)
-            [ "$zig_build_api_v2" = true ] || continue
-            apply_unified_patch "$patch_file"
-            ;;
-        0005-ios-metal-rendering.sh)
-            [ "$global_env_refactored" = false ] || continue
-            "$patch_file" "$SOURCE_DIR"
-            ;;
-        0005-ios-metal-rendering-v2.sh)
-            [ "$global_env_refactored" = true ] || continue
-            "$patch_file" "$SOURCE_DIR"
-            ;;
-        0006-disable-custom-shaders.sh)
-            [ "$zig_build_api_v2" = false ] || continue
-            "$patch_file" "$SOURCE_DIR"
-            ;;
-        0006-disable-custom-shaders-v2.sh)
-            [ "$zig_build_api_v2" = true ] || continue
-            "$patch_file" "$SOURCE_DIR"
             ;;
         *.md) ;;
         *.patch)

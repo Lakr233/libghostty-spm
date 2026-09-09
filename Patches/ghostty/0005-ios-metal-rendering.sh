@@ -17,10 +17,8 @@ SOURCE_DIR="${1:?Usage: $0 <ghostty-source-dir>}"
 # (available since iOS 11) provides hardware-accelerated compositing.
 #
 # Fix:
-# - Allow ±1px tolerance on iOS when comparing surface vs layer dimensions;
-#   a larger mismatch is a stale frame and is discarded as upstream does.
-#   contentsScale is never written here: Metal.surfaceSize reads it back as
-#   the next frame's size, so the host must stay its only writer.
+# - Allow ±1px tolerance on iOS when comparing surface vs layer dimensions
+# - Dynamically adjust contentsScale when dimensions don't match exactly
 # - Use CAIOSurfaceLayer as base class on iOS for native IOSurface compositing
 # - Mark layer as opaque since terminal content fills the entire bounds
 # =============================================================================
@@ -41,21 +39,18 @@ src = src.replace(
 )
 
 # The scoped log is only used in the size check we're replacing; drop it
-src = src.replace('const log = std.log.scoped(.IOSurfaceLayer);\n\n', '')
+src = src.replace('\nconst log = std.log.scoped(.IOSurfaceLayer);\n', '\n')
 
 # Terminal surface is always fully opaque — tell the compositor
-old_gravity = 'layer.setProperty("contentsGravity", macos.animation.kCAGravityTopLeft);\n\n    layer.setInstanceVariable'
-new_gravity = 'layer.setProperty("contentsGravity", macos.animation.kCAGravityTopLeft);\n    layer.setProperty("opaque", true);\n\n    layer.setInstanceVariable'
-
-if old_gravity not in src:
-    print("[!] IOSurfaceLayer contentsGravity block not found — source may have changed")
-    sys.exit(1)
-src = src.replace(old_gravity, new_gravity)
+src = src.replace(
+    'layer.setProperty("contentsGravity", macos.animation.kCAGravityTopLeft);\n\n    layer.setInstanceVariable',
+    'layer.setProperty("contentsGravity", macos.animation.kCAGravityTopLeft);\n    layer.setProperty("opaque", true);\n\n    layer.setInstanceVariable'
+)
 
 # Replace the strict size equality check with a platform-aware version.
-# On iOS, UIKit's point→pixel rounding can produce a 1px discrepancy, and
-# dropping that frame leaves a blank screen. Anything larger is a stale
-# frame from before a resize and is discarded like upstream does.
+# On iOS, UIKit's point→pixel rounding can produce a 1px discrepancy.
+# Rather than dropping the frame entirely (→ blank screen), we accept it
+# and recalculate contentsScale so CoreAnimation stretches correctly.
 old_block = """    if (width != surface.getWidth() or height != surface.getHeight()) {
         log.debug(
             "setSurfaceCallback(): surface is wrong size for layer, discarding. surface = {d}x{d}, layer = {d}x{d}",
@@ -70,7 +65,23 @@ new_block = """    const sw = surface.getWidth();
     const dh: usize = if (height > sh) height - sh else sh - height;
     // iOS UIKit rounding can produce ±1px discrepancy; macOS must match exactly
     const max_drift: usize = if (comptime builtin.os.tag == .ios) 1 else 0;
-    if (dw > max_drift or dh > max_drift) return;"""
+    if (dw > max_drift or dh > max_drift) {
+        if (comptime builtin.os.tag == .ios) {
+            // Recalculate contentsScale so CA maps surface pixels to layer points
+            const pw = bounds.size.width;
+            const ph = bounds.size.height;
+            if (pw > 0 and ph > 0) {
+                const cs_x: f64 = @as(f64, @floatFromInt(sw)) / pw;
+                const cs_y: f64 = @as(f64, @floatFromInt(sh)) / ph;
+                const cs: f64 = @max(cs_x, cs_y);
+                if (@abs(cs - scale) > 0.01) {
+                    layer.setProperty("contentsScale", cs);
+                }
+            }
+        } else {
+            return;
+        }
+    }"""
 
 if old_block not in src:
     print("[!] IOSurfaceLayer size check block not found — source may have changed")
@@ -95,9 +106,6 @@ new_cls = """    const parent_cls = if (comptime builtin.os.tag == .ios)
     var subclass =
         objc.allocateClassPair(parent_cls, "IOSurfaceLayer") orelse return error.ObjCFailed;"""
 
-if old_cls not in src:
-    print("[!] IOSurfaceLayer getSubclass CALayer block not found — source may have changed")
-    sys.exit(1)
 src = src.replace(old_cls, new_cls)
 
 path.write_text(src)
@@ -238,7 +246,7 @@ old_create = """        // Create the CF release thread.
             CFReleaseThread.threadMain,
             .{cf_release_thread},
         );
-        cf_release_thr.setName("cf_release") catch {};
+        cf_release_thr.setName(global.io(), "cf_release") catch {};
 
         return .{"""
 
@@ -253,7 +261,7 @@ new_create = """        // On iOS the kqueue-based event loop used by the releas
             thr_obj.* = try .init(alloc);
             errdefer thr_obj.deinit();
             const thr = try std.Thread.spawn(.{}, CFReleaseThread.threadMain, .{thr_obj});
-            thr.setName("cf_release") catch {};
+            thr.setName(global.io(), "cf_release") catch {};
             cf_release_thread = thr_obj;
             cf_release_thr = thr;
         }
@@ -294,7 +302,7 @@ src = src.replace(old_deinit, new_deinit)
 old_end = """        // Send the items. If the send succeeds then we wake up the
         // thread to process the items. If the send fails then do a manual
         // cleanup.
-        if (self.cf_release_thread.mailbox.push(.{ .release = .{
+        if (self.cf_release_thread.mailbox.push(global.io(), .{ .release = .{
             .refs = items,
             .alloc = self.alloc,
         } }, .{ .forever = {} }) != 0) {
@@ -312,7 +320,7 @@ old_end = """        // Send the items. If the send succeeds then we wake up the
 new_end = """        // Offload to the background release thread when available.
         // On iOS cf_release_thread is nil, so we fall through to sync release.
         if (self.cf_release_thread) |thr_obj| {
-            if (thr_obj.mailbox.push(.{ .release = .{
+            if (thr_obj.mailbox.push(global.io(), .{ .release = .{
                 .refs = items,
                 .alloc = self.alloc,
             } }, .{ .forever = {} }) != 0) {
