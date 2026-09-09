@@ -204,18 +204,18 @@ Files in `Platform/UIKit/`:
 - `UITerminalView.swift` — main view, `canBecomeFirstResponder`, coordinator setup, per-concern state storage, `setSurfaceVisible`, selection copy menu (context menu / edit menu), keyboard show/hide observers
 - `UITerminalView+UITextInput.swift` — full UITextInput conformance (UIKeyInput, marked text, positions, geometry), `TextInputBridgeState`
 - `UITerminalView+Keyboard.swift` — hardware key handling via UIPress, Ctrl `UIKeyCommand`s, input-method key deferral, modifier translation; `HardwareKeyboardState`, `SoftwareKeyboardState`
-- `UITerminalView+InputAccessory.swift` — input accessory bar integration (iOS only), key actions, sticky modifier dispatch, `sendSyntheticKey` / `sendControlByte` / `sendModifiedTextKey`
+- `InputAccessory/UITerminalView+InputAccessory.swift` — input accessory bar integration (iOS only), key actions, sticky modifier dispatch, `sendSyntheticKey` / `sendControlByte` / `sendModifiedTextKey`
 - `UITerminalView+Interaction.swift` — tap-to-click and keyboard toggle, touch scrolling, momentum scroll via CADisplayLink, scroll-wheel recognizer, indirect-pointer selection, long-press selection, copy/paste actions; `PointerInteractionState`, `MomentumScrollState`
 - `UITerminalView+Drop.swift` — drag and drop: files staged to paths, text and links as text (see "Key Path vs Text Path")
 - `UITerminalView+PinchZoom.swift` — pinch changes font size via `increase_font_size` / `decrease_font_size` bindings (iOS only); `FontZoomState`
 - `UITerminalView+PublicInput.swift` — public `acquireProgrammaticFocus`, `paste(text:)`, `sendKey`, `performBindingAction`, `jumpToPrompt(by:)`, `scrollToRow`
-- `UITerminalView+PublicSticky.swift` — public sticky-modifier API (`TerminalPublicStickyModifier` / `TerminalPublicStickyActivation`) for hosts with their own accessory UI (iOS only)
+- `InputAccessory/UITerminalView+PublicSticky.swift` — public sticky-modifier API (`TerminalPublicStickyModifier` / `TerminalPublicStickyActivation`) for hosts with their own accessory UI (iOS only)
 - `UITerminalView+Snapshot.swift` — public `snapshotImage()`: render-server snapshot (`drawHierarchy`) of the surface, Metal layer included; the AppKit twin (`AppTerminalView+Snapshot.swift`, `cacheDisplay`) is best-effort for Metal content. Reached from state via `TerminalViewState.attachedPlatformView`
 - `UITerminalView+Lifecycle.swift` — application active/background observers, display scale, sublayer frames (held at `core.syncedViewSize`, not the bounds, while a resize throttle has the surface at an older size — a layer stretched to the new bounds shows the old frame scaled and the engine's derived `contentsScale` fights the post-render correction every tick), focus, color scheme; `FocusBridgeState`
-- `TerminalInputAccessoryView.swift` — input accessory bar UIView (blur background, scrollable button layout)
-- `TerminalInputAccessoryStyle.swift` — configurable button colors for the accessory bar (regular/active background and foreground)
-- `TerminalInputBarKey.swift` — public `TerminalInputAccessoryItem` (bar layout, `defaultItems`) and internal `TerminalInputBarKey` (esc, tab, arrows, symbols, paste)
-- `TerminalStickyModifierState.swift` — modifier key state machine (inactive/armed/locked, double-tap locking)
+- `InputAccessory/TerminalInputAccessoryView.swift` — input accessory bar UIView (blur background, scrollable button layout)
+- `InputAccessory/TerminalInputAccessoryStyle.swift` — configurable button colors for the accessory bar (regular/active background and foreground)
+- `InputAccessory/TerminalInputBarKey.swift` — public `TerminalInputAccessoryItem` (bar layout, `defaultItems`) and internal `TerminalInputBarKey` (esc, tab, arrows, symbols, paste)
+- `InputAccessory/TerminalStickyModifierState.swift` — modifier key state machine (inactive/armed/locked, double-tap locking)
 - `TerminalTextInputHandler@UIKit.swift` — IME state machine (marked text, preedit bridge, sticky modifier support), `sendTypedText`
 - `TerminalTextPosition.swift` — TerminalTextPosition / TerminalTextRange subclasses
 
@@ -449,7 +449,7 @@ when the delegate does not adopt the protocol. The C side is the
 `confirm_read_clipboard_cb` runtime callback (`TerminalController+Config.swift`
 → `TerminalCallbacks.confirmReadClipboard`) for reads and pastes, and the
 write-clipboard callback for `.osc52Write`; tests in
-`Tests/GhosttyKitTest/TerminalClipboardConfirmationTests.swift`.
+`Tests/GhosttyKitTest/Clipboard/TerminalClipboardConfirmationTests.swift`.
 
 ### iOS Long-Press Text Selection
 
