@@ -207,7 +207,9 @@ public enum TerminalFileStaging {
     /// loses path separators and control characters — the shell escape
     /// covers everything else.
     static func uniqueURL(name: String, extension fileExtension: String, in directory: URL) -> URL {
-        let safeName = String(name.map { $0 == "/" || $0.isNewline || $0.asciiValue.map { $0 < 0x20 } == true ? "_" : $0 })
+        let safeName = String(
+            name.map { $0 == "/" || $0.isNewline || $0.asciiValue.map { $0 < 0x20 } == true ? "_" : $0 }
+        )
         let stamp = Int(Date().timeIntervalSince1970)
         var candidate = directory.appendingPathComponent("\(safeName)-\(stamp).\(fileExtension)")
         var counter = 1

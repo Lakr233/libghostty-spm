@@ -105,7 +105,9 @@ final class TerminalSurfaceCoordinator {
     private var displayLink: DisplayLink?
     private var idleFrameCount = 0
     private static let displayLinkFrameRateRange = DisplayLinkFrameRateRange(
-        minimum: 60, maximum: 120, preferred: 120
+        minimum: 60,
+        maximum: 120,
+        preferred: 120
     )
     private static let idleFramesBeforeRelease = 30
 

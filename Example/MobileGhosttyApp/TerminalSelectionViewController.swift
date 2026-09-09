@@ -62,7 +62,8 @@ final class TerminalSelectionViewController: UIViewController {
         super.viewWillAppear(animated)
         navigationController?.view.backgroundColor = .clear
         navigationController?.navigationBar.standardAppearance.configureWithTransparentBackground()
-        navigationController?.navigationBar.scrollEdgeAppearance = navigationController?.navigationBar.standardAppearance
+        navigationController?.navigationBar.scrollEdgeAppearance =
+            navigationController?.navigationBar.standardAppearance
     }
 
     override func viewDidAppear(_ animated: Bool) {

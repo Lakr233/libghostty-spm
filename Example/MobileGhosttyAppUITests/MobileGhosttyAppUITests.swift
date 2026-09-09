@@ -262,7 +262,10 @@ import XCTest
 
         #if targetEnvironment(macCatalyst)
             private func dragPointerSelection(in element: XCUIElement) {
-                log("pointer-selection-coordinates", "start=(0.008, 0.045), end=(0.42, 0.045), rightClick=(0.20, 0.045)")
+                log(
+                    "pointer-selection-coordinates",
+                    "start=(0.008, 0.045), end=(0.42, 0.045), rightClick=(0.20, 0.045)"
+                )
                 let start = element.coordinate(withNormalizedOffset: CGVector(dx: 0.008, dy: 0.045))
                 let end = element.coordinate(withNormalizedOffset: CGVector(dx: 0.42, dy: 0.045))
                 start.press(forDuration: 0.1, thenDragTo: end)
@@ -335,7 +338,9 @@ import XCTest
             let copy = copyMenuItem()
             if !copy.waitForExistence(timeout: 3) {
                 capture("\(screenshotName)-missing")
-                XCTFail("Copy menu item not found after pointer selection right click. Hierarchy: \(app.debugDescription)")
+                XCTFail(
+                    "Copy menu item not found after pointer selection right click. Hierarchy: \(app.debugDescription)"
+                )
                 return
             }
             capture(screenshotName)

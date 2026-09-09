@@ -135,7 +135,10 @@
 
             NSLayoutConstraint.activate([
                 stackView.leadingAnchor.constraint(equalTo: scrollView.contentLayoutGuide.leadingAnchor, constant: 10),
-                stackView.trailingAnchor.constraint(equalTo: scrollView.contentLayoutGuide.trailingAnchor, constant: -10),
+                stackView.trailingAnchor.constraint(
+                    equalTo: scrollView.contentLayoutGuide.trailingAnchor,
+                    constant: -10
+                ),
                 stackView.topAnchor.constraint(equalTo: scrollView.contentLayoutGuide.topAnchor),
                 stackView.bottomAnchor.constraint(equalTo: scrollView.contentLayoutGuide.bottomAnchor),
                 stackView.heightAnchor.constraint(equalTo: scrollView.frameLayoutGuide.heightAnchor),

@@ -14,7 +14,8 @@ struct TerminalSelectionAnchorTests {
         let range = TerminalSelectionAnchor.resolveRange(
             in: "hello world",
             word: "world",
-            offsetStart: 6, columns: 80
+            offsetStart: 6,
+            columns: 80
         )
         #expect(range == NSRange(location: 6, length: 5))
     }
@@ -24,7 +25,8 @@ struct TerminalSelectionAnchorTests {
         let range = TerminalSelectionAnchor.resolveRange(
             in: "aaa\nbbb\nworld",
             word: "world",
-            offsetStart: 2 * 80, columns: 80
+            offsetStart: 2 * 80,
+            columns: 80
         )
         #expect(range == NSRange(location: 8, length: 5))
     }
@@ -34,7 +36,8 @@ struct TerminalSelectionAnchorTests {
         let range = TerminalSelectionAnchor.resolveRange(
             in: "foo\nfoo\nfoo",
             word: "foo",
-            offsetStart: 1 * 80, columns: 80
+            offsetStart: 1 * 80,
+            columns: 80
         )
         #expect(range == NSRange(location: 4, length: 3))
     }
@@ -44,7 +47,8 @@ struct TerminalSelectionAnchorTests {
         let range = TerminalSelectionAnchor.resolveRange(
             in: "\n\nhello",
             word: "hello",
-            offsetStart: 2 * 80, columns: 80
+            offsetStart: 2 * 80,
+            columns: 80
         )
         #expect(range == NSRange(location: 2, length: 5))
     }
@@ -59,7 +63,8 @@ struct TerminalSelectionAnchorTests {
         let range = TerminalSelectionAnchor.resolveRange(
             in: text,
             word: "cat",
-            offsetStart: 2 * 80 + 37, columns: 80
+            offsetStart: 2 * 80 + 37,
+            columns: 80
         )
         #expect(range == NSRange(location: 10 + 37, length: 3))
     }
@@ -71,7 +76,8 @@ struct TerminalSelectionAnchorTests {
         let range = TerminalSelectionAnchor.resolveRange(
             in: "ab\nabc",
             word: "abc",
-            offsetStart: 10, columns: 10
+            offsetStart: 10,
+            columns: 10
         )
         #expect(range == NSRange(location: 3, length: 3))
     }
@@ -81,7 +87,8 @@ struct TerminalSelectionAnchorTests {
         let range = TerminalSelectionAnchor.resolveRange(
             in: "abc",
             word: "xyz",
-            offsetStart: 0, columns: 80
+            offsetStart: 0,
+            columns: 80
         )
         #expect(range == nil)
     }
@@ -91,7 +98,8 @@ struct TerminalSelectionAnchorTests {
         let range = TerminalSelectionAnchor.resolveRange(
             in: "abc",
             word: "abc",
-            offsetStart: 5 * 80, columns: 80
+            offsetStart: 5 * 80,
+            columns: 80
         )
         #expect(range == nil)
     }
@@ -101,7 +109,8 @@ struct TerminalSelectionAnchorTests {
         let range = TerminalSelectionAnchor.resolveRange(
             in: "abc",
             word: "abc",
-            offsetStart: 0, columns: 0
+            offsetStart: 0,
+            columns: 0
         )
         #expect(range == nil)
     }
@@ -112,7 +121,8 @@ struct TerminalSelectionAnchorTests {
         let range = TerminalSelectionAnchor.resolveRange(
             in: text,
             word: "👋",
-            offsetStart: 3, columns: 80
+            offsetStart: 3,
+            columns: 80
         )
         let nsText = text as NSString
         #expect(range != nil)
@@ -127,7 +137,8 @@ struct TerminalSelectionAnchorTests {
         let range = TerminalSelectionAnchor.resolveRange(
             in: "你好 world",
             word: "你好",
-            offsetStart: 0, columns: 80
+            offsetStart: 0,
+            columns: 80
         )
         #expect(range == NSRange(location: 0, length: 2))
     }
@@ -135,8 +146,10 @@ struct TerminalSelectionAnchorTests {
     @Test
     func `empty word`() {
         let range = TerminalSelectionAnchor.resolveRange(
-            in: "abc", word: "",
-            offsetStart: 0, columns: 80
+            in: "abc",
+            word: "",
+            offsetStart: 0,
+            columns: 80
         )
         #expect(range == nil)
     }
@@ -149,7 +162,8 @@ struct TerminalSelectionAnchorTests {
         let range = TerminalSelectionAnchor.resolveRange(
             in: "catalog cat",
             word: "cat",
-            offsetStart: 8, columns: 80
+            offsetStart: 8,
+            columns: 80
         )
         #expect(range == NSRange(location: 8, length: 3))
     }
@@ -160,7 +174,8 @@ struct TerminalSelectionAnchorTests {
         let range = TerminalSelectionAnchor.resolveRange(
             in: "cat cat cat",
             word: "cat",
-            offsetStart: 8, columns: 80
+            offsetStart: 8,
+            columns: 80
         )
         #expect(range == NSRange(location: 8, length: 3))
     }
@@ -171,7 +186,8 @@ struct TerminalSelectionAnchorTests {
         let range = TerminalSelectionAnchor.resolveRange(
             in: "see /usr/local /usr/local",
             word: "/usr/local",
-            offsetStart: 15, columns: 80
+            offsetStart: 15,
+            columns: 80
         )
         #expect(range == NSRange(location: 15, length: 10))
     }
@@ -182,7 +198,8 @@ struct TerminalSelectionAnchorTests {
         let range = TerminalSelectionAnchor.resolveRange(
             in: "x/foo /foo",
             word: "/foo",
-            offsetStart: 6, columns: 80
+            offsetStart: 6,
+            columns: 80
         )
         #expect(range == NSRange(location: 6, length: 4))
     }
