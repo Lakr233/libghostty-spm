@@ -105,6 +105,18 @@ public final class TerminalViewState: ObservableObject {
     public func performBindingAction(_ action: String) -&gt; Bool
     public func jumpToPrompt(by offset: Int16) -&gt; Bool
     public func scrollToRow(_ row: UInt) -&gt; Bool
+    public var isMouseCaptured: Bool { get }
+    public func sendMousePos(x: Double, y: Double, modifiers: TerminalInputModifiers = [])
+    public func sendMouseButton(
+        state: ghostty_input_mouse_state_e,
+        button: ghostty_input_mouse_button_e,
+        modifiers: TerminalInputModifiers = []
+    ) -&gt; Bool
+    public func sendMouseScroll(
+        x: Double,
+        y: Double,
+        mods: TerminalScrollModifiers = TerminalScrollModifiers(precision: true)
+    )
     public func adopt(colorScheme: ColorScheme)
     public func adopt(terminalColorScheme colorScheme: TerminalColorScheme)
     public func setTheme(_ theme: TerminalTheme) -&gt; Bool
