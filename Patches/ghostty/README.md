@@ -127,6 +127,11 @@ to move back.
   installed (nothing ships it, and its libc++ sub-compile is what fails
   under Xcode 27 and on visionOS everywhere; marker
   `LIBGHOSTTY_SPM_NO_VT_DYLIB`).
+- `0014-preserve-sync-on-resize.patch` — keep DEC 2026 synchronized output
+  active across a resize. A TUI that clears and repaints inside one sync
+  transaction must not expose its empty intermediate grid when the resize
+  arrives. The existing termio timer still ends a transaction after one
+  second if the program fails to do so.
 - `0016-maccatalyst.sh` — Zig 0.16 made Mac Catalyst its own OS tag
   (`aarch64-maccatalyst`; 0.15 spelled it `aarch64-ios-macabi`, os `.ios`
   + abi `.macabi`), so the `.ios` arms stopped covering it. `.maccatalyst`
