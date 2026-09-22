@@ -133,6 +133,25 @@ src.replace(
 """,
 )
 src.save()
+
+src = Source(source_dir, "src/terminal/c/terminal.zig")
+src.replace(
+    """test "resize disables synchronized output" {
+""",
+    """test "resize preserves synchronized output" {
+""",
+)
+src.replace(
+    """    // The terminal-level reset must run even if grid work is unnecessary.
+    try testing.expectEqual(Result.success, resize(t, 80, 24, 9, 18));
+    try testing.expect(!zt.modes.get(.synchronized_output));
+""",
+    """    // A resize with unchanged cell dimensions keeps synchronized output.
+    try testing.expectEqual(Result.success, resize(t, 80, 24, 9, 18));
+    try testing.expect(zt.modes.get(.synchronized_output));
+""",
+)
+src.save()
 PY
 
 echo "[+] synchronized output preserved across resize"
