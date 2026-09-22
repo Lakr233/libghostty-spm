@@ -132,6 +132,17 @@ to move back.
   transaction must not expose its empty intermediate grid when the resize
   arrives. The existing termio timer still ends a transaction after one
   second if the program fails to do so.
+- `0015-hold-frame-for-prompt-redraw.patch` — a resize erases the prompt the
+  cursor is on so the shell can redraw it (`clearPromptForRedraw`), and the
+  renderer used to present that erased grid for the frames it took the shell
+  to answer SIGWINCH: the last line blinked on every resize. The screen now
+  records that a *visible* prompt was erased (`prompt_redraw_pending`), the
+  renderer keeps its last frame while that is set, exactly as it does for
+  synchronized output, and OSC 133 B (the shell finished its prompt) or C
+  clears it. A termio timer ends the wait after 500 ms for a shell that
+  never redraws. The terminal state is untouched — the erase still happens,
+  so reflow leaves no stale prompt behind; `redraw=0` was the alternative
+  and gives that up.
 - `0016-maccatalyst.sh` — Zig 0.16 made Mac Catalyst its own OS tag
   (`aarch64-maccatalyst`; 0.15 spelled it `aarch64-ios-macabi`, os `.ios`
   + abi `.macabi`), so the `.ios` arms stopped covering it. `.maccatalyst`

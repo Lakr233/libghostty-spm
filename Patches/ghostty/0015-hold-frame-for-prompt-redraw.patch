@@ -1,0 +1,312 @@
+diff --git a/src/renderer/generic.zig b/src/renderer/generic.zig
+index 2a81f42b4..ebe71b11a 100644
+--- a/src/renderer/generic.zig
++++ b/src/renderer/generic.zig
+@@ -1321,6 +1321,14 @@ pub fn Renderer(comptime GraphicsAPI: type) type {
+                     return;
+                 }
+ 
++                // A resize erased the prompt and the shell has not drawn it
++                // again yet. Keep the last frame, as for synchronized output;
++                // the termio watchdog bounds the wait.
++                if (state.terminal.screens.active.prompt_redraw_pending) {
++                    log.debug("prompt redraw pending, skipping render", .{});
++                    return;
++                }
++
+                 // If scroll-to-bottom on output is enabled, check if the final line
+                 // changed by comparing the bottom-right pin. If the node pointer or
+                 // y offset changed, new content was added to the screen.
+diff --git a/src/terminal/Screen.zig b/src/terminal/Screen.zig
+index 208e276a2..f793e7bf7 100644
+--- a/src/terminal/Screen.zig
++++ b/src/terminal/Screen.zig
+@@ -83,6 +83,12 @@ else
+ /// Semantic prompt (OSC133) state.
+ semantic_prompt: SemanticPrompt = .disabled,
+ 
++/// True from the moment a resize erased a visible prompt until the shell
++/// has drawn it again (OSC 133 B or C) or the termio watchdog gives up.
++/// The renderer keeps presenting its last frame meanwhile, so the erased
++/// prompt is never on screen.
++prompt_redraw_pending: bool = false,
++
+ /// Dirty flags for the renderer.
+ dirty: Dirty = .{},
+ 
+@@ -2251,7 +2257,7 @@ fn clearPromptForRedraw(
+                 const page = self.cursor.page_pin.node.page();
+                 const row = self.cursor.page_row;
+                 const cells = page.getCells(row);
+-                self.clearCells(page, row, cells);
++                self.clearPromptCells(page, row, cells);
+             },
+ 
+             .true => {
+@@ -2277,13 +2283,30 @@ fn clearPromptForRedraw(
+                     const page = pin.node.page();
+                     const row = pin.rowAndCell().row;
+                     const cells = page.getCells(row);
+-                    self.clearCells(page, row, cells);
++                    self.clearPromptCells(page, row, cells);
+                 }
+             },
+         }
+     }
+ }
+ 
++/// Clear one prompt row for a shell redraw. A row that had something on it
++/// leaves the screen waiting for that redraw; an empty one changes nothing
++/// the user can see, so there is nothing to hold a frame for.
++fn clearPromptCells(
++    self: *Screen,
++    page: *Page,
++    row: *Row,
++    cells: []Cell,
++) void {
++    for (cells) |cell| {
++        if (cell.isEmpty()) continue;
++        self.prompt_redraw_pending = true;
++        break;
++    }
++    self.clearCells(page, row, cells);
++}
++
+ /// Set a style attribute for the current cursor.
+ ///
+ /// If the style can't be set due to any internal errors (memory-related),
+@@ -8978,6 +9001,29 @@ test "Screen: resize more cols with cursor at prompt" {
+         const expected = "ABCDE";
+         try testing.expectEqualStrings(expected, contents);
+     }
++
++    // The erased prompt was visible, so the screen waits for its redraw.
++    try testing.expect(s.prompt_redraw_pending);
++}
++
++test "Screen: resize with an empty prompt row does not wait for a redraw" {
++    const testing = std.testing;
++    const alloc = testing.allocator;
++    const io = testing.io;
++
++    var s = try init(io, alloc, .{ .cols = 10, .rows = 3, .max_scrollback_bytes = 5 });
++    defer s.deinit();
++
++    try s.testWriteString("ABCDE\n");
++    s.cursorSetSemanticContent(.{ .prompt = .initial });
++
++    try s.resize(.{
++        .cols = 20,
++        .rows = 3,
++        .prompt_redraw = .true,
++    });
++
++    try testing.expect(!s.prompt_redraw_pending);
+ }
+ 
+ test "Screen: resize more cols with cursor not at prompt" {
+diff --git a/src/terminal/Terminal.zig b/src/terminal/Terminal.zig
+index 5ad63542a..a18c42189 100644
+--- a/src/terminal/Terminal.zig
++++ b/src/terminal/Terminal.zig
+@@ -2162,6 +2162,9 @@ pub fn semanticPrompt(
+             self.screens.active.cursorSetSemanticContent(.{
+                 .input = .clear_explicit,
+             });
++
++            // The prompt a resize erased is back on the grid.
++            self.screens.active.prompt_redraw_pending = false;
+         },
+ 
+         .end_prompt_start_input_terminate_eol => {
+@@ -2169,12 +2172,16 @@ pub fn semanticPrompt(
+             self.screens.active.cursorSetSemanticContent(.{
+                 .input = .clear_eol,
+             });
++            self.screens.active.prompt_redraw_pending = false;
+         },
+ 
+         .end_input_start_output => {
+             // "End of input, and start of output."
+             self.screens.active.cursorSetSemanticContent(.output);
+ 
++            // A command is running; no prompt redraw is coming any more.
++            self.screens.active.prompt_redraw_pending = false;
++
+             // If our current row is marked as a prompt and we're
+             // at column zero then we assume we're un-prompting. This
+             // is a heuristic to deal with fish, mostly. The issue that
+@@ -15100,6 +15107,46 @@ test "Terminal: semantic prompt" {
+     }
+ }
+ 
++test "Terminal: semantic prompt redraw after resize" {
++    const alloc = testing.allocator;
++    const io_impl = testing.io;
++    var t = try init(io_impl, alloc, .{ .cols = 10, .rows = 5 });
++    defer t.deinit(alloc);
++
++    try t.semanticPrompt(.init(.fresh_line_new_prompt));
++    for ("$ ") |c| try t.print(c);
++    try t.semanticPrompt(.init(.end_prompt_start_input));
++    try testing.expect(!t.screens.active.prompt_redraw_pending);
++
++    // The resize erases the prompt; the screen waits for the shell.
++    try t.resize(alloc, .{ .cols = 20, .rows = 5 });
++    try testing.expect(t.screens.active.prompt_redraw_pending);
++
++    // The shell draws its prompt again and marks where input starts.
++    t.carriageReturn();
++    try t.semanticPrompt(.init(.prompt_start));
++    for ("$ ") |c| try t.print(c);
++    try testing.expect(t.screens.active.prompt_redraw_pending);
++    try t.semanticPrompt(.init(.end_prompt_start_input));
++    try testing.expect(!t.screens.active.prompt_redraw_pending);
++}
++
++test "Terminal: semantic prompt no redraw wait during command output" {
++    const alloc = testing.allocator;
++    const io_impl = testing.io;
++    var t = try init(io_impl, alloc, .{ .cols = 10, .rows = 5 });
++    defer t.deinit(alloc);
++
++    try t.semanticPrompt(.init(.fresh_line_new_prompt));
++    for ("$ ") |c| try t.print(c);
++    try t.semanticPrompt(.init(.end_prompt_start_input));
++    try t.semanticPrompt(.init(.end_input_start_output));
++    for ("out") |c| try t.print(c);
++
++    try t.resize(alloc, .{ .cols = 20, .rows = 5 });
++    try testing.expect(!t.screens.active.prompt_redraw_pending);
++}
++
+ test "Terminal: semantic prompt continuations" {
+     const alloc = testing.allocator;
+     const io_impl = testing.io;
+diff --git a/src/termio/Termio.zig b/src/termio/Termio.zig
+index 498a8e488..dd29f3b9d 100644
+--- a/src/termio/Termio.zig
++++ b/src/termio/Termio.zig
+@@ -571,6 +571,23 @@ pub fn resetSynchronizedOutput(self: *Termio) void {
+     self.renderer_wakeup.notify() catch {};
+ }
+ 
++/// True when the last resize erased a prompt the shell has yet to redraw.
++pub fn promptRedrawPending(self: *Termio) bool {
++    self.renderer_state.mutex.lockUncancelable(global.io());
++    defer self.renderer_state.mutex.unlock(global.io());
++    return self.terminal.screens.active.prompt_redraw_pending;
++}
++
++/// Stop waiting for a shell to redraw its prompt. Called by timer expiration
++/// from the termio thread, for a shell that never does.
++pub fn resetPromptRedraw(self: *Termio) void {
++    self.renderer_state.mutex.lockUncancelable(global.io());
++    defer self.renderer_state.mutex.unlock(global.io());
++    var it = self.terminal.screens.all.iterator();
++    while (it.next()) |entry| entry.value.*.prompt_redraw_pending = false;
++    self.renderer_wakeup.notify() catch {};
++}
++
+ /// Clear the screen.
+ pub fn clearScreen(self: *Termio, td: *ThreadData, history: bool) !void {
+     {
+diff --git a/src/termio/Thread.zig b/src/termio/Thread.zig
+index de268350b..e61af1ece 100644
+--- a/src/termio/Thread.zig
++++ b/src/termio/Thread.zig
+@@ -37,6 +37,11 @@ const Coalesce = struct {
+ /// if the running program hasn't already.
+ const sync_reset_ms = 1000;
+ 
++/// The number of milliseconds a resize that erased the prompt keeps the last
++/// frame on screen while the shell redraws. A shell answers SIGWINCH in a few
++/// milliseconds; one that never redraws shows its erased prompt this late.
++const prompt_redraw_reset_ms = 500;
++
+ /// The number of milliseconds between each movement during selection scrolling.
+ const selection_scroll_ms = 15;
+ 
+@@ -73,6 +78,12 @@ sync_reset: xev.Timer,
+ sync_reset_c: xev.Completion = .{},
+ sync_reset_cancel_c: xev.Completion = .{},
+ 
++/// This timer ends the wait for a prompt redraw after a resize, so a shell
++/// that never redraws cannot hold the last frame for good.
++prompt_redraw_reset: xev.Timer,
++prompt_redraw_reset_c: xev.Completion = .{},
++prompt_redraw_reset_cancel_c: xev.Completion = .{},
++
+ flags: packed struct {
+     /// This is set to true only when an abnormal exit is detected. It
+     /// tells our mailbox system to drain and ignore all messages.
+@@ -112,6 +123,10 @@ pub fn init(
+     var sync_reset_h = try xev.Timer.init();
+     errdefer sync_reset_h.deinit();
+ 
++    // This timer is used to stop waiting for a prompt redraw.
++    var prompt_redraw_reset_h = try xev.Timer.init();
++    errdefer prompt_redraw_reset_h.deinit();
++
+     return Thread{
+         .alloc = alloc,
+         .loop = loop,
+@@ -119,6 +134,7 @@ pub fn init(
+         .scroll = scroll_h,
+         .coalesce = coalesce_h,
+         .sync_reset = sync_reset_h,
++        .prompt_redraw_reset = prompt_redraw_reset_h,
+     };
+ }
+ 
+@@ -128,6 +144,7 @@ pub fn deinit(self: *Thread) void {
+     self.scroll.deinit();
+     self.coalesce.deinit();
+     self.sync_reset.deinit();
++    self.prompt_redraw_reset.deinit();
+     self.stop.deinit();
+     self.loop.deinit();
+ }
+@@ -446,11 +463,42 @@ fn coalesceCallback(
+         cb.io.resize(&cb.data, v) catch |err| {
+             log.warn("error during resize err={}", .{err});
+         };
++
++        // The resize erased a prompt: the renderer now holds its last frame
++        // until the shell redraws. Bound that wait.
++        if (cb.io.promptRedrawPending()) cb.self.prompt_redraw_reset.reset(
++            &cb.self.loop,
++            &cb.self.prompt_redraw_reset_c,
++            &cb.self.prompt_redraw_reset_cancel_c,
++            prompt_redraw_reset_ms,
++            CallbackData,
++            cb,
++            promptRedrawResetCallback,
++        );
+     }
+ 
+     return .disarm;
+ }
+ 
++fn promptRedrawResetCallback(
++    cb_: ?*CallbackData,
++    _: *xev.Loop,
++    _: *xev.Completion,
++    r: xev.Timer.RunError!void,
++) xev.CallbackAction {
++    _ = r catch |err| switch (err) {
++        error.Canceled => {},
++        else => {
++            log.warn("error during prompt redraw reset callback err={}", .{err});
++            return .disarm;
++        },
++    };
++
++    const cb = cb_ orelse return .disarm;
++    cb.io.resetPromptRedraw();
++    return .disarm;
++}
++
+ fn wakeupCallback(
+     cb_: ?*CallbackData,
+     _: *xev.Loop,
