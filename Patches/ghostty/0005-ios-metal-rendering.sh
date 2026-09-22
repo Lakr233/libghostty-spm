@@ -22,66 +22,87 @@ SOURCE_DIR="${1:?Usage: $0 <ghostty-source-dir>}"
 #   them changes Metal's next target height as well as their presentation.
 # - Use CAIOSurfaceLayer as base class on iOS for native IOSurface compositing
 # - Mark layer as opaque since terminal content fills the entire bounds
+#
+# Exact anchors (Script/support/anchored_edit.py): a tree that carries an
+# older variant of this patch — the one that rescaled a mismatched surface
+# through contentsScale instead of rejecting it — has neither the pristine
+# size check nor the current one, and the run fails there rather than keep
+# the old behaviour under the new description. Start from a pristine source.
+# The `.ios` checks added here are widened by 0012 (visionOS) and 0016
+# (Mac Catalyst) later in the stack, so the edits name markers those leave
+# alone.
 # =============================================================================
-IOSURFACE_LAYER="${SOURCE_DIR}/src/renderer/metal/IOSurfaceLayer.zig"
-if [ -f "$IOSURFACE_LAYER" ]; then
-    if grep -q 'const log = std.log.scoped(.IOSurfaceLayer);' "$IOSURFACE_LAYER"; then
-        python3 - "$IOSURFACE_LAYER" <<'PY'
-from pathlib import Path
+PYTHONPATH="$(cd "$(dirname "$0")/../../Script/support" && pwd)" python3 - "$SOURCE_DIR" <<'PY'
 import sys
 
-path = Path(sys.argv[1])
-src = path.read_text()
+from anchored_edit import Source
 
-# Need builtin for comptime os.tag checks
-src = src.replace(
-    'const std = @import("std");\nconst Allocator = std.mem.Allocator;',
-    'const std = @import("std");\nconst builtin = @import("builtin");\nconst Allocator = std.mem.Allocator;'
+src = Source(sys.argv[1], "src/renderer/metal/IOSurfaceLayer.zig")
+
+# Need builtin for comptime os.tag checks. The scoped log was only used by
+# the size check replaced below.
+src.replace(
+    """const std = @import("std");
+const Allocator = std.mem.Allocator;
+const objc = @import("objc");
+const macos = @import("macos");
+
+const IOSurface = macos.iosurface.IOSurface;
+
+const log = std.log.scoped(.IOSurfaceLayer);
+""",
+    """const std = @import("std");
+const builtin = @import("builtin");
+const Allocator = std.mem.Allocator;
+const objc = @import("objc");
+const macos = @import("macos");
+
+const IOSurface = macos.iosurface.IOSurface;
+""",
 )
 
-# The scoped log is only used in the size check we're replacing; drop it
-src = src.replace('\nconst log = std.log.scoped(.IOSurfaceLayer);\n', '\n')
-
 # Terminal surface is always fully opaque — tell the compositor
-src = src.replace(
-    'layer.setProperty("contentsGravity", macos.animation.kCAGravityTopLeft);\n\n    layer.setInstanceVariable',
-    'layer.setProperty("contentsGravity", macos.animation.kCAGravityTopLeft);\n    layer.setProperty("opaque", true);\n\n    layer.setInstanceVariable'
+src.replace(
+    """    layer.setProperty("contentsGravity", macos.animation.kCAGravityTopLeft);
+
+    layer.setInstanceVariable""",
+    """    layer.setProperty("contentsGravity", macos.animation.kCAGravityTopLeft);
+    layer.setProperty("opaque", true);
+
+    layer.setInstanceVariable""",
 )
 
 # Replace the strict size equality check with a platform-aware version.
 # On iOS, UIKit's point→pixel rounding can produce a 1px discrepancy.
 # Larger mismatches are stale frames from an earlier resize. Keep the last
 # correctly sized contents until the matching frame finishes rendering.
-old_block = """    if (width != surface.getWidth() or height != surface.getHeight()) {
+src.replace(
+    """    if (width != surface.getWidth() or height != surface.getHeight()) {
         log.debug(
             "setSurfaceCallback(): surface is wrong size for layer, discarding. surface = {d}x{d}, layer = {d}x{d}",
             .{ surface.getWidth(), surface.getHeight(), width, height },
         );
         return;
-    }"""
-
-new_block = """    const sw = surface.getWidth();
+    }""",
+    """    const sw = surface.getWidth();
     const sh = surface.getHeight();
     const dw: usize = if (width > sw) width - sw else sw - width;
     const dh: usize = if (height > sh) height - sh else sh - height;
     // iOS UIKit rounding can produce ±1px discrepancy; macOS must match exactly
     const max_drift: usize = if (comptime builtin.os.tag == .ios) 1 else 0;
-    if (dw > max_drift or dh > max_drift) return;"""
-
-if old_block not in src:
-    print("[!] IOSurfaceLayer size check block not found — source may have changed")
-    sys.exit(1)
-src = src.replace(old_block, new_block)
+    if (dw > max_drift or dh > max_drift) return;""",
+    marker="    if (dw > max_drift or dh > max_drift) return;\n",
+)
 
 # Use the system-provided CAIOSurfaceLayer on iOS; it handles
 # IOSurface display natively with zero-copy compositing.
-old_cls = """    const CALayer =
+src.replace(
+    """    const CALayer =
         objc.getClass("CALayer") orelse return error.ObjCFailed;
 
     var subclass =
-        objc.allocateClassPair(CALayer, "IOSurfaceLayer") orelse return error.ObjCFailed;"""
-
-new_cls = """    const parent_cls = if (comptime builtin.os.tag == .ios)
+        objc.allocateClassPair(CALayer, "IOSurfaceLayer") orelse return error.ObjCFailed;""",
+    """    const parent_cls = if (comptime builtin.os.tag == .ios)
         // CAIOSurfaceLayer provides native zero-copy IOSurface compositing
         objc.getClass("CAIOSurfaceLayer") orelse
             objc.getClass("CALayer") orelse return error.ObjCFailed
@@ -89,17 +110,12 @@ new_cls = """    const parent_cls = if (comptime builtin.os.tag == .ios)
         objc.getClass("CALayer") orelse return error.ObjCFailed;
 
     var subclass =
-        objc.allocateClassPair(parent_cls, "IOSurfaceLayer") orelse return error.ObjCFailed;"""
+        objc.allocateClassPair(parent_cls, "IOSurfaceLayer") orelse return error.ObjCFailed;""",
+    marker='        objc.allocateClassPair(parent_cls, "IOSurfaceLayer")',
+)
 
-src = src.replace(old_cls, new_cls)
-
-path.write_text(src)
-print("[+] patched IOSurfaceLayer: iOS 1px tolerance and stale-frame guard + CAIOSurfaceLayer")
+src.save()
 PY
-    else
-        echo "[+] IOSurfaceLayer already patched"
-    fi
-fi
 
 # =============================================================================
 # Patch 2: Metal.zig — iOS first-frame display + synchronous present

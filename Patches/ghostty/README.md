@@ -24,7 +24,21 @@ extension:
   needed the 3-way merge); one that conflicts even then aborts the build.
 - `.sh` is executed as `<script> <source_dir>`; each script checks for its
   own changes (a marker or the edited text) and skips whatever is already
-  applied, so re-running it is a no-op.
+  applied, so re-running it is a no-op. The newer scripts (0005's
+  IOSurfaceLayer edit, 0011, 0014, 0015) make every edit through
+  `Script/support/anchored_edit.py`: an edit names only the upstream text it
+  depends on, that text must occur in the file exactly once, byte for byte,
+  and anything else — moved is fine, changed, gone or ambiguous is not —
+  stops the run with a `[-]` line naming the file and the anchor. There is
+  no fuzz and no reduced context: a diff hunk breaks when unrelated code
+  next to it moves, and a fuzzy match at a mutex-release site or a mode
+  handler is exactly the wrong fix for that. `expect_count` tripwires guard
+  the edits that have to cover every occurrence of something (0011's
+  writers that release the terminal-state mutex). An edit whose own text a
+  later patch rewrites (0012 and 0016 widen the `.ios` checks 0005 adds)
+  names a `marker` line those leave alone, which is then what proves it is
+  in place; a tree carrying an older variant of an edit has neither the
+  pristine text nor the marker and is refused, never quietly kept.
 - `.md` is ignored. Any other file aborts the build.
 
 `0002-host-managed-io.patch` is skipped when upstream's header already
@@ -46,8 +60,9 @@ to move back.
   `0006` added).
 - Prefer standard unified diff files (`.patch`) when the upstream context is
   stable.
-- Use executable patch scripts (`.sh`) only when upstream context is too
-  unstable for a reliable diff.
+- Use executable patch scripts (`.sh`) when upstream context is too unstable
+  for a reliable diff — and write them with `anchored_edit.py`, not with
+  bare `str.replace` calls that silently do nothing when the text moved.
 - When upstream context moves under a patch, add a `-vN` variant beside it
   and select it in `Script/apply-patches.sh` with an upstream API marker — a
   grep for the code the patch touches, never a version string: a version
@@ -83,10 +98,16 @@ to move back.
   not a supported target for the full Ghostty build" refusal in
   `Config.zig` into a comptime-false branch (marker
   `LIBGHOSTTY_SPM_IOS_FULL_BUILD`; skipped on a source without the guard).
-- `0005-ios-metal-rendering.sh` — iOS rendering: IOSurfaceLayer ±1 px
-  tolerance on `CAIOSurfaceLayer`, first-frame display and synchronous present
-  in `Metal.zig`, no CF release thread in coretext on iOS, 64-byte-aligned
-  IOSurface rows, libxev update for the kqueue mach-port panic.
+- `0005-ios-metal-rendering.sh` — iOS rendering: IOSurfaceLayer on
+  `CAIOSurfaceLayer` with a ±1 px tolerance for UIKit's point-to-pixel
+  rounding and a rejection of anything further off — a frame sized for an
+  earlier resize, which an older variant of this patch rescaled through
+  `contentsScale` and thereby shifted the grid by a row on every resize —
+  first-frame display and synchronous present in `Metal.zig`, no CF release
+  thread in coretext on iOS, 64-byte-aligned IOSurface rows, libxev update
+  for the kqueue mach-port panic. The IOSurfaceLayer edits are anchored (a
+  tree carrying the older variant is refused); the rest still test for
+  their own added text.
 - `0006-disable-custom-shaders.sh` — `custom_shaders` build option gating
   glslang and spirv-cross (marker `LIBGHOSTTY_SPM_TRIM_PATCH`).
 - `0007-disable-inspector.sh` — `inspector` build option gating dcimgui
@@ -99,9 +120,14 @@ to move back.
   in dyld at launch on iOS 15 / macOS 13.0–13.2.
 - `0010-fix-scroll-remainder-zeroing.patch` — `Surface.zig`: truncate the
   scrolled row amount so the pending scroll remainder is not always zero.
-- `0011-replay-response-suppression.patch` —
+- `0011-replay-response-suppression.sh` —
   `ghostty_surface_write_buffer_replay`: feed reconstructed history through
   the parser with terminal protocol responses discarded at their origin.
+  Anchored edits; the two `expect_count` tripwires in `stream_handler.zig`
+  pin the number of places the parser releases the terminal-state mutex
+  (each must clear the suppression flag for that window), so an upstream
+  that adds one fails the build instead of dropping another thread's
+  message as replay.
   `apprt.surface.Message.discardIfTerminalResponse` does not cover
   `kitty_clipboard_read`/`kitty_clipboard_write` (added after this patch was
   authored) — the receiver takes ownership of a boxed request it must
@@ -127,22 +153,39 @@ to move back.
   installed (nothing ships it, and its libc++ sub-compile is what fails
   under Xcode 27 and on visionOS everywhere; marker
   `LIBGHOSTTY_SPM_NO_VT_DYLIB`).
-- `0014-preserve-sync-on-resize.patch` — keep DEC 2026 synchronized output
+- `0014-preserve-sync-on-resize.sh` — keep DEC 2026 synchronized output
   active across a resize. A TUI that clears and repaints inside one sync
   transaction must not expose its empty intermediate grid when the resize
   arrives. The existing termio timer still ends a transaction after one
-  second if the program fails to do so.
-- `0015-hold-frame-for-prompt-redraw.patch` — a resize erases the prompt the
+  second if the program fails to do so. Two anchored edits: `Terminal.resize`
+  no longer clears the mode, and libghostty-vt's stream `Handler.resize`,
+  which upstream wrote assuming a resize ends the mode, reports the end of
+  its render hold only when the mode is actually off afterwards. Upstream's
+  unit tests asserting the old behaviour (`resize resets synchronized
+  output` and three more) are left as they are and fail by design; nothing
+  in this repository runs them, and rewriting them is what made the earlier
+  diff drift.
+- `0015-hold-frame-for-prompt-redraw.sh` — a resize erases the prompt the
   cursor is on so the shell can redraw it (`clearPromptForRedraw`), and the
   renderer used to present that erased grid for the frames it took the shell
   to answer SIGWINCH: the last line blinked on every resize. The screen now
-  records that a *visible* prompt was erased (`prompt_redraw_pending`), the
-  renderer keeps its last frame while that is set, exactly as it does for
-  synchronized output, and OSC 133 B (the shell finished its prompt) or C
-  clears it. A termio timer ends the wait after 500 ms for a shell that
-  never redraws. The terminal state is untouched — the erase still happens,
-  so reflow leaves no stale prompt behind; `redraw=0` was the alternative
-  and gives that up.
+  records that a *visible* prompt was erased (`Screen.prompt_redraw`, with
+  the number of non-empty input cells that went with it), and the renderer
+  keeps its last frame while that is set, as it does for synchronized
+  output. OSC 133 B says the shell's prompt is drawn — and nothing about the
+  input after it, which the shell draws next, possibly in another write —
+  so the hold then continues until at least the erased input cells are back
+  on that prompt or a 50 ms grace passes (a shell may legitimately draw
+  less: zsh drops RPROMPT from a line it no longer fits). OSC 133 C and a
+  full reset end it outright. The renderer bounds the wait itself, in
+  `updateFrame`: 500 ms from the first frame it held, never extended by the
+  resizes that keep arriving during a drag, and released whichever path set
+  the flag — termio's coalesced resize, DECCOLM, mode 3 — since all of them
+  reach `Screen.resize`. It schedules its own wake for the deadline through
+  `animationWake`, the hook the render thread already polls after every
+  frame; there is no termio timer to arm and nothing to forget. The
+  terminal state is untouched — the erase still happens, so reflow leaves
+  no stale prompt behind; `redraw=0` was the alternative and gives that up.
 - `0016-maccatalyst.sh` — Zig 0.16 made Mac Catalyst its own OS tag
   (`aarch64-maccatalyst`; 0.15 spelled it `aarch64-ios-macabi`, os `.ios`
   + abi `.macabi`), so the `.ios` arms stopped covering it. `.maccatalyst`
@@ -171,7 +214,13 @@ to move back.
   present, so an aro that grows its own gets no duplicate. It also carried a
   `.visionos` arm for aro's Apple version macro until aro `f97cdfc3` grew
   its own — a bare insert with no such guard, which is how it once produced
-  `duplicate switch value` on all ten targets.
+  `duplicate switch value` on all ten targets. Since the pin at `3c47ca15`
+  (the first built by the vancluever translate-c) it also fixes aro's
+  `isBlocksSupported`: Zig 0.16's `Os.isAtLeast` answers `false`, not
+  `null`, for another OS tag, so aro's macOS-version question returned
+  "unsupported" for ios, the simulator, maccatalyst and visionos, and every
+  one of those slices died translating CoreGraphics (`CGPath.h:392: error:
+  blocks are not enabled`) — the 2026-09-14 and 09-21 build failures.
 
 Dropped once upstream carried them: `0014-free-text-signature.patch`
 (`ghostty_surface_free_text` taking the surface, upstream `4803d58b`). A

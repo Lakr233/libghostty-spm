@@ -24,12 +24,26 @@
 # a bare `.visionos` insert is exactly how the previous version of this
 # patch produced `duplicate switch value` on all ten targets.
 #
+# aro also decides whether Apple blocks (`^`) are a language feature per
+# target, and its `isBlocksSupported` still reads `Os.isAtLeast` under the
+# contract 0.15 had: `null` when the OS tag differs, so an iOS target fell
+# through to "every Darwin but macOS supports blocks". 0.16's `isAtLeast`
+# answers `false` on a tag mismatch, aro returns that as the verdict, and
+# every non-macOS Darwin target — ios, the simulator, maccatalyst,
+# visionos — translates CoreGraphics with blocks off: `CGPath.h:392: error:
+# blocks are not enabled`, the failure the Ghostty pin at 3c47ca15 (the
+# first one built by the vancluever translate-c) hit on every iOS slice
+# from 2026-09-14 on. The fix is an exact-anchor edit
+# (Script/support/anchored_edit.py): ask the version question only for
+# macOS, answer yes for the rest of Darwin.
+#
 # Zig 0.16 unpacks packages under <source>/zig-pkg/<name-version-hash>/
 # (gitignored upstream), so they are patched there: fetched first when the
 # tree is fresh, edited in place after. A later build never re-unpacks a
 # package that is already there, so the edits survive.
 set -euo pipefail
 SOURCE_DIR=${1:?usage: $0 <ghostty_source_dir>}
+SUPPORT_DIR="$(cd "$(dirname "$0")/../../Script/support" && pwd)"
 cd "$SOURCE_DIR"
 
 if ! ls -d zig-pkg/libxev-* >/dev/null 2>&1 || ! ls -d zig-pkg/aro-* >/dev/null 2>&1; then
@@ -73,6 +87,28 @@ for dir in zig-pkg/aro-*; do
         }
         echo "[+] patched aro: TARGET_OS_IPHONE covers maccatalyst and visionos ($(basename "$dir"))"
     fi
+
+    # Blocks are a language feature on every Darwin target; only macOS has a
+    # version below which they are not (10.6).
+    PYTHONPATH="$SUPPORT_DIR" python3 - "$dir" <<'PY'
+import sys
+
+from anchored_edit import Source
+
+src = Source(sys.argv[1], "src/aro/Target.zig")
+src.replace(
+    """        if (target.os.isAtLeast(.macos, .{ .major = 10, .minor = 6, .patch = 0 })) |sup| return sup;
+        // TODO: do iOS or other OSes have a min version?
+        return target.os.tag != .macos;
+""",
+    """        // Zig 0.16's isAtLeast answers false, not null, for another OS
+        // tag; ask it about macOS only. (libghostty-spm)
+        if (target.os.tag != .macos) return true;
+        return target.os.isAtLeast(.macos, .{ .major = 10, .minor = 6, .patch = 0 }) orelse false;
+""",
+)
+src.save()
+PY
 
     # TARGET_OS_IOS: Apple sets it for Catalyst too (but not for visionOS).
     if grep -q '"TARGET_OS_IOS", target\.os\.tag == \.ios or target\.os\.tag == \.maccatalyst' "$comp"; then
