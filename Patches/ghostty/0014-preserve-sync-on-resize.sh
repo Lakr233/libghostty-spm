@@ -65,6 +65,16 @@ src.replace(
     try testing.expect(t.modes.get(.synchronized_output));
 """,
 )
+src.replace(
+    """            try testing.expectEqual(@as(u32, 72), t.height_px);
+            try testing.expect(!t.modes.get(.synchronized_output));
+            try testing.expect(t.flags.dirty.clear);
+""",
+    """            try testing.expectEqual(@as(u32, 72), t.height_px);
+            try testing.expect(t.modes.get(.synchronized_output));
+            try testing.expect(t.flags.dirty.clear);
+""",
+)
 src.save()
 
 src = Source(source_dir, "src/terminal/stream_terminal.zig")
