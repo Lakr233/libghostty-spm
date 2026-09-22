@@ -160,23 +160,28 @@ to move back.
   second if the program fails to do so. Two anchored edits: `Terminal.resize`
   no longer clears the mode, and libghostty-vt's stream `Handler.resize`,
   which upstream wrote assuming a resize ends the mode, reports the end of
-  its render hold only when the mode is actually off afterwards. Upstream's
-  unit tests asserting the old behaviour (`resize resets synchronized
-  output` and three more) are left as they are and fail by design; nothing
-  in this repository runs them, and rewriting them is what made the earlier
-  diff drift.
+  its render hold only when the mode is actually off afterwards. Exact edits
+  also update the upstream tests and comments that expected resize to end the
+  hold; the geometry and callback assertions remain in place.
 - `0015-hold-frame-for-prompt-redraw.sh` — a resize erases the prompt the
   cursor is on so the shell can redraw it (`clearPromptForRedraw`), and the
   renderer used to present that erased grid for the frames it took the shell
   to answer SIGWINCH: the last line blinked on every resize. The screen now
   records that a *visible* prompt was erased (`Screen.prompt_redraw`, with
-  the number of non-empty input cells that went with it), and the renderer
+  the number of non-empty input cells on the whole prompt before erasure), and the renderer
   keeps its last frame while that is set, as it does for synchronized
   output. OSC 133 B says the shell's prompt is drawn — and nothing about the
   input after it, which the shell draws next, possibly in another write —
   so the hold then continues until at least the erased input cells are back
   on that prompt or a 50 ms grace passes (a shell may legitimately draw
-  less: zsh drops RPROMPT from a line it no longer fits). OSC 133 C and a
+  less: zsh drops RPROMPT from a line it no longer fits). Each visible erase
+  advances a terminal-owned generation, so a new redraw restarts that grace
+  even if resize and B both arrive between frames; the overall deadline stays.
+  For `redraw=last`, a line containing only input can complete as soon as the
+  input count is restored, without another B. Retained input rows count on
+  both sides of the comparison, so they cannot stand in for erased input.
+  An incomplete continuation remains bounded by the overall deadline.
+  OSC 133 C and a
   full reset end it outright. The renderer bounds the wait itself, in
   `updateFrame`: 500 ms from the first frame it held, never extended by the
   resizes that keep arriving during a drag, and released whichever path set

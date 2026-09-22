@@ -25,9 +25,8 @@ SOURCE_DIR="${1:?Usage: $0 <ghostty-source-dir>}"
 #     hold whenever the mode was on before the resize; it now reports it only
 #     when the mode is actually off afterwards.
 #
-# Upstream's unit tests that assert the old behaviour ("resize resets
-# synchronized output" and friends) are left as they are: nothing in this
-# repository runs them, and rewriting them is what made this patch drift.
+# The tests asserting resize ends synchronized output are updated with exact
+# anchors, retaining their geometry and callback checks.
 # =============================================================================
 
 PYTHONPATH="$(cd "$(dirname "$0")/../../Script/support" && pwd)" python3 - "$SOURCE_DIR" <<'PY'
@@ -50,6 +49,22 @@ src.replace(
     // If our cols/rows didn't change, skip grid work but still apply pixels.
 """,
 )
+src.replace(
+    """test "Terminal: resize resets synchronized output" {
+""",
+    """test "Terminal: resize preserves synchronized output" {
+""",
+)
+src.replace(
+    """    t.modes.set(.synchronized_output, true);
+    try t.resize(alloc, .{ .cols = 10, .rows = 5 });
+    try testing.expect(!t.modes.get(.synchronized_output));
+""",
+    """    t.modes.set(.synchronized_output, true);
+    try t.resize(alloc, .{ .cols = 10, .rows = 5 });
+    try testing.expect(t.modes.get(.synchronized_output));
+""",
+)
 src.save()
 
 src = Source(source_dir, "src/terminal/stream_terminal.zig")
@@ -59,6 +74,52 @@ src.replace(
 """,
     """        try self.terminal.resize(self.terminal.gpa(), value);
         if (sync and !self.terminal.modes.get(.synchronized_output)) self.renderHold(false);
+""",
+)
+src.replace(
+    """        /// when VT input resets the mode, on a full reset, and on a resize
+        /// through `Handler.resize`. The calls always come in pairs:
+""",
+    """        /// when VT input resets the mode or on a full reset. A resize
+        /// preserves the hold. The calls always come in pairs:
+""",
+)
+src.replace(
+    """        // Resize always turns off synchronized output, ending its hold.
+""",
+    """        // A resize keeps synchronized output active until the program ends it.
+""",
+)
+src.replace(
+    """    // Resize
+    S.len = 0;
+    s.nextSlice("\\x1b[?2026h");
+    try s.handler.resize(.{ .cols = 80, .rows = 24 });
+    try s.handler.resize(.{ .cols = 80, .rows = 24 });
+    try testing.expectEqualSlices(bool, &.{ true, false }, S.events[0..S.len]);
+""",
+    """    // Resize preserves the hold; an explicit reset ends it once.
+    S.len = 0;
+    s.nextSlice("\\x1b[?2026h");
+    try s.handler.resize(.{ .cols = 80, .rows = 24 });
+    try s.handler.resize(.{ .cols = 80, .rows = 24 });
+    try testing.expectEqualSlices(bool, &.{true}, S.events[0..S.len]);
+    s.nextSlice("\\x1b[?2026l");
+    try testing.expectEqualSlices(bool, &.{ true, false }, S.events[0..S.len]);
+""",
+)
+src.replace(
+    """test "resize clears synchronized output on unchanged cell dimensions" {
+""",
+    """test "resize preserves synchronized output on unchanged cell dimensions" {
+""",
+)
+src.replace(
+    """    try testing.expect(!t.modes.get(.synchronized_output));
+    try testing.expectEqual(@as(u32, 720), t.width_px);
+""",
+    """    try testing.expect(t.modes.get(.synchronized_output));
+    try testing.expectEqual(@as(u32, 720), t.width_px);
 """,
 )
 src.save()

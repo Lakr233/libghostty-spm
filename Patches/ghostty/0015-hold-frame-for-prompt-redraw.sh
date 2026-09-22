@@ -18,7 +18,7 @@ SOURCE_DIR="${1:?Usage: $0 <ghostty-source-dir>}"
 # the alternative and gives that up). What changes is presentation:
 #
 #   - Screen.prompt_redraw records that a *visible* prompt was erased, and
-#     how many non-empty input cells went with it.
+#     how many non-empty input cells the whole prompt held before the erase.
 #   - The renderer keeps its last frame while that is set, as it does for
 #     synchronized output.
 #   - OSC 133 B says the prompt is drawn. It says nothing about the input
@@ -26,6 +26,9 @@ SOURCE_DIR="${1:?Usage: $0 <ghostty-source-dir>}"
 #     the hold then continues until at least the erased input cells are back
 #     on the prompt, or a short grace passes. OSC 133 C (a command started)
 #     and a full reset end it outright.
+#   - A terminal-owned generation restarts the input grace even when resize
+#     and B arrive between frames. An input-only `redraw=last` continuation
+#     completes when its input returns, without requiring another B.
 #   - The renderer bounds the whole wait itself: from the first frame it
 #     held, never extended by later resizes, and released whichever path set
 #     the flag (termio's resize, DECCOLM, mode 3 — all reach Screen.resize).
@@ -52,6 +55,9 @@ src.insert_before(
 /// gives up waiting. The renderer keeps presenting its last frame meanwhile,
 /// so the erased prompt is never on screen, and bounds the wait itself.
 prompt_redraw: PromptRedraw = .{},
+/// Advances at each visible erase, even if the renderer misses the prompt phase.
+/// Kept across hold completion and reset so a later redraw has a new identity.
+prompt_redraw_generation: u64 = 0,
 
 """,
 )
@@ -70,6 +76,15 @@ src.insert_before(
         // above is measured against what they still hold.
         const input_before = self.promptInputCells();
         var visible = false;
+        var input_only = redraw == .last;
+        if (input_only) {
+            for (self.cursor.page_pin.node.page().getCells(self.cursor.page_row)) |cell| {
+                if (!cell.isEmpty() and cell.semantic_content != .input) {
+                    input_only = false;
+                    break;
+                }
+            }
+        }
 
 """,
 )
@@ -104,10 +119,11 @@ src.replace(
 
         // An empty prompt changes nothing the user can see, so there is
         // nothing to hold a frame for. A visible one has to be drawn again
-        // from the start, prompt first: a hold already under way starts
-        // over, remembering the most input it has seen on the prompt.
+        // from the start, remembering the most input seen on the prompt.
+        // An input-only continuation does not need a new prompt marker.
         if (visible) {
-            self.prompt_redraw.state = .prompt;
+            self.prompt_redraw_generation +%= 1;
+            self.prompt_redraw.state = if (input_only) .input_only else .prompt;
             self.prompt_redraw.input_cells = @max(
                 self.prompt_redraw.input_cells,
                 input_before,
@@ -132,6 +148,8 @@ pub const PromptRedraw = struct {
         prompt,
         /// The prompt is drawn; waiting for the input after it.
         input,
+        /// Only input cells were erased; a continuation redraw need not send B.
+        input_only,
     };
 };
 
@@ -308,7 +326,7 @@ test "Terminal: semantic prompt redraw=last measures the rows it keeps" {
     try testing.expectEqual(10, t.screens.active.promptInputCells());
 
     try t.resize(alloc, .{ .cols = 20, .rows = 5 });
-    try testing.expectEqual(.prompt, t.screens.active.prompt_redraw.state);
+    try testing.expectEqual(.input_only, t.screens.active.prompt_redraw.state);
     try testing.expectEqual(10, t.screens.active.prompt_redraw.input_cells);
 
     // The kept row alone is not the redraw; only the erased one brought
@@ -393,9 +411,11 @@ pub const PromptRedrawHold = struct {
     /// drawn with input still to come.
     held_since: ?std.Io.Timestamp = null,
     input_since: ?std.Io.Timestamp = null,
+    generation: ?u64 = null,
 
     pub const Wait = struct {
         state: terminal.Screen.PromptRedraw.State,
+        generation: u64 = 0,
         /// Input cells the prompt had before the erase, and has now.
         input_cells: usize = 0,
         restored: usize = 0,
@@ -412,7 +432,15 @@ pub const PromptRedrawHold = struct {
             // A prompt redraw is starting (again): the input grace, if
             // one was running, belongs to the previous redraw.
             .prompt => self.input_since = null,
-            .input => {},
+            .input, .input_only => {},
+        }
+
+        // Resize and B can both arrive between frames. The terminal's
+        // generation survives that unobserved transition; only the input
+        // grace restarts, never the overall hold deadline.
+        if (self.generation == null or self.generation.? != wait.generation) {
+            self.generation = wait.generation;
+            self.input_since = null;
         }
 
         const held_since = self.held_since orelse now;
@@ -421,7 +449,7 @@ pub const PromptRedrawHold = struct {
             self.* = .{};
             return false;
         }
-        if (wait.state != .input) return true;
+        if (wait.state == .prompt) return true;
 
         // The prompt is drawn. The input counts as drawn once what the
         // erase took is back, and a shell that draws less gets the grace.
@@ -429,6 +457,9 @@ pub const PromptRedrawHold = struct {
             self.* = .{};
             return false;
         }
+        // No B is expected for an input-only continuation. Its restored
+        // cells complete the redraw; otherwise the overall deadline applies.
+        if (wait.state == .input_only) return true;
         const input_since = self.input_since orelse now;
         self.input_since = input_since;
         if (msSince(input_since, now) >= input_grace_ms) {
@@ -436,6 +467,19 @@ pub const PromptRedrawHold = struct {
             return false;
         }
         return true;
+    }
+
+    fn updateScreen(self: *PromptRedrawHold, now: std.Io.Timestamp, screen: *const terminal.Screen) bool {
+        const redraw = screen.prompt_redraw;
+        return self.update(now, .{
+            .state = redraw.state,
+            .generation = screen.prompt_redraw_generation,
+            .input_cells = redraw.input_cells,
+            .restored = switch (redraw.state) {
+                .input, .input_only => screen.promptInputCells(),
+                .none, .prompt => 0,
+            },
+        });
     }
 
     /// Milliseconds until the hold ends on its own, while one is on.
@@ -539,6 +583,96 @@ test "prompt redraw hold: nothing to wait for" {
     try testing.expectEqual(null, hold.wakeIn(PromptRedrawHold.at(5)));
 }
 
+test "prompt redraw hold: resize and B between frames restart only the input grace" {
+    const testing = std.testing;
+    const alloc = testing.allocator;
+    var t = try Terminal.init(testing.io, alloc, .{ .cols = 10, .rows = 5 });
+    defer t.deinit(alloc);
+    var hold: PromptRedrawHold = .{};
+
+    try t.semanticPrompt(.init(.fresh_line_new_prompt));
+    for ("$ ") |c| try t.print(c);
+    try t.semanticPrompt(.init(.end_prompt_start_input));
+    for ("hello") |c| try t.print(c);
+    try t.resize(alloc, .{ .cols = 20, .rows = 5 });
+    try testing.expect(hold.updateScreen(PromptRedrawHold.at(0), t.screens.active));
+    t.carriageReturn();
+    try t.semanticPrompt(.init(.prompt_start));
+    for ("$ ") |c| try t.print(c);
+    try t.semanticPrompt(.init(.end_prompt_start_input));
+    try testing.expect(hold.updateScreen(PromptRedrawHold.at(10), t.screens.active));
+    const first_generation = t.screens.active.prompt_redraw_generation;
+
+    // No renderer call between this resize and B: both observed frames
+    // have state .input, but the old grace has already expired at 70 ms.
+    try t.resize(alloc, .{ .cols = 30, .rows = 5 });
+    t.carriageReturn();
+    try t.semanticPrompt(.init(.prompt_start));
+    for ("$ ") |c| try t.print(c);
+    try t.semanticPrompt(.init(.end_prompt_start_input));
+    try testing.expectEqual(first_generation + 1, t.screens.active.prompt_redraw_generation);
+    try testing.expect(hold.updateScreen(PromptRedrawHold.at(70), t.screens.active));
+    try testing.expectEqual(50, hold.wakeIn(PromptRedrawHold.at(70)).?);
+    try testing.expect(hold.updateScreen(PromptRedrawHold.at(119), t.screens.active));
+
+    // Another unobserved transition near the overall deadline must not
+    // postpone that deadline, even though its input grace starts anew.
+    try t.resize(alloc, .{ .cols = 40, .rows = 5 });
+    t.carriageReturn();
+    try t.semanticPrompt(.init(.prompt_start));
+    for ("$ ") |c| try t.print(c);
+    try t.semanticPrompt(.init(.end_prompt_start_input));
+    try testing.expect(hold.updateScreen(PromptRedrawHold.at(480), t.screens.active));
+    try testing.expectEqual(20, hold.wakeIn(PromptRedrawHold.at(480)).?);
+    try testing.expect(!hold.updateScreen(PromptRedrawHold.at(500), t.screens.active));
+}
+
+test "prompt redraw hold: last input line completes without B" {
+    const testing = std.testing;
+    const alloc = testing.allocator;
+    var t = try Terminal.init(testing.io, alloc, .{ .cols = 10, .rows = 5 });
+    defer t.deinit(alloc);
+    t.flags.shell_redraws_prompt = .last;
+    var hold: PromptRedrawHold = .{};
+
+    try t.semanticPrompt(.init(.fresh_line_new_prompt));
+    for ("$ ") |c| try t.print(c);
+    try t.semanticPrompt(.init(.end_prompt_start_input));
+    for ("hello") |c| try t.print(c);
+    t.carriageReturn();
+    try t.linefeed();
+    for ("world") |c| try t.print(c);
+    try t.resize(alloc, .{ .cols = 20, .rows = 5 });
+
+    // Retained hello must not count as restoration of the missing world.
+    try testing.expect(hold.updateScreen(PromptRedrawHold.at(0), t.screens.active));
+    for ("wor") |c| try t.print(c);
+    try testing.expect(hold.updateScreen(PromptRedrawHold.at(150), t.screens.active));
+    for ("ld") |c| try t.print(c);
+    try testing.expect(!hold.updateScreen(PromptRedrawHold.at(160), t.screens.active));
+    try testing.expectEqual(null, hold.wakeIn(PromptRedrawHold.at(160)));
+}
+
+test "prompt redraw hold: last line containing prompt still requires B" {
+    const testing = std.testing;
+    const alloc = testing.allocator;
+    var t = try Terminal.init(testing.io, alloc, .{ .cols = 10, .rows = 5 });
+    defer t.deinit(alloc);
+    t.flags.shell_redraws_prompt = .last;
+    var hold: PromptRedrawHold = .{};
+
+    try t.semanticPrompt(.init(.fresh_line_new_prompt));
+    for ("$ ") |c| try t.print(c);
+    try t.semanticPrompt(.init(.end_prompt_start_input));
+    for ("hello") |c| try t.print(c);
+    try t.resize(alloc, .{ .cols = 20, .rows = 5 });
+    try testing.expectEqual(.prompt, t.screens.active.prompt_redraw.state);
+    try testing.expect(hold.updateScreen(PromptRedrawHold.at(0), t.screens.active));
+    for ("hello") |c| try t.print(c);
+    try testing.expect(hold.updateScreen(PromptRedrawHold.at(150), t.screens.active));
+    try testing.expect(!hold.updateScreen(PromptRedrawHold.at(500), t.screens.active));
+}
+
 """,
 )
 src.replace(
@@ -580,11 +714,7 @@ src.insert_before(
         fn promptRedrawHeld(self: *Self, t: *terminal.Terminal) bool {
             const screen = t.screens.active;
             const state = screen.prompt_redraw.state;
-            if (self.prompt_redraw_hold.update(.now(global.io(), .awake), .{
-                .state = state,
-                .input_cells = screen.prompt_redraw.input_cells,
-                .restored = if (state == .input) screen.promptInputCells() else 0,
-            })) return true;
+            if (self.prompt_redraw_hold.updateScreen(.now(global.io(), .awake), screen)) return true;
 
             // Every screen, so a switch cannot bring a stale hold back.
             if (state != .none) {
