@@ -418,7 +418,7 @@
         private func markedTextRect() -> CGRect {
             let baseRect = imeRect()
             guard
-                inputHandler.documentLength > 0,
+                inputHandler.markedTextLength > 0,
                 let range = markedTextRange as? TerminalTextRange
             else {
                 return baseRect
@@ -434,7 +434,7 @@
         private func caretRectForPosition(_ position: UITextPosition) -> CGRect {
             let baseRect = imeRect()
             let cellWidth = compositionCellWidth(in: baseRect)
-            guard inputHandler.documentLength > 0 else {
+            guard inputHandler.markedTextLength > 0 else {
                 let rect = CGRect(
                     x: baseRect.minX,
                     y: baseRect.minY,
@@ -462,7 +462,10 @@
                 return rect
             }
 
-            let clampedIndex = min(max(position.index, 0), inputHandler.documentLength)
+            let clampedIndex = min(
+                max(position.index - TerminalTextInputHandler.documentAnchorLength, 0),
+                inputHandler.markedTextLength
+            )
             let x = baseRect.minX + CGFloat(clampedIndex) * cellWidth
             let rect = CGRect(
                 x: x,
@@ -482,9 +485,12 @@
             in baseRect: CGRect,
             fallbackWidth: CGFloat
         ) -> CGRect {
-            let documentLength = max(inputHandler.documentLength, 1)
+            let documentLength = max(inputHandler.markedTextLength, 1)
             let cellWidth = compositionCellWidth(in: baseRect)
-            let location = min(max(range.location, 0), documentLength)
+            let location = min(
+                max(range.location - TerminalTextInputHandler.documentAnchorLength, 0),
+                documentLength
+            )
             let length = max(range.length, 0)
             let x = baseRect.minX + CGFloat(location) * cellWidth
             let width = max(CGFloat(length) * cellWidth, fallbackWidth)
@@ -509,14 +515,15 @@
 
         private func textIndex(for point: CGPoint) -> Int {
             let baseRect = imeRect()
-            guard inputHandler.documentLength > 0 else { return 0 }
+            let anchor = TerminalTextInputHandler.documentAnchorLength
+            guard inputHandler.markedTextLength > 0 else { return anchor }
 
             let cellWidth = compositionCellWidth(in: baseRect)
-            guard cellWidth > 0 else { return 0 }
+            guard cellWidth > 0 else { return anchor }
 
             let relativeX = point.x - baseRect.minX
             let rawIndex = Int((relativeX / cellWidth).rounded(.down))
-            let index = min(max(rawIndex, 0), inputHandler.documentLength)
+            let index = anchor + min(max(rawIndex, 0), inputHandler.markedTextLength)
             TerminalDebugLog.log(
                 .ime,
                 "textIndex point=\(NSCoder.string(for: point)) base=\(NSCoder.string(for: baseRect)) cellWidth=\(String(format: "%.2f", cellWidth)) index=\(index)"
