@@ -47,6 +47,19 @@
         /// Last hardware modifier flags seen on a `UIKey`. Pointer events
         /// read this when the hover recognizer is not the live source.
         var heldModifierFlags: UIKeyModifierFlags = []
+        /// The held key that is auto-repeating — the press, to end it on
+        /// release, and its key, to send — and the timer sending its
+        /// repeats. See `startKeyRepeat`.
+        var repeatingPress: UIPress?
+        var repeatingKey: UIKey?
+        var repeatTimer: Timer?
+    }
+
+    /// Auto-repeat timing for held hardware keys. iPadOS exposes the user's
+    /// Key Repeat setting to no app, so these follow AppKit's defaults.
+    enum HardwareKeyRepeat {
+        static let initialDelay: TimeInterval = 0.4
+        static let interval: TimeInterval = 0.05
     }
 
     /// Software-keyboard visibility and tap-to-toggle state; behavior in
@@ -96,6 +109,13 @@
                 var forwardedToInputMethod: Set<UIPress> = []
                 for press in presses {
                     guard let key = press.key else { continue }
+                    // Only the most recent key repeats, as on every desktop:
+                    // a new key down ends the old repeat. A modifier going
+                    // down leaves it alone — shift pressed mid-repeat does not
+                    // stop the letter.
+                    if !Self.isModifierKey(key) {
+                        stopKeyRepeat()
+                    }
                     if shouldDeferKeyToInputMethod(key) {
                         TerminalDebugLog.log(
                             .input,
@@ -110,6 +130,7 @@
                         continue
                     }
                     handleKeyPress(key, action: GHOSTTY_ACTION_PRESS)
+                    startKeyRepeat(for: press)
                 }
                 // `super` is how UIKit feeds an unhandled press to the text
                 // input system on the iPadOS versions that do not process
@@ -133,6 +154,9 @@
             #else
                 var forwardedToInputMethod: Set<UIPress> = []
                 for press in presses {
+                    if press === hardwareKeyboard.repeatingPress {
+                        stopKeyRepeat()
+                    }
                     if hardwareKeyboard.pressesLoanedToInputMethod.remove(press) != nil {
                         // The surface never saw this press (a replayed key
                         // carries its own synthetic release), so it gets no
@@ -160,6 +184,9 @@
             hardwareKeyboard.keyHandled = false
             #if !targetEnvironment(macCatalyst)
                 for press in presses {
+                    if press === hardwareKeyboard.repeatingPress {
+                        stopKeyRepeat()
+                    }
                     hardwareKeyboard.pressesLoanedToInputMethod.remove(press)
                     hardwareKeyboard.pressesForwardedToInputMethod.remove(press)
                 }
@@ -552,6 +579,88 @@
                     release.text = nil
                     _ = surface.sendKeyEvent(release)
                 }
+            }
+        }
+
+        // MARK: - Key repeat
+
+        /// UIKit sends one `pressesBegan` for a held key and nothing more
+        /// until it goes up: on iOS the repeat is the text input system's,
+        /// and it only produces one for a key that reached it. The terminal
+        /// keeps every key off that path (it would echo each one back as
+        /// `insertText` / `deleteBackward`), so a held key — Delete, an
+        /// arrow, a letter — typed exactly once. The repeat is generated
+        /// here instead, as `GHOSTTY_ACTION_REPEAT` events, which both of
+        /// ghostty's key encoders write like a press (and the Kitty one
+        /// reports as a repeat when the program asked for event types).
+        ///
+        /// Catalyst is left out: it has not shown the problem, and a repeat
+        /// generated on top of one the system already delivers would type
+        /// every held key twice.
+        extension UITerminalView {
+            func startKeyRepeat(for press: UIPress) {
+                guard let key = press.key, Self.isRepeatableKey(key) else { return }
+                stopKeyRepeat()
+                hardwareKeyboard.repeatingPress = press
+                hardwareKeyboard.repeatingKey = key
+                let timer = Timer(
+                    fire: Date(timeIntervalSinceNow: HardwareKeyRepeat.initialDelay),
+                    interval: HardwareKeyRepeat.interval,
+                    repeats: true
+                ) { [weak self] _ in
+                    MainActor.assumeIsolated {
+                        self?.sendKeyRepeat()
+                    }
+                }
+                // `.common`, so a repeat keeps going while a scroll is
+                // tracking.
+                RunLoop.main.add(timer, forMode: .common)
+                hardwareKeyboard.repeatTimer = timer
+            }
+
+            func stopKeyRepeat() {
+                hardwareKeyboard.repeatTimer?.invalidate()
+                hardwareKeyboard.repeatTimer = nil
+                hardwareKeyboard.repeatingPress = nil
+                hardwareKeyboard.repeatingKey = nil
+            }
+
+            private func sendKeyRepeat() {
+                // A focus change that slipped past `resignFirstResponder`
+                // ends the repeat rather than typing into a terminal the
+                // user has left.
+                guard let key = hardwareKeyboard.repeatingKey,
+                      isFirstResponder,
+                      surface != nil
+                else {
+                    stopKeyRepeat()
+                    return
+                }
+                handleKeyPress(key, action: GHOSTTY_ACTION_REPEAT)
+            }
+
+            static func isModifierKey(_ key: UIKey) -> Bool {
+                switch key.keyCode {
+                case .keyboardLeftShift, .keyboardRightShift,
+                     .keyboardLeftControl, .keyboardRightControl,
+                     .keyboardLeftAlt, .keyboardRightAlt,
+                     .keyboardLeftGUI, .keyboardRightGUI,
+                     .keyboardCapsLock:
+                    true
+                default:
+                    false
+                }
+            }
+
+            /// Modifiers never repeat, and neither does anything under Cmd
+            /// (a shortcut, not typing) or Escape (it travels the key
+            /// command path; see `escapeKeyCommands`).
+            private static func isRepeatableKey(_ key: UIKey) -> Bool {
+                guard !isModifierKey(key),
+                      key.keyCode != .keyboardEscape,
+                      !key.modifierFlags.contains(.command)
+                else { return false }
+                return true
             }
         }
     #endif

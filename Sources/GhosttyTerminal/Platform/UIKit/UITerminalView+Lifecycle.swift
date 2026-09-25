@@ -53,6 +53,9 @@
         @objc func applicationDidEnterBackground(_: Notification) {
             TerminalDebugLog.log(.lifecycle, "application did enter background")
             stopMomentumScrolling(sendTerminalEndEvent: false)
+            #if !targetEnvironment(macCatalyst)
+                stopKeyRepeat()
+            #endif
             core.setApplicationActive(false)
         }
 
@@ -263,6 +266,7 @@
                 // `keyboardDidHide` never fires for this view; the flag means
                 // "this view owns the visible keyboard" and must drop here.
                 softwareKeyboard.isVisible = false
+                stopKeyRepeat()
             #endif
             core.setFocus(false)
             focusBridge.onFocusChange?(false)

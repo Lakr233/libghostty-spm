@@ -16,8 +16,36 @@
             markedTextState.hasMarkedText
         }
 
-        var documentLength: Int {
+        /// Positions the UITextInput document holds before the marked text.
+        ///
+        /// The software keyboard's held Delete stops the moment the caret is
+        /// at the start of the document: before every repeat, UIKit's
+        /// `handleAutoDeleteWithExecutionContext:` asks
+        /// `-[UIResponder _selectionAtDocumentStart]` — `compare(
+        /// selectedTextRange.start, beginningOfDocument) == .orderedSame` —
+        /// and clears the repeat timer when it says yes. A terminal's
+        /// document is only ever the composition, empty at a prompt, so the
+        /// caret was always at its start and a held Delete sent exactly one
+        /// backspace. One position of anchor ahead of the composition keeps
+        /// the caret off the start; it carries no text (`text(in:)` reads it
+        /// as empty), so what the keyboard reads as context is unchanged.
+        /// Catalyst has no software keyboard and keeps the plain document.
+        #if targetEnvironment(macCatalyst)
+            static let documentAnchorLength = 0
+        #else
+            static let documentAnchorLength = 1
+        #endif
+
+        /// Length of the marked text alone, in UTF-16 units.
+        var markedTextLength: Int {
             markedTextState.documentLength
+        }
+
+        /// Length of the UITextInput document: the anchor plus the marked
+        /// text. Every `TerminalTextPosition` the view hands UIKit is in
+        /// these coordinates.
+        var documentLength: Int {
+            Self.documentAnchorLength + markedTextState.documentLength
         }
 
         init(view: UITerminalView) {
@@ -201,14 +229,14 @@
         func markedTextRange() -> TerminalTextRange? {
             guard markedTextState.hasMarkedText else { return nil }
             return TerminalTextRange(
-                location: markedTextState.markedRange.location,
+                location: Self.documentAnchorLength + markedTextState.markedRange.location,
                 length: markedTextState.markedRange.length
             )
         }
 
         func selectedTextRange() -> TerminalTextRange {
             TerminalTextRange(
-                location: markedTextState.selectedRange.location,
+                location: Self.documentAnchorLength + markedTextState.selectedRange.location,
                 length: markedTextState.selectedRange.length
             )
         }
@@ -216,7 +244,7 @@
         func setSelectedTextRange(_ range: UITextRange?) {
             let updatedRange = if let range = range as? TerminalTextRange {
                 NSRange(
-                    location: range.location,
+                    location: range.location - Self.documentAnchorLength,
                     length: range.length
                 )
             } else {
@@ -233,10 +261,18 @@
             notifySelectionDidChange()
         }
 
+        /// The anchor reads as no text: only the part of `range` that
+        /// overlaps the marked text contributes characters.
         func text(in range: TerminalTextRange) -> String? {
-            markedTextState.text(in: NSRange(
-                location: range.location,
-                length: range.length
+            guard range.location >= 0,
+                  range.length >= 0,
+                  range.location + range.length <= documentLength
+            else { return nil }
+            let start = max(range.location - Self.documentAnchorLength, 0)
+            let end = max(range.location + range.length - Self.documentAnchorLength, 0)
+            return markedTextState.text(in: NSRange(
+                location: start,
+                length: end - start
             ))
         }
 
