@@ -232,7 +232,7 @@
         }
 
         open var endOfDocument: UITextPosition {
-            TerminalTextPosition(inputHandler.documentLength)
+            TerminalTextPosition(inputHandler.textDocumentLength)
         }
 
         open func textRange(
@@ -252,7 +252,7 @@
         ) -> UITextPosition? {
             guard let pos = position as? TerminalTextPosition else { return nil }
             let newIndex = pos.index + offset
-            guard newIndex >= 0, newIndex <= inputHandler.documentLength else { return nil }
+            guard newIndex >= 0, newIndex <= inputHandler.textDocumentLength else { return nil }
             return TerminalTextPosition(newIndex)
         }
 
@@ -482,7 +482,7 @@
             in baseRect: CGRect,
             fallbackWidth: CGFloat
         ) -> CGRect {
-            let documentLength = max(inputHandler.documentLength, 1)
+            let documentLength = inputHandler.documentLength
             let cellWidth = compositionCellWidth(in: baseRect)
             let location = min(max(range.location, 0), documentLength)
             let length = max(range.length, 0)

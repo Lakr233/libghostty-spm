@@ -20,6 +20,21 @@
             markedTextState.documentLength
         }
 
+        /// What UIKit reads as the document while nothing is composing: one
+        /// character with the caret after it. The software keyboard keeps
+        /// repeating a held delete only while it finds text before the caret,
+        /// so an empty document stops the repeat after the first delete. The
+        /// character is never sent anywhere — `deleteBackward` takes the key
+        /// path either way.
+        static let idleDocument = " "
+
+        /// Length of the document UIKit edits: the marked text while composing,
+        /// otherwise `idleDocument`. Geometry keeps using `documentLength`, so
+        /// the idle document does not move the caret rect.
+        var textDocumentLength: Int {
+            hasMarkedText ? documentLength : Self.idleDocument.utf16.count
+        }
+
         init(view: UITerminalView) {
             self.view = view
         }
@@ -207,13 +222,19 @@
         }
 
         func selectedTextRange() -> TerminalTextRange {
-            TerminalTextRange(
+            guard hasMarkedText else {
+                return TerminalTextRange(location: textDocumentLength, length: 0)
+            }
+            return TerminalTextRange(
                 location: markedTextState.selectedRange.location,
                 length: markedTextState.selectedRange.length
             )
         }
 
         func setSelectedTextRange(_ range: UITextRange?) {
+            // The idle document is fixed; the keyboard selects its character
+            // before a delete, and that changes nothing.
+            guard hasMarkedText else { return }
             let updatedRange = if let range = range as? TerminalTextRange {
                 NSRange(
                     location: range.location,
@@ -234,10 +255,13 @@
         }
 
         func text(in range: TerminalTextRange) -> String? {
-            markedTextState.text(in: NSRange(
-                location: range.location,
-                length: range.length
-            ))
+            let nsRange = NSRange(location: range.location, length: range.length)
+            guard hasMarkedText else {
+                let idle = Self.idleDocument as NSString
+                guard nsRange.location >= 0, NSMaxRange(nsRange) <= idle.length else { return nil }
+                return idle.substring(with: nsRange)
+            }
+            return markedTextState.text(in: nsRange)
         }
 
         func deleteBackwardInMarkedText() -> Bool {
