@@ -230,7 +230,7 @@
             let filteredModifierFlags = filteredModifierFlags(for: key)
             let isCommandModified = filteredModifierFlags.contains(.command)
             let mods = TerminalInputModifiers(from: filteredModifierFlags)
-            let keyboardZoomDirection = commandZoomDirection(
+            let keyboardFontSizeAction = commandFontSizeAction(
                 for: key,
                 action: action,
                 filteredModifierFlags: filteredModifierFlags
@@ -293,8 +293,8 @@
 
             guard !isCommandModified else {
                 let consumed = sendInputKeyEvent(keyEvent)
-                if let keyboardZoomDirection {
-                    scheduleViewportRefreshAfterKeyboardZoom(keyboardZoomDirection)
+                if let keyboardFontSizeAction {
+                    scheduleViewportRefreshAfterKeyboardZoom(keyboardFontSizeAction)
                 }
                 return consumed
             }
@@ -380,57 +380,39 @@
             return flags
         }
 
-        private func commandZoomDirection(
+        /// The font-size binding a Cmd press would run under Ghostty's
+        /// default keybinds, for the viewport refresh below. The size itself
+        /// is tracked where every key meets the surface
+        /// (`TerminalSurface.sendKeyEvent`), and only when Ghostty confirms
+        /// the binding.
+        private func commandFontSizeAction(
             for key: UIKey,
             action: ghostty_input_action_e,
             filteredModifierFlags: UIKeyModifierFlags
-        ) -> KeyboardZoomDirection? {
+        ) -> TerminalFontSizeAction? {
             guard action == GHOSTTY_ACTION_PRESS || action == GHOSTTY_ACTION_REPEAT else {
                 return nil
             }
             guard filteredModifierFlags.contains(.command) else { return nil }
-
-            let candidates = [
+            return TerminalFontSizeAction(commandKeyCharacters: [
                 key.characters,
                 key.charactersIgnoringModifiers,
-            ]
-            if candidates.contains(where: { $0 == "+" || $0 == "=" }) {
-                return .increase
-            }
-            if candidates.contains(where: { $0 == "-" || $0 == "_" }) {
-                return .decrease
-            }
-            return nil
+            ])
         }
 
         private func scheduleViewportRefreshAfterKeyboardZoom(
-            _ direction: KeyboardZoomDirection
+            _ action: TerminalFontSizeAction
         ) {
             TerminalDebugLog.log(
                 .actions,
-                "keyboard zoom shortcut direction=\(direction.rawValue)"
+                "keyboard zoom shortcut action=\(action)"
             )
-            #if !targetEnvironment(macCatalyst)
-                switch direction {
-                case .increase:
-                    fontZoom.currentFontSize = min(fontZoom.currentFontSize + 1, Self.maxFontSize)
-                case .decrease:
-                    fontZoom.currentFontSize = max(fontZoom.currentFontSize - 1, Self.minFontSize)
-                }
-            #endif
 
             DispatchQueue.main.async { [weak self] in
                 guard let self else { return }
                 core.synchronizeMetrics()
-                refreshTextInputGeometry(
-                    reason: "keyboard-zoom-\(direction.rawValue)"
-                )
+                refreshTextInputGeometry(reason: "keyboard-zoom")
             }
-        }
-
-        private enum KeyboardZoomDirection: String {
-            case increase
-            case decrease
         }
     }
 

@@ -20,7 +20,8 @@ extension TerminalViewState:
     TerminalSurfaceCommandFinishedDelegate,
     TerminalSurfaceLifecycleDelegate,
     TerminalSurfaceClipboardConfirmationDelegate,
-    TerminalSurfaceColorChangeDelegate
+    TerminalSurfaceColorChangeDelegate,
+    TerminalSurfaceFontSizeDelegate
 {
     /// Applies a change to this state on the main queue's next turn.
     ///
@@ -147,6 +148,13 @@ extension TerminalViewState:
             // A reset (OSC 111) reports the config color with no marker of its own.
             $0.programBackgroundColor = change.color == $0.controller.backgroundColor ? nil : change.color
             $0.publishBackgroundColor()
+        }
+    }
+
+    public func terminalDidChangeFontSize(_ fontSize: Float) {
+        publishSoon(.fontSize) {
+            guard $0.fontSize != fontSize else { return }
+            $0.fontSize = fontSize
         }
     }
 

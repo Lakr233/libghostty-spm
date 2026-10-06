@@ -22,6 +22,7 @@ final class TerminalCallbackBridge {
     var onCellSizeChange: ((UInt32, UInt32) -> Void)?
     var onRenderRequest: (() -> Void)?
     var onMouseShape: ((ghostty_action_mouse_shape_e) -> Void)?
+    var onConfigChange: (() -> Void)?
 
     init(delegate: (any TerminalSurfaceViewDelegate)? = nil) {
         self.delegate = delegate
@@ -64,6 +65,9 @@ final class TerminalCallbackBridge {
             // theme is visible without waiting for input or layout.
             TerminalDebugLog.log(.actions, "callback action=config_change")
             onRenderRequest?()
+            // The surface has just re-derived its font size from the new
+            // config, which may have moved it (`TerminalFontSize`).
+            onConfigChange?()
 
         case GHOSTTY_ACTION_PROGRESS_REPORT:
             let report = action.action.progress_report

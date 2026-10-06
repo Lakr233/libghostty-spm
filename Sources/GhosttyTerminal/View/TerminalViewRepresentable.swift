@@ -72,6 +72,9 @@ struct TerminalViewRepresentable {
         // so the surface the view already shows is the new state's now.
         if outgoing != nil, let surface = view.surface, context.surface !== surface {
             context.terminalDidAttachSurface(surface)
+            if let fontSize = view.core.fontSize {
+                context.terminalDidChangeFontSize(fontSize.points)
+            }
         }
 
         // Forward only changes: stamping unconditionally would revert an

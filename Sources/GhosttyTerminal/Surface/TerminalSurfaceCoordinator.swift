@@ -58,11 +58,6 @@ final class TerminalSurfaceCoordinator {
     var onMetricsUpdate: (() -> Void)?
     var onCellSizeDidChange: (() -> Void)?
     var onMouseShape: ((ghostty_action_mouse_shape_e) -> Void)?
-    /// Called after every successful (re)build, before the first metrics
-    /// sync. A new surface starts at `configuration`'s font size whatever
-    /// the old one had zoomed to, so view state that tracks the live
-    /// surface (the UIKit pinch counter) resets here.
-    var onSurfaceRebuild: (() -> Void)?
 
     /// Called after every display-link render (`tick`).
     ///
@@ -81,6 +76,11 @@ final class TerminalSurfaceCoordinator {
     var onPostRender: (() -> Void)?
 
     private var lastMetrics: TerminalViewportMetrics?
+
+    /// The live surface's font size, which Ghostty cannot report; kept by
+    /// +FontSize. `nil` while there is no surface, so every build reports
+    /// its starting size, to whichever delegate is set by then.
+    var fontSize: TerminalFontSize?
 
     /// The view size, in points, the surface was last sized to. While a
     /// resize throttle window is open this trails the live bounds: the
@@ -142,6 +142,9 @@ final class TerminalSurfaceCoordinator {
         }
         bridge.onMouseShape = { [weak self] shape in
             self?.onMouseShape?(shape)
+        }
+        bridge.onConfigChange = { [weak self] in
+            self?.reloadFontSizeConfiguration()
         }
     }
 
@@ -243,7 +246,7 @@ final class TerminalSurfaceCoordinator {
             }
         )
         TerminalDebugLog.log(.lifecycle, "surface rebuild succeeded")
-        onSurfaceRebuild?()
+        startFontSizeTracking(on: newSurface, controller: controller)
         (delegate as? any TerminalSurfaceLifecycleDelegate)?
             .terminalDidAttachSurface(newSurface)
         synchronizeMetrics()
@@ -604,6 +607,7 @@ final class TerminalSurfaceCoordinator {
         surface?.setFocus(false)
         surface?.free()
         surface = nil
+        fontSize = nil
         lastMetrics = nil
         syncedViewSize = nil
         syncedScale = nil

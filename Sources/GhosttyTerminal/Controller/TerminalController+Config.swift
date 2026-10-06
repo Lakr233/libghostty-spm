@@ -72,14 +72,18 @@ extension TerminalController {
         let previousManagedConfigURL = managedConfigURL
         let nextConfig = prepared.rawValue
 
+        // The controller takes the config first: each surface reports the
+        // reload from inside ghostty_app_update_config (CONFIG_CHANGE, on
+        // this thread), and the font-size tracking it triggers reads
+        // `configuredFontSize` back from here.
+        applyPreparedConfig(prepared, source: source)
+
         // Core's App.updateConfig hands the config to every surface the app
         // owns, so a per-surface ghostty_surface_update_config here would
         // apply it to each one a second time.
         if let app {
             ghostty_app_update_config(app, nextConfig)
         }
-
-        applyPreparedConfig(prepared, source: source)
 
         if let previousConfig {
             ghostty_config_free(previousConfig)
@@ -240,5 +244,11 @@ extension TerminalController {
         var background = ghostty_config_color_s()
         _ = ghostty_config_get(prepared.rawValue, &background, key, UInt(key.utf8.count))
         backgroundColor = TerminalColor(background)
+
+        let fontSizeKey = "font-size"
+        var fontSize: Float = 0
+        if ghostty_config_get(prepared.rawValue, &fontSize, fontSizeKey, UInt(fontSizeKey.utf8.count)) {
+            configuredFontSize = fontSize
+        }
     }
 }

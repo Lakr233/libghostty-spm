@@ -7,9 +7,10 @@
     #if !targetEnvironment(macCatalyst)
     import UIKit
 
-    /// Pinch-zoom font sizing state; behavior lives in +PinchZoom.
+    /// Pinch gesture state; behavior lives in +PinchZoom. The font size the
+    /// pinch steps is not kept here: the coordinator tracks it for every
+    /// platform and every path that zooms (`fontSize`).
     struct FontZoomState {
-        var currentFontSize: Float = 14
         var lastPinchScale: CGFloat = 1.0
     }
 
@@ -35,7 +36,7 @@
                 fontZoom.lastPinchScale = gesture.scale
                 TerminalDebugLog.log(
                     .actions,
-                    "pinch began scale=\(String(format: "%.3f", gesture.scale)) fontSize=\(fontZoom.currentFontSize)"
+                    "pinch began scale=\(String(format: "%.3f", gesture.scale)) fontSize=\(fontSizeDescription)"
                 )
 
             case .changed:
@@ -50,19 +51,22 @@
                     "pinch changed scale=\(String(format: "%.3f", gesture.scale)) delta=\(String(format: "%.3f", delta)) steps=\(steps)"
                 )
 
+                // Each step goes through the binding, which moves the
+                // tracked size as it lands; the pinch's own 4…64 range is
+                // checked against that size before every step.
                 var changed = false
                 if steps > 0 {
                     for _ in 0 ..< steps {
-                        guard fontZoom.currentFontSize < Self.maxFontSize else { break }
-                        surface?.performBindingAction("increase_font_size:1")
-                        fontZoom.currentFontSize += 1
+                        guard let size = fontSize, size < Self.maxFontSize,
+                              surface?.performBindingAction("increase_font_size:1") == true
+                        else { break }
                         changed = true
                     }
                 } else {
                     for _ in 0 ..< abs(steps) {
-                        guard fontZoom.currentFontSize > Self.minFontSize else { break }
-                        surface?.performBindingAction("decrease_font_size:1")
-                        fontZoom.currentFontSize -= 1
+                        guard let size = fontSize, size > Self.minFontSize,
+                              surface?.performBindingAction("decrease_font_size:1") == true
+                        else { break }
                         changed = true
                     }
                 }
@@ -72,7 +76,7 @@
                     refreshTextInputGeometry(reason: "pinch-zoom")
                     TerminalDebugLog.log(
                         .actions,
-                        "pinch applied fontSize=\(fontZoom.currentFontSize)"
+                        "pinch applied fontSize=\(fontSizeDescription)"
                     )
                 }
 
@@ -80,12 +84,16 @@
                 fontZoom.lastPinchScale = 1.0
                 TerminalDebugLog.log(
                     .actions,
-                    "pinch ended state=\(gesture.state.rawValue) fontSize=\(fontZoom.currentFontSize)"
+                    "pinch ended state=\(gesture.state.rawValue) fontSize=\(fontSizeDescription)"
                 )
 
             default:
                 break
             }
+        }
+
+        private var fontSizeDescription: String {
+            fontSize.map { "\($0)" } ?? "nil"
         }
     }
     #endif

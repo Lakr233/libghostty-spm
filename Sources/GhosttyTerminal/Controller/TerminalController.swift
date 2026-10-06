@@ -97,6 +97,15 @@ public final class TerminalController {
     /// The effective config's `background`.
     public internal(set) var backgroundColor = TerminalColor(red: 0x28, green: 0x2C, blue: 0x34)
 
+    /// The effective config's `font-size`: what a surface without its own
+    /// `TerminalSurfaceOptions.fontSize` starts at, and what Cmd+0
+    /// (`reset_font_size`) returns every surface to. Read back from Ghostty
+    /// rather than worked out here, because three layers can set it — a
+    /// config file, `TerminalConfiguration.default` (10 points on iOS and
+    /// Mac Catalyst, 14 elsewhere), and Ghostty's own per-OS default when
+    /// neither does. No surface exists before the first config loads.
+    var configuredFontSize: Float = 0
+
     // MARK: - Public Accessors
 
     public var currentConfigSource: ConfigSource {
