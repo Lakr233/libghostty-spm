@@ -82,7 +82,7 @@
         private static func runViewCycle(
             _ index: Int,
             in window: NSWindow,
-            ledger: ManagedConfigLedger
+            ledger: ManagedConfigLedger,
         ) -> [WeakReference] {
             let controller = TerminalController(theme: LifecycleStress.theme(index)) {
                 $0.withFontSize(Float(11 + index % 4))
@@ -153,7 +153,7 @@
 
         private static func runHostingRound(
             _ round: Int,
-            ledger: ManagedConfigLedger
+            ledger: ManagedConfigLedger,
         ) async -> [WeakReference] {
             var references: [WeakReference] = []
             let states = (0 ..< 3).map { offset in
@@ -161,7 +161,7 @@
                 ledger.record(controller)
                 let state = TerminalViewState(controller: controller)
                 state.configuration = TerminalSurfaceOptions(
-                    backend: .inMemory(InMemoryTerminalSession(write: { _ in }, resize: { _ in }))
+                    backend: .inMemory(InMemoryTerminalSession(write: { _ in }, resize: { _ in })),
                 )
                 return state
             }
@@ -211,7 +211,7 @@
                 contentRect: NSRect(x: 0, y: 0, width: 480, height: 320),
                 styleMask: [.titled],
                 backing: .buffered,
-                defer: false
+                defer: false,
             )
             window.isReleasedWhenClosed = false
             return window
@@ -249,7 +249,7 @@
                 contentRect: CGRect(x: 0, y: 0, width: 320, height: 240),
                 styleMask: [.titled],
                 backing: .buffered,
-                defer: false
+                defer: false,
             )
             window.isReleasedWhenClosed = false
             window.contentView = NSHostingView(rootView: SelectedPane(selection: selection))

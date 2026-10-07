@@ -144,7 +144,7 @@ struct TerminalSurfaceResizeThrottleTests {
         // though the configuration asks for it.
         let harness = SurfaceHarness(
             resizeThrottleMilliseconds: 5000,
-            resizeThrottleInterval: 0
+            resizeThrottleInterval: 0,
         )
         defer { harness.tearDown() }
         let coordinator = harness.coordinator
@@ -241,7 +241,7 @@ private final class SurfaceHarness {
     init(
         session: InMemoryTerminalSession = InMemoryTerminalSession(write: { _ in }, resize: { _ in }),
         resizeThrottleMilliseconds: Double = 0,
-        resizeThrottleInterval: TimeInterval? = nil
+        resizeThrottleInterval: TimeInterval? = nil,
     ) {
         platformView.wantsLayer = true
         coordinator.isAttached = { true }
@@ -251,13 +251,13 @@ private final class SurfaceHarness {
             config.platform_tag = GHOSTTY_PLATFORM_MACOS
             config.platform = ghostty_platform_u(
                 macos: ghostty_platform_macos_s(
-                    nsview: Unmanaged.passUnretained(platformView).toOpaque()
-                )
+                    nsview: Unmanaged.passUnretained(platformView).toOpaque(),
+                ),
             )
         }
         coordinator.configuration = TerminalSurfaceOptions(
             backend: .inMemory(session),
-            resizeThrottleMilliseconds: resizeThrottleMilliseconds
+            resizeThrottleMilliseconds: resizeThrottleMilliseconds,
         )
         coordinator.resizeThrottleInterval = resizeThrottleInterval
         coordinator.controller = TerminalController()

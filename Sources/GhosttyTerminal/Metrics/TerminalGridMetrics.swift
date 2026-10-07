@@ -21,7 +21,7 @@ public struct TerminalGridMetrics: Sendable, Equatable {
         widthPixels: UInt32,
         heightPixels: UInt32,
         cellWidthPixels: UInt32,
-        cellHeightPixels: UInt32
+        cellHeightPixels: UInt32,
     ) {
         self.columns = columns
         self.rows = rows
@@ -38,7 +38,7 @@ public struct TerminalGridMetrics: Sendable, Equatable {
             widthPixels: rawValue.width_px,
             heightPixels: rawValue.height_px,
             cellWidthPixels: rawValue.cell_width_px,
-            cellHeightPixels: rawValue.cell_height_px
+            cellHeightPixels: rawValue.cell_height_px,
         )
     }
 }

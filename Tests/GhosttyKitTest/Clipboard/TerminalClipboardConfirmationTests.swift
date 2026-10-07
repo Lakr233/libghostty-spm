@@ -10,7 +10,7 @@ struct TerminalClipboardConfirmationTests {
         let request = TerminalClipboardConfirmationRequest(
             contents: "one\ntwo",
             kind: .paste,
-            completion: { decisions.append($0) }
+            completion: { decisions.append($0) },
         )
 
         request.respond(allow: true)
@@ -26,7 +26,7 @@ struct TerminalClipboardConfirmationTests {
             TerminalClipboardConfirmationRequest(
                 contents: "one\ntwo",
                 kind: .paste,
-                completion: { decisions.append($0) }
+                completion: { decisions.append($0) },
             )
 
         #expect(request != nil)

@@ -1,12 +1,12 @@
-@testable import GhosttyTerminal
 import Foundation
 import GhosttyKit
+@testable import GhosttyTerminal
 import Testing
 
-// `receive` never blocks, so a transport faster than the parser queues output
-// without limit. The backlog accessor and handler are how a host applies
-// backpressure; `waitForPendingOutput` must still cover every earlier write
-// now that one drain block hands over a batch.
+/// `receive` never blocks, so a transport faster than the parser queues output
+/// without limit. The backlog accessor and handler are how a host applies
+/// backpressure; `waitForPendingOutput` must still cover every earlier write
+/// now that one drain block hands over a batch.
 struct InMemoryTerminalSessionBacklogTests {
     @Test
     func `the backlog handler reports high water then low water once each`() {
@@ -15,7 +15,7 @@ struct InMemoryTerminalSessionBacklogTests {
         let session = InMemoryTerminalSession(
             write: { _ in },
             resize: { _ in },
-            surfaceWrite: { _, _ in gate.wait() }
+            surfaceWrite: { _, _ in gate.wait() },
         )
         session.setOutputBacklogHandler(highWater: 4096, lowWater: 1024) { events.append($0) }
         session.setSurface(backlogSurface)
@@ -40,7 +40,7 @@ struct InMemoryTerminalSessionBacklogTests {
         let session = InMemoryTerminalSession(
             write: { _ in },
             resize: { _ in },
-            surfaceWrite: { _, _ in }
+            surfaceWrite: { _, _ in },
         )
         // Detached: bytes wait for a surface.
         session.receive(Data(repeating: 0x62, count: 8192))
@@ -63,9 +63,11 @@ struct InMemoryTerminalSessionBacklogTests {
             write: { _ in },
             resize: { _ in },
             surfaceWrite: { _, data in
-                if sink.count == 0 { gate.wait() }
+                if sink.count == 0 {
+                    gate.wait()
+                }
                 sink.append(data)
-            }
+            },
         )
         session.setSurface(backlogSurface)
         let writes = 1000
@@ -83,7 +85,7 @@ struct InMemoryTerminalSessionBacklogTests {
         let session = InMemoryTerminalSession(
             write: { _ in },
             resize: { _ in },
-            surfaceWrite: { _, data in sink.append(data) }
+            surfaceWrite: { _, data in sink.append(data) },
         )
         session.setSurface(backlogSurface)
         var expected = Data()

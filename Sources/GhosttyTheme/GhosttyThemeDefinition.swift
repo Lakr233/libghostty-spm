@@ -25,7 +25,7 @@ public struct GhosttyThemeDefinition: Sendable, Hashable, Identifiable {
         cursorText: String? = nil,
         selectionBackground: String? = nil,
         selectionForeground: String? = nil,
-        palette: [Int: String] = [:]
+        palette: [Int: String] = [:],
     ) {
         self.name = name
         self.background = background

@@ -32,7 +32,7 @@ public extension TerminalViewState {
 
     @discardableResult
     func setTerminalConfiguration(
-        _ terminalConfiguration: TerminalConfiguration
+        _ terminalConfiguration: TerminalConfiguration,
     ) -> Bool {
         let changed = controller.setTerminalConfiguration(terminalConfiguration) {
             self.objectWillChange.send()

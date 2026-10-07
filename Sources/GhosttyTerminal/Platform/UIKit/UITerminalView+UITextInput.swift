@@ -75,13 +75,13 @@
             let route = TerminalSoftwareKeyCommitRouter.route(
                 text: text,
                 hasMarkedText: inputHandler.hasMarkedText,
-                hardwareKeyHandled: hardwareKeyboard.keyHandled
+                hardwareKeyHandled: hardwareKeyboard.keyHandled,
             )
 
             if route == .suppressHardwareDuplicate {
                 TerminalDebugLog.log(
                     .input,
-                    "insertText suppressed text=\(TerminalDebugLog.describe(text))"
+                    "insertText suppressed text=\(TerminalDebugLog.describe(text))",
                 )
                 hardwareKeyboard.keyHandled = false
                 return
@@ -92,7 +92,7 @@
                     let mods = stickyModifiers.consumeForNextKey()
                     TerminalDebugLog.log(
                         .input,
-                        "insertText semantic enter mods=0x\(String(mods.ghosttyMods.rawValue, radix: 16))"
+                        "insertText semantic enter mods=0x\(String(mods.ghosttyMods.rawValue, radix: 16))",
                     )
                     sendSyntheticKey(usage: 0x28, additionalMods: mods)
                 #else
@@ -117,33 +117,33 @@
         }
 
         #if targetEnvironment(macCatalyst)
-        /// Deliver Return exactly as a hardware keyboard would: one Enter key
-        /// event through the core's key encoder, so terminal modes (kitty
-        /// keyboard protocol included) keep deciding the bytes. iOS routes
-        /// semantic Enter through sendSyntheticKey (sticky modifiers apply);
-        /// Catalyst has no accessory bar, so this direct path remains.
-        private func sendReturnKey() {
-            let usage = UInt16(UIKeyboardHIDUsage.keyboardReturnOrEnter.rawValue)
+            /// Deliver Return exactly as a hardware keyboard would: one Enter key
+            /// event through the core's key encoder, so terminal modes (kitty
+            /// keyboard protocol included) keep deciding the bytes. iOS routes
+            /// semantic Enter through sendSyntheticKey (sticky modifiers apply);
+            /// Catalyst has no accessory bar, so this direct path remains.
+            private func sendReturnKey() {
+                let usage = UInt16(UIKeyboardHIDUsage.keyboardReturnOrEnter.rawValue)
 
-            var keyEvent = ghostty_input_key_s()
-            keyEvent.action = GHOSTTY_ACTION_PRESS
-            keyEvent.mods = ghostty_input_mods_e(rawValue: 0)
-            keyEvent.keycode = TerminalHardwareKeyRouter.appKitKeyCodeForUIKit(
-                usage: usage
-            )
-            keyEvent.composing = false
+                var keyEvent = ghostty_input_key_s()
+                keyEvent.action = GHOSTTY_ACTION_PRESS
+                keyEvent.mods = ghostty_input_mods_e(rawValue: 0)
+                keyEvent.keycode = TerminalHardwareKeyRouter.appKitKeyCodeForUIKit(
+                    usage: usage,
+                )
+                keyEvent.composing = false
 
-            let carriageReturn = "\r"
-            carriageReturn.withCString { ptr in
-                keyEvent.text = ptr
+                let carriageReturn = "\r"
+                carriageReturn.withCString { ptr in
+                    keyEvent.text = ptr
+                    sendInputKeyEvent(keyEvent)
+                }
+                // The matching release, so a kitty-protocol program with event
+                // reporting never sees Return held down.
+                keyEvent.action = GHOSTTY_ACTION_RELEASE
+                keyEvent.text = nil
                 sendInputKeyEvent(keyEvent)
             }
-            // The matching release, so a kitty-protocol program with event
-            // reporting never sees Return held down.
-            keyEvent.action = GHOSTTY_ACTION_RELEASE
-            keyEvent.text = nil
-            sendInputKeyEvent(keyEvent)
-        }
         #endif
 
         open func deleteBackward() {
@@ -176,7 +176,7 @@
             keyEvent.action = GHOSTTY_ACTION_PRESS
             keyEvent.mods = ghostty_input_mods_e(rawValue: 0)
             keyEvent.keycode = TerminalHardwareKeyRouter.appKitKeyCodeForUIKit(
-                usage: usage
+                usage: usage,
             )
             keyEvent.composing = false
 
@@ -194,7 +194,7 @@
 
         open func setMarkedText(
             _ markedText: String?,
-            selectedRange: NSRange
+            selectedRange: NSRange,
         ) {
             #if !targetEnvironment(macCatalyst)
                 claimPendingInputMethodKeys()
@@ -237,7 +237,7 @@
 
         open func textRange(
             from fromPosition: UITextPosition,
-            to toPosition: UITextPosition
+            to toPosition: UITextPosition,
         ) -> UITextRange? {
             guard
                 let from = fromPosition as? TerminalTextPosition,
@@ -248,7 +248,7 @@
 
         open func position(
             from position: UITextPosition,
-            offset: Int
+            offset: Int,
         ) -> UITextPosition? {
             guard let pos = position as? TerminalTextPosition else { return nil }
             let newIndex = pos.index + offset
@@ -259,28 +259,32 @@
         open func position(
             from position: UITextPosition,
             in _: UITextLayoutDirection,
-            offset: Int
+            offset: Int,
         ) -> UITextPosition? {
             self.position(from: position, offset: offset)
         }
 
         open func compare(
             _ position: UITextPosition,
-            to other: UITextPosition
+            to other: UITextPosition,
         ) -> ComparisonResult {
             guard
                 let lhs = position as? TerminalTextPosition,
                 let rhs = other as? TerminalTextPosition
             else { return .orderedSame }
 
-            if lhs.index < rhs.index { return .orderedAscending }
-            if lhs.index > rhs.index { return .orderedDescending }
+            if lhs.index < rhs.index {
+                return .orderedAscending
+            }
+            if lhs.index > rhs.index {
+                return .orderedDescending
+            }
             return .orderedSame
         }
 
         open func offset(
             from: UITextPosition,
-            to toPosition: UITextPosition
+            to toPosition: UITextPosition,
         ) -> Int {
             guard
                 let f = from as? TerminalTextPosition,
@@ -346,7 +350,7 @@
         }
 
         open func selectionRects(
-            for _: UITextRange
+            for _: UITextRange,
         ) -> [UITextSelectionRect] {
             []
         }
@@ -357,7 +361,7 @@
 
         open func closestPosition(
             to point: CGPoint,
-            within _: UITextRange
+            within _: UITextRange,
         ) -> UITextPosition? {
             closestPosition(to: point)
         }
@@ -369,7 +373,7 @@
 
         open func position(
             within range: UITextRange,
-            farthestIn direction: UITextLayoutDirection
+            farthestIn direction: UITextLayoutDirection,
         ) -> UITextPosition? {
             switch direction {
             case .left, .up: return range.start
@@ -380,7 +384,7 @@
 
         open func characterRange(
             byExtending position: UITextPosition,
-            in _: UITextLayoutDirection
+            in _: UITextLayoutDirection,
         ) -> UITextRange? {
             let documentLength = inputHandler.document.length
             guard documentLength > 0,
@@ -395,14 +399,14 @@
 
         open func baseWritingDirection(
             for _: UITextPosition,
-            in _: UITextStorageDirection
+            in _: UITextStorageDirection,
         ) -> NSWritingDirection {
             .leftToRight
         }
 
         open func setBaseWritingDirection(
             _: NSWritingDirection,
-            for _: UITextRange
+            for _: UITextRange,
         ) {}
 
         private func imeRect() -> CGRect {
@@ -412,7 +416,7 @@
                 x: point.x,
                 y: point.y,
                 width: point.width,
-                height: point.height
+                height: point.height,
             )
         }
 
@@ -440,11 +444,11 @@
                     x: baseRect.minX,
                     y: baseRect.minY,
                     width: cellWidth,
-                    height: baseRect.height
+                    height: baseRect.height,
                 )
                 TerminalDebugLog.log(
                     .ime,
-                    "caretRect empty position base=\(NSCoder.string(for: baseRect)) rect=\(NSCoder.string(for: rect))"
+                    "caretRect empty position base=\(NSCoder.string(for: baseRect)) rect=\(NSCoder.string(for: rect))",
                 )
                 return rect
             }
@@ -454,11 +458,11 @@
                     x: baseRect.maxX,
                     y: baseRect.minY,
                     width: cellWidth,
-                    height: baseRect.height
+                    height: baseRect.height,
                 )
                 TerminalDebugLog.log(
                     .ime,
-                    "caretRect fallback base=\(NSCoder.string(for: baseRect)) rect=\(NSCoder.string(for: rect))"
+                    "caretRect fallback base=\(NSCoder.string(for: baseRect)) rect=\(NSCoder.string(for: rect))",
                 )
                 return rect
             }
@@ -469,11 +473,11 @@
                 x: x,
                 y: baseRect.minY,
                 width: cellWidth,
-                height: baseRect.height
+                height: baseRect.height,
             )
             TerminalDebugLog.log(
                 .ime,
-                "caretRect index=\(clampedIndex) base=\(NSCoder.string(for: baseRect)) cellWidth=\(String(format: "%.2f", cellWidth)) rect=\(NSCoder.string(for: rect))"
+                "caretRect index=\(clampedIndex) base=\(NSCoder.string(for: baseRect)) cellWidth=\(String(format: "%.2f", cellWidth)) rect=\(NSCoder.string(for: rect))",
             )
             return rect
         }
@@ -481,11 +485,11 @@
         private func rect(
             for range: TerminalTextRange,
             in baseRect: CGRect,
-            fallbackWidth: CGFloat
+            fallbackWidth: CGFloat,
         ) -> CGRect {
             let cellWidth = compositionCellWidth(in: baseRect)
             let markedRange = inputHandler.document.markedRange(
-                of: NSRange(location: range.location, length: range.length)
+                of: NSRange(location: range.location, length: range.length),
             )
             let x = baseRect.minX + CGFloat(markedRange.location) * cellWidth
             let width = max(CGFloat(markedRange.length) * cellWidth, fallbackWidth)
@@ -493,7 +497,7 @@
                 x: x,
                 y: baseRect.minY,
                 width: width,
-                height: baseRect.height
+                height: baseRect.height,
             )
         }
 
@@ -521,7 +525,7 @@
             let index = document.position(ofMarkedOffset: rawIndex)
             TerminalDebugLog.log(
                 .ime,
-                "textIndex point=\(NSCoder.string(for: point)) base=\(NSCoder.string(for: baseRect)) cellWidth=\(String(format: "%.2f", cellWidth)) index=\(index)"
+                "textIndex point=\(NSCoder.string(for: point)) base=\(NSCoder.string(for: baseRect)) cellWidth=\(String(format: "%.2f", cellWidth)) index=\(index)",
             )
             return index
         }

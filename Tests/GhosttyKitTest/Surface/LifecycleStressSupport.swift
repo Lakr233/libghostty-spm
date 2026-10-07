@@ -40,7 +40,7 @@ enum LifecycleStress {
                 .foreground("202020"),
             dark: TerminalConfiguration()
                 .background(String(format: "1%05X", index % 0xFFFF))
-                .foreground("E0E0E0")
+                .foreground("E0E0E0"),
         )
     }
 

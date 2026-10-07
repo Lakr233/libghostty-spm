@@ -16,20 +16,20 @@
             markedTextState.hasMarkedText
         }
 
-        /// Positions the UITextInput document holds before the marked text.
-        ///
-        /// The software keyboard's held Delete stops the moment the caret is
-        /// at the start of the document: before every repeat, UIKit's
-        /// `handleAutoDeleteWithExecutionContext:` asks
-        /// `-[UIResponder _selectionAtDocumentStart]` — `compare(
-        /// selectedTextRange.start, beginningOfDocument) == .orderedSame` —
-        /// and clears the repeat timer when it says yes. A terminal's
-        /// document is only ever the composition, empty at a prompt, so the
-        /// caret was always at its start and a held Delete sent exactly one
-        /// backspace. One position of anchor ahead of the composition keeps
-        /// the caret off the start; it carries no text, so what the keyboard
-        /// reads as context is unchanged. Catalyst has no software keyboard
-        /// and keeps the plain document.
+        // Positions the UITextInput document holds before the marked text.
+        //
+        // The software keyboard's held Delete stops the moment the caret is
+        // at the start of the document: before every repeat, UIKit's
+        // `handleAutoDeleteWithExecutionContext:` asks
+        // `-[UIResponder _selectionAtDocumentStart]` — `compare(
+        // selectedTextRange.start, beginningOfDocument) == .orderedSame` —
+        // and clears the repeat timer when it says yes. A terminal's
+        // document is only ever the composition, empty at a prompt, so the
+        // caret was always at its start and a held Delete sent exactly one
+        // backspace. One position of anchor ahead of the composition keeps
+        // the caret off the start; it carries no text, so what the keyboard
+        // reads as context is unchanged. Catalyst has no software keyboard
+        // and keeps the plain document.
         #if targetEnvironment(macCatalyst)
             private static let documentAnchorLength = 0
         #else
@@ -41,7 +41,7 @@
         var document: TerminalInputDocument {
             TerminalInputDocument(
                 anchorLength: Self.documentAnchorLength,
-                markedLength: markedTextState.documentLength
+                markedLength: markedTextState.documentLength,
             )
         }
 
@@ -53,14 +53,14 @@
 
         func insertText(
             _ text: String,
-            applyingStickyModifiers: Bool = false
+            applyingStickyModifiers: Bool = false,
         ) {
             guard let view else { return }
             let shouldNotifySelectionChange = shouldNotifySelectionChange
 
             TerminalDebugLog.log(
                 .input,
-                "insertText text=\(TerminalDebugLog.describe(text)) marked=\(hasMarkedText)"
+                "insertText text=\(TerminalDebugLog.describe(text)) marked=\(hasMarkedText)",
             )
 
             view.inputDelegate?.textWillChange(view)
@@ -118,7 +118,7 @@
             guard !text.contains(where: \.isNewline) else {
                 TerminalDebugLog.log(
                     .input,
-                    "typed text has newlines, sending as paste bytes=\(text.utf8.count)"
+                    "typed text has newlines, sending as paste bytes=\(text.utf8.count)",
                 )
                 view.paste(text: text)
                 return
@@ -144,7 +144,7 @@
 
             TerminalDebugLog.log(
                 .ime,
-                "setMarkedText text=\(TerminalDebugLog.describe(text)) selected=\(TerminalDebugLog.describe(selectedRange))"
+                "setMarkedText text=\(TerminalDebugLog.describe(text)) selected=\(TerminalDebugLog.describe(selectedRange))",
             )
 
             #if !targetEnvironment(macCatalyst)
@@ -187,7 +187,7 @@
         }
 
         func unmarkText(
-            applyingStickyModifiers: Bool = false
+            applyingStickyModifiers: Bool = false,
         ) {
             guard let view else { return }
             let shouldNotifySelectionChange = shouldNotifySelectionChange
@@ -195,7 +195,7 @@
 
             TerminalDebugLog.log(
                 .ime,
-                "unmarkText committed=\(TerminalDebugLog.describe(committedText))"
+                "unmarkText committed=\(TerminalDebugLog.describe(committedText))",
             )
 
             view.inputDelegate?.textWillChange(view)
@@ -228,14 +228,14 @@
             guard markedTextState.hasMarkedText else { return nil }
             return TerminalTextRange(
                 location: document.position(ofMarkedOffset: markedTextState.markedRange.location),
-                length: markedTextState.markedRange.length
+                length: markedTextState.markedRange.length,
             )
         }
 
         func selectedTextRange() -> TerminalTextRange {
             TerminalTextRange(
                 location: document.position(ofMarkedOffset: markedTextState.selectedRange.location),
-                length: markedTextState.selectedRange.length
+                length: markedTextState.selectedRange.length,
             )
         }
 
@@ -248,7 +248,7 @@
             guard markedTextState.selectedRange != clampedRange else { return }
             TerminalDebugLog.log(
                 .ime,
-                "setSelectedTextRange range=\(TerminalDebugLog.describe(clampedRange))"
+                "setSelectedTextRange range=\(TerminalDebugLog.describe(clampedRange))",
             )
             notifySelectionWillChange()
             markedTextState.setMarkedText(markedTextState.text, selectedRange: clampedRange)
@@ -268,7 +268,7 @@
             let shouldNotifySelectionChange = shouldNotifySelectionChange
             TerminalDebugLog.log(
                 .ime,
-                "deleteBackwardInMarkedText selected=\(TerminalDebugLog.describe(markedTextState.selectedRange))"
+                "deleteBackwardInMarkedText selected=\(TerminalDebugLog.describe(markedTextState.selectedRange))",
             )
             view.inputDelegate?.textWillChange(view)
             if shouldNotifySelectionChange {
@@ -290,7 +290,7 @@
             guard let view else { return }
             TerminalDebugLog.log(
                 .ime,
-                "notifyGeometryDidChange reason=\(reason) selected=\(TerminalDebugLog.describe(markedTextState.selectedRange)) documentLength=\(markedTextState.documentLength) marked=\(hasMarkedText)"
+                "notifyGeometryDidChange reason=\(reason) selected=\(TerminalDebugLog.describe(markedTextState.selectedRange)) documentLength=\(markedTextState.documentLength) marked=\(hasMarkedText)",
             )
             view.inputDelegate?.selectionWillChange(view)
             view.inputDelegate?.selectionDidChange(view)

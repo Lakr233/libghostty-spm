@@ -52,7 +52,7 @@ extension TerminalViewState:
     /// close must act before the surface goes.
     private func publishSoon(
         _ key: TerminalPendingPublishes.Key,
-        _ apply: @escaping TerminalPendingPublishes.Apply
+        _ apply: @escaping TerminalPendingPublishes.Apply,
     ) {
         pendingPublishes.set(key, apply)
         guard !pendingPublishes.isFlushScheduled else { return }

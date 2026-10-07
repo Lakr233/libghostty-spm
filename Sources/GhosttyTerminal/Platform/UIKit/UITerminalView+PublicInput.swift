@@ -9,15 +9,17 @@
     import GhosttyKit
     import UIKit
 
-    extension UITerminalView {
+    public extension UITerminalView {
         /// Make this view the first responder, reporting whether keyboard
         /// focus was actually acquired. Fails (returns false) while the view
         /// is not in a window; ``TerminalViewState/requestFocus()`` retries
         /// then on window attach.
         @discardableResult
-        public func acquireProgrammaticFocus() -> Bool {
+        func acquireProgrammaticFocus() -> Bool {
             guard window != nil else { return false }
-            if isFirstResponder { return true }
+            if isFirstResponder {
+                return true
+            }
             return becomeFirstResponder()
         }
 
@@ -26,7 +28,7 @@
         /// `\r` in it is a pasted character, not Enter. Keystrokes go
         /// through ``sendKey(_:)``. False with no surface yet.
         @discardableResult
-        public func paste(text: String) -> Bool {
+        func paste(text: String) -> Bool {
             dismissTouchSelection()
             return surface?.paste(text: text) ?? false
         }
@@ -37,7 +39,7 @@
         /// bar. Cmd+C copies an inline selection; ordinary input clears it
         /// and commits any open IME composition. False with no surface yet.
         @discardableResult
-        public func sendKey(_ press: TerminalKeyPress) -> Bool {
+        func sendKey(_ press: TerminalKeyPress) -> Bool {
             guard surface != nil else { return false }
             var press = press
             #if !targetEnvironment(macCatalyst)
@@ -49,14 +51,14 @@
         /// ``sendKey(_:)`` for a key and its modifiers: `sendKey(.enter)`,
         /// `sendKey(.c, modifiers: .ctrl)`.
         @discardableResult
-        public func sendKey(_ key: TerminalKey, modifiers: TerminalInputModifiers = []) -> Bool {
+        func sendKey(_ key: TerminalKey, modifiers: TerminalInputModifiers = []) -> Bool {
             sendKey(TerminalKeyPress(key, modifiers: modifiers))
         }
 
         /// Invoke a named Ghostty binding action (e.g. "copy_to_clipboard",
         /// "clear_screen"). Returns true when the action dispatched.
         @discardableResult
-        public func performBindingAction(_ action: String) -> Bool {
+        func performBindingAction(_ action: String) -> Bool {
             surface?.performBindingAction(action) ?? false
         }
 
@@ -65,47 +67,47 @@
         /// Negative offsets move toward older prompts and positive offsets move
         /// toward newer prompts. Prompt navigation requires shell integration.
         @discardableResult
-        public func jumpToPrompt(by offset: Int16) -> Bool {
+        func jumpToPrompt(by offset: Int16) -> Bool {
             surface?.jumpToPrompt(by: offset) ?? false
         }
 
         /// Reveal an absolute scrollback row, where zero is the first row.
         @discardableResult
-        public func scrollToRow(_ row: UInt) -> Bool {
+        func scrollToRow(_ row: UInt) -> Bool {
             surface?.scrollToRow(row) ?? false
         }
 
         /// Whether the application currently owns the mouse.
-        public var isMouseCaptured: Bool {
+        var isMouseCaptured: Bool {
             surface?.isMouseCaptured ?? false
         }
 
         /// View points. Ghostty applies content scale internally.
-        public func sendMousePos(
+        func sendMousePos(
             x: Double,
             y: Double,
-            modifiers: TerminalInputModifiers = []
+            modifiers: TerminalInputModifiers = [],
         ) {
             surface?.sendMousePos(x: x, y: y, modifiers: modifiers)
         }
 
         @discardableResult
-        public func sendMouseButton(
+        func sendMouseButton(
             state: ghostty_input_mouse_state_e,
             button: ghostty_input_mouse_button_e,
-            modifiers: TerminalInputModifiers = []
+            modifiers: TerminalInputModifiers = [],
         ) -> Bool {
             surface?.sendMouseButton(
                 state: state,
                 button: button,
-                modifiers: modifiers
+                modifiers: modifiers,
             ) ?? false
         }
 
-        public func sendMouseScroll(
+        func sendMouseScroll(
             x: Double,
             y: Double,
-            mods: TerminalScrollModifiers = TerminalScrollModifiers(precision: true)
+            mods: TerminalScrollModifiers = TerminalScrollModifiers(precision: true),
         ) {
             surface?.sendMouseScroll(x: x, y: y, mods: mods)
         }

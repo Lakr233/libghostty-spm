@@ -16,11 +16,11 @@
         open func setMarkedText(
             _ string: Any,
             selectedRange: NSRange,
-            replacementRange _: NSRange
+            replacementRange _: NSRange,
         ) {
             inputHandler?.inputMethodHandler?.setMarkedText(
                 string,
-                selectedRange: selectedRange
+                selectedRange: selectedRange,
             )
         }
 
@@ -44,11 +44,11 @@
 
         open func attributedSubstring(
             forProposedRange range: NSRange,
-            actualRange: NSRangePointer?
+            actualRange: NSRangePointer?,
         ) -> NSAttributedString? {
             inputHandler?.inputMethodHandler?.attributedSubstring(
                 forProposedRange: range,
-                actualRange: actualRange
+                actualRange: actualRange,
             )
         }
 
@@ -58,7 +58,7 @@
 
         open func firstRect(
             forCharacterRange _: NSRange,
-            actualRange _: NSRangePointer?
+            actualRange _: NSRangePointer?,
         ) -> NSRect {
             guard let surface else { return .zero }
 
@@ -68,7 +68,7 @@
                 x: point.x,
                 y: bounds.height - point.y,
                 width: point.width,
-                height: point.height
+                height: point.height,
             )
 
             guard let window else { return viewRect }

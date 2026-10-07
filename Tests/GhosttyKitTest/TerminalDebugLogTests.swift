@@ -28,7 +28,7 @@ struct TerminalDebugLogTests {
 }
 
 private func withRestoredDebugLogState(
-    _ body: () -> Void
+    _ body: () -> Void,
 ) {
     let originalEnabled = TerminalDebugLog.isEnabled
     let originalCategories = TerminalDebugLog.categories

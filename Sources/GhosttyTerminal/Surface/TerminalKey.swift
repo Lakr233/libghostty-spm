@@ -396,7 +396,7 @@ public enum TerminalKey: Sendable, Hashable, CaseIterable {
     }
 
     private static let byGhosttyKey: [UInt32: TerminalKey] = Dictionary(
-        uniqueKeysWithValues: allCases.map { ($0.ghosttyKey.rawValue, $0) }
+        uniqueKeysWithValues: allCases.map { ($0.ghosttyKey.rawValue, $0) },
     )
 
     /// Whether libghostty can resolve this key on Apple platforms. Its key
@@ -496,7 +496,7 @@ public enum TerminalKey: Sendable, Hashable, CaseIterable {
     /// Nil for characters no US key types (control characters, letters
     /// outside ASCII).
     public static func usLayoutKey(
-        typing character: Character
+        typing character: Character,
     ) -> (key: TerminalKey, shifted: Bool)? {
         usLayoutKeysByCharacter[character]
     }

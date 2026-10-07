@@ -57,7 +57,7 @@
             gesture.setTranslation(.zero, in: self)
             TerminalDebugLog.log(
                 .input,
-                "scroll wheel translation=\(String(format: "%.2f", translation.x))x\(String(format: "%.2f", translation.y))"
+                "scroll wheel translation=\(String(format: "%.2f", translation.x))x\(String(format: "%.2f", translation.y))",
             )
 
             // Ghostty's scroll C API has no key mods. The last mouse_pos
@@ -75,12 +75,12 @@
             surface?.sendMouseScroll(
                 x: Double(translation.x),
                 y: Double(translation.y),
-                mods: scrollMods.rawValue
+                mods: scrollMods.rawValue,
             )
         }
 
         @objc func handleTouchScrollGesture(
-            _ gesture: UIPanGestureRecognizer
+            _ gesture: UIPanGestureRecognizer,
         ) {
             #if !targetEnvironment(macCatalyst)
                 if usesInlineTextSelection {
@@ -113,7 +113,7 @@
                 gesture.setTranslation(.zero, in: self)
                 TerminalDebugLog.log(
                     .input,
-                    "touch scroll changed translation=\(String(format: "%.2f", translation.x))x\(String(format: "%.2f", translation.y))"
+                    "touch scroll changed translation=\(String(format: "%.2f", translation.x))x\(String(format: "%.2f", translation.y))",
                 )
 
                 if usesInlineTextSelection, !momentumScroll.scrollsLocally {
@@ -126,7 +126,7 @@
                 let velocity = gesture.velocity(in: self)
                 TerminalDebugLog.log(
                     .input,
-                    "touch scroll ended velocity=\(String(format: "%.2f", velocity.x))x\(String(format: "%.2f", velocity.y))"
+                    "touch scroll ended velocity=\(String(format: "%.2f", velocity.x))x\(String(format: "%.2f", velocity.y))",
                 )
                 if !usesInlineTextSelection || momentumScroll.scrollsLocally || surface?.isMouseCaptured != true {
                     startMomentumScrolling(velocity: velocity)
@@ -148,7 +148,7 @@
                 guard cellHeight > 0 else { return }
                 momentumScroll.localRow = min(
                     max(0, CGFloat(bar.total) - CGFloat(bar.len)),
-                    max(0, momentumScroll.localRow - delta.y / cellHeight)
+                    max(0, momentumScroll.localRow - delta.y / cellHeight),
                 )
                 _ = surface?.scrollToRow(UInt(momentumScroll.localRow.rounded()))
                 core.requestImmediateTick()
@@ -165,14 +165,14 @@
             momentumScroll.velocity = velocity
             TerminalDebugLog.log(
                 .input,
-                "momentum start velocity=\(String(format: "%.2f", velocity.x))x\(String(format: "%.2f", velocity.y))"
+                "momentum start velocity=\(String(format: "%.2f", velocity.x))x\(String(format: "%.2f", velocity.y))",
             )
 
             scrollTouchContent(by: .zero, momentum: .began)
 
             let link = CADisplayLink(
                 target: self,
-                selector: #selector(momentumScrollFrame(_:))
+                selector: #selector(momentumScrollFrame(_:)),
             )
             link.add(to: .main, forMode: .common)
             momentumScroll.displayLink = link
@@ -197,7 +197,7 @@
 
             TerminalDebugLog.log(
                 .input,
-                "momentum frame velocity=\(String(format: "%.2f", momentumScroll.velocity.x))x\(String(format: "%.2f", momentumScroll.velocity.y)) delta=\(String(format: "%.2f", deltaX))x\(String(format: "%.2f", deltaY))"
+                "momentum frame velocity=\(String(format: "%.2f", momentumScroll.velocity.x))x\(String(format: "%.2f", momentumScroll.velocity.y)) delta=\(String(format: "%.2f", deltaX))x\(String(format: "%.2f", deltaY))",
             )
 
             scrollTouchContent(by: CGPoint(x: deltaX, y: deltaY), momentum: .changed)

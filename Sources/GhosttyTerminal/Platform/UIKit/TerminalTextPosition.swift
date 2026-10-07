@@ -48,7 +48,7 @@
         convenience init(location: Int, length: Int) {
             self.init(
                 start: TerminalTextPosition(location),
-                end: TerminalTextPosition(location + length)
+                end: TerminalTextPosition(location + length),
             )
         }
     }

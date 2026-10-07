@@ -9,7 +9,7 @@ public extension GhosttyThemeDefinition {
         cursorText: "141415",
         selectionBackground: "252530",
         selectionForeground: "cdcdcd",
-        palette: [0: "252530", 1: "d8647e", 2: "7fa563", 3: "f3be7c", 4: "6e94b2", 5: "bb9dbd", 6: "aeaed1", 7: "cdcdcd", 8: "606079", 9: "e08398", 10: "99b782", 11: "f5cb96", 12: "8ba9c1", 13: "c9b1ca", 14: "bebeda", 15: "d7d7d7"]
+        palette: [0: "252530", 1: "d8647e", 2: "7fa563", 3: "f3be7c", 4: "6e94b2", 5: "bb9dbd", 6: "aeaed1", 7: "cdcdcd", 8: "606079", 9: "e08398", 10: "99b782", 11: "f5cb96", 12: "8ba9c1", 13: "c9b1ca", 14: "bebeda", 15: "d7d7d7"],
     )
 
     static let vaughn = GhosttyThemeDefinition(
@@ -20,7 +20,7 @@ public extension GhosttyThemeDefinition {
         cursorText: "ffffff",
         selectionBackground: "b5d5ff",
         selectionForeground: "000000",
-        palette: [0: "25234f", 1: "705050", 2: "60b48a", 3: "dfaf8f", 4: "5555ff", 5: "f08cc3", 6: "8cd0d3", 7: "709080", 8: "709080", 9: "dca3a3", 10: "60b48a", 11: "f0dfaf", 12: "5555ff", 13: "ec93d3", 14: "93e0e3", 15: "ffffff"]
+        palette: [0: "25234f", 1: "705050", 2: "60b48a", 3: "dfaf8f", 4: "5555ff", 5: "f08cc3", 6: "8cd0d3", 7: "709080", 8: "709080", 9: "dca3a3", 10: "60b48a", 11: "f0dfaf", 12: "5555ff", 13: "ec93d3", 14: "93e0e3", 15: "ffffff"],
     )
 
     static let vercel = GhosttyThemeDefinition(
@@ -31,7 +31,7 @@ public extension GhosttyThemeDefinition {
         cursorText: "fafafa",
         selectionBackground: "005be7",
         selectionForeground: "fafafa",
-        palette: [0: "000000", 1: "fc0036", 2: "29a948", 3: "ffae00", 4: "006aff", 5: "f32882", 6: "00ac96", 7: "feffff", 8: "a8a8a8", 9: "ff8080", 10: "4be15d", 11: "ffae00", 12: "49aeff", 13: "f97ea8", 14: "00e4c4", 15: "fefefe"]
+        palette: [0: "000000", 1: "fc0036", 2: "29a948", 3: "ffae00", 4: "006aff", 5: "f32882", 6: "00ac96", 7: "feffff", 8: "a8a8a8", 9: "ff8080", 10: "4be15d", 11: "ffae00", 12: "49aeff", 13: "f97ea8", 14: "00e4c4", 15: "fefefe"],
     )
 
     static let vesper = GhosttyThemeDefinition(
@@ -42,7 +42,7 @@ public extension GhosttyThemeDefinition {
         cursorText: "ffffff",
         selectionBackground: "988049",
         selectionForeground: "b9beb8",
-        palette: [0: "101010", 1: "f5a191", 2: "90b99f", 3: "e6b99d", 4: "aca1cf", 5: "e29eca", 6: "ea83a5", 7: "a0a0a0", 8: "7e7e7e", 9: "ff8080", 10: "99ffe4", 11: "ffc799", 12: "b9aeda", 13: "ecaad6", 14: "f591b2", 15: "ffffff"]
+        palette: [0: "101010", 1: "f5a191", 2: "90b99f", 3: "e6b99d", 4: "aca1cf", 5: "e29eca", 6: "ea83a5", 7: "a0a0a0", 8: "7e7e7e", 9: "ff8080", 10: "99ffe4", 11: "ffc799", 12: "b9aeda", 13: "ecaad6", 14: "f591b2", 15: "ffffff"],
     )
 
     static let vibrant_Ink = GhosttyThemeDefinition(
@@ -53,7 +53,7 @@ public extension GhosttyThemeDefinition {
         cursorText: "000000",
         selectionBackground: "b5d5ff",
         selectionForeground: "000000",
-        palette: [0: "878787", 1: "ff6600", 2: "ccff04", 3: "ffcc00", 4: "44b4cc", 5: "9933cc", 6: "44b4cc", 7: "f5f5f5", 8: "555555", 9: "ff0000", 10: "00ff00", 11: "ffff00", 12: "0000ff", 13: "ff00ff", 14: "00ffff", 15: "e5e5e5"]
+        palette: [0: "878787", 1: "ff6600", 2: "ccff04", 3: "ffcc00", 4: "44b4cc", 5: "9933cc", 6: "44b4cc", 7: "f5f5f5", 8: "555555", 9: "ff0000", 10: "00ff00", 11: "ffff00", 12: "0000ff", 13: "ff00ff", 14: "00ffff", 15: "e5e5e5"],
     )
 
     static let vimbones = GhosttyThemeDefinition(
@@ -64,7 +64,7 @@ public extension GhosttyThemeDefinition {
         cursorText: "f0f0ca",
         selectionBackground: "d7d7d7",
         selectionForeground: "353535",
-        palette: [0: "f0f0ca", 1: "a8334c", 2: "4f6c31", 3: "944927", 4: "286486", 5: "88507d", 6: "3b8992", 7: "353535", 8: "acac89", 9: "94253e", 10: "3f5a22", 11: "803d1c", 12: "1d5573", 13: "7b3b70", 14: "2b747c", 15: "5c5c5c"]
+        palette: [0: "f0f0ca", 1: "a8334c", 2: "4f6c31", 3: "944927", 4: "286486", 5: "88507d", 6: "3b8992", 7: "353535", 8: "acac89", 9: "94253e", 10: "3f5a22", 11: "803d1c", 12: "1d5573", 13: "7b3b70", 14: "2b747c", 15: "5c5c5c"],
     )
 
     static let violet_Dark = GhosttyThemeDefinition(
@@ -75,7 +75,7 @@ public extension GhosttyThemeDefinition {
         cursorText: "1c1d1f",
         selectionBackground: "595ab7",
         selectionForeground: "1c1d1f",
-        palette: [0: "56595c", 1: "c94c22", 2: "85981c", 3: "b4881d", 4: "2e8bce", 5: "d13a82", 6: "32a198", 7: "c9c6bd", 8: "45484b", 9: "bd3613", 10: "738a04", 11: "a57705", 12: "2176c7", 13: "c61c6f", 14: "259286", 15: "c9c6bd"]
+        palette: [0: "56595c", 1: "c94c22", 2: "85981c", 3: "b4881d", 4: "2e8bce", 5: "d13a82", 6: "32a198", 7: "c9c6bd", 8: "45484b", 9: "bd3613", 10: "738a04", 11: "a57705", 12: "2176c7", 13: "c61c6f", 14: "259286", 15: "c9c6bd"],
     )
 
     static let violet_Light = GhosttyThemeDefinition(
@@ -86,7 +86,7 @@ public extension GhosttyThemeDefinition {
         cursorText: "fcf4dc",
         selectionBackground: "595ab7",
         selectionForeground: "fcf4dc",
-        palette: [0: "56595c", 1: "c94c22", 2: "85981c", 3: "b4881d", 4: "2e8bce", 5: "d13a82", 6: "32a198", 7: "b9b6af", 8: "45484b", 9: "bd3613", 10: "738a04", 11: "a57705", 12: "2176c7", 13: "c61c6f", 14: "259286", 15: "c9c6bd"]
+        palette: [0: "56595c", 1: "c94c22", 2: "85981c", 3: "b4881d", 4: "2e8bce", 5: "d13a82", 6: "32a198", 7: "b9b6af", 8: "45484b", 9: "bd3613", 10: "738a04", 11: "a57705", 12: "2176c7", 13: "c61c6f", 14: "259286", 15: "c9c6bd"],
     )
 
     static let violite = GhosttyThemeDefinition(
@@ -97,6 +97,6 @@ public extension GhosttyThemeDefinition {
         cursorText: "241c36",
         selectionBackground: "49376d",
         selectionForeground: "eef4f6",
-        palette: [0: "241c36", 1: "ec7979", 2: "79ecb3", 3: "ece279", 4: "a979ec", 5: "ec79ec", 6: "79ecec", 7: "eef4f6", 8: "56447a", 9: "ef8f8f", 10: "9fefbf", 11: "efe78f", 12: "b78fef", 13: "ef8fcf", 14: "9fefef", 15: "f8fafc"]
+        palette: [0: "241c36", 1: "ec7979", 2: "79ecb3", 3: "ece279", 4: "a979ec", 5: "ec79ec", 6: "79ecec", 7: "eef4f6", 8: "56447a", 9: "ef8f8f", 10: "9fefbf", 11: "efe78f", 12: "b78fef", 13: "ef8fcf", 14: "9fefef", 15: "f8fafc"],
     )
 }

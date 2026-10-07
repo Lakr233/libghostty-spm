@@ -54,17 +54,17 @@ private final class FocusHost {
 
     init() {
         state.configuration.backend = .inMemory(
-            InMemoryTerminalSession(write: { _ in }, resize: { _ in })
+            InMemoryTerminalSession(write: { _ in }, resize: { _ in }),
         )
         window = NSWindow(
             contentRect: CGRect(x: 0, y: 0, width: 320, height: 240),
             styleMask: [.titled],
             backing: .buffered,
-            defer: false
+            defer: false,
         )
         window.isReleasedWhenClosed = false
         window.contentView = NSHostingView(
-            rootView: FocusedPane(state: state)
+            rootView: FocusedPane(state: state),
         )
         window.orderFront(nil)
     }

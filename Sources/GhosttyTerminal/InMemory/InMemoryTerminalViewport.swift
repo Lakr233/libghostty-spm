@@ -19,7 +19,7 @@ public struct InMemoryTerminalViewport: Sendable, Equatable {
         widthPixels: UInt32 = 0,
         heightPixels: UInt32 = 0,
         cellWidthPixels: UInt32 = 0,
-        cellHeightPixels: UInt32 = 0
+        cellHeightPixels: UInt32 = 0,
     ) {
         self.columns = columns
         self.rows = rows

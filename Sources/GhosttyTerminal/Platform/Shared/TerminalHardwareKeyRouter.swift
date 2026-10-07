@@ -150,7 +150,7 @@ enum TerminalHardwareKeyRouter {
                     GHOSTTY_KEY_Q, GHOSTTY_KEY_R, GHOSTTY_KEY_S, GHOSTTY_KEY_T,
                     GHOSTTY_KEY_U, GHOSTTY_KEY_V, GHOSTTY_KEY_W, GHOSTTY_KEY_X,
                     GHOSTTY_KEY_Y, GHOSTTY_KEY_Z,
-                ]
+                ],
             ),
             makeRun(
                 startingAt: 0x1E,
@@ -159,7 +159,7 @@ enum TerminalHardwareKeyRouter {
                     GHOSTTY_KEY_DIGIT_4, GHOSTTY_KEY_DIGIT_5, GHOSTTY_KEY_DIGIT_6,
                     GHOSTTY_KEY_DIGIT_7, GHOSTTY_KEY_DIGIT_8, GHOSTTY_KEY_DIGIT_9,
                     GHOSTTY_KEY_DIGIT_0,
-                ]
+                ],
             ),
             makeRun(
                 startingAt: 0x3A,
@@ -167,7 +167,7 @@ enum TerminalHardwareKeyRouter {
                     GHOSTTY_KEY_F1, GHOSTTY_KEY_F2, GHOSTTY_KEY_F3, GHOSTTY_KEY_F4,
                     GHOSTTY_KEY_F5, GHOSTTY_KEY_F6, GHOSTTY_KEY_F7, GHOSTTY_KEY_F8,
                     GHOSTTY_KEY_F9, GHOSTTY_KEY_F10, GHOSTTY_KEY_F11, GHOSTTY_KEY_F12,
-                ]
+                ],
             ),
             makeRun(
                 startingAt: 0x59,
@@ -176,7 +176,7 @@ enum TerminalHardwareKeyRouter {
                     GHOSTTY_KEY_NUMPAD_4, GHOSTTY_KEY_NUMPAD_5, GHOSTTY_KEY_NUMPAD_6,
                     GHOSTTY_KEY_NUMPAD_7, GHOSTTY_KEY_NUMPAD_8, GHOSTTY_KEY_NUMPAD_9,
                     GHOSTTY_KEY_NUMPAD_0, GHOSTTY_KEY_NUMPAD_DECIMAL,
-                ]
+                ],
             ),
             makeRun(
                 startingAt: 0x68,
@@ -184,9 +184,9 @@ enum TerminalHardwareKeyRouter {
                     GHOSTTY_KEY_F13, GHOSTTY_KEY_F14, GHOSTTY_KEY_F15, GHOSTTY_KEY_F16,
                     GHOSTTY_KEY_F17, GHOSTTY_KEY_F18, GHOSTTY_KEY_F19, GHOSTTY_KEY_F20,
                     GHOSTTY_KEY_F21, GHOSTTY_KEY_F22, GHOSTTY_KEY_F23, GHOSTTY_KEY_F24,
-                ]
+                ],
             ),
-        ]
+        ],
     )
 
     /// The mac column of libghostty's `src/input/keycodes.zig` for every
@@ -240,12 +240,12 @@ enum TerminalHardwareKeyRouter {
             (0x7B, GHOSTTY_KEY_ARROW_LEFT), (0x7C, GHOSTTY_KEY_ARROW_RIGHT),
             (0x7D, GHOSTTY_KEY_ARROW_DOWN), (0x7E, GHOSTTY_KEY_ARROW_UP),
         ],
-        groupedPairs: []
+        groupedPairs: [],
     )
 
     private static func buildMap(
         literalPairs: [Pair],
-        groupedPairs: [[Pair]]
+        groupedPairs: [[Pair]],
     ) -> [UInt16: ghostty_input_key_e] {
         var map: [UInt16: ghostty_input_key_e] = [:]
         for (code, key) in literalPairs {
@@ -261,7 +261,7 @@ enum TerminalHardwareKeyRouter {
 
     private static func makeRun(
         startingAt code: UInt16,
-        keys: [ghostty_input_key_e]
+        keys: [ghostty_input_key_e],
     ) -> [Pair] {
         keys.enumerated().map { offset, key in
             (code + UInt16(offset), key)

@@ -8,18 +8,18 @@ func terminalRenderedInputState(
     promptDisplayWidth: Int,
     input: String,
     cursorPosition: Int,
-    terminalColumns: Int
+    terminalColumns: Int,
 ) -> TerminalRenderedInputState {
     let columns = max(terminalColumns, 1)
     let clampedCursorPosition = min(max(cursorPosition, 0), input.count)
     let cursorIndex = input.index(input.startIndex, offsetBy: clampedCursorPosition)
     let cursorWidth = String(input[..<cursorIndex]).terminalWrappedDisplayWidth(
         after: promptDisplayWidth,
-        terminalColumns: columns
+        terminalColumns: columns,
     )
     let totalWidth = String(input[cursorIndex...]).terminalWrappedDisplayWidth(
         after: cursorWidth,
-        terminalColumns: columns
+        terminalColumns: columns,
     )
     let hasTrailingContent = cursorWidth < totalWidth
 
@@ -40,16 +40,16 @@ func terminalRenderedInputState(
     return TerminalRenderedInputState(
         totalLineCount: wrappedTerminalLineCount(
             displayWidth: totalWidth,
-            terminalColumns: columns
+            terminalColumns: columns,
         ),
         cursorLineOffset: cursorLineOffset,
-        cursorColumn: cursorColumn
+        cursorColumn: cursorColumn,
     )
 }
 
 func wrappedTerminalLineCount(
     displayWidth: Int,
-    terminalColumns: Int
+    terminalColumns: Int,
 ) -> Int {
     let columns = max(terminalColumns, 1)
     return max(1, (max(displayWidth, 1) - 1) / columns + 1)
@@ -60,13 +60,13 @@ func terminalExpandedTabText(
     input: String,
     cursorPosition: Int,
     terminalColumns: Int,
-    tabWidth: Int = 8
+    tabWidth: Int = 8,
 ) -> String {
     let cursorColumn = terminalRenderedInputState(
         promptDisplayWidth: promptDisplayWidth,
         input: input,
         cursorPosition: cursorPosition,
-        terminalColumns: terminalColumns
+        terminalColumns: terminalColumns,
     ).cursorColumn
     let zeroBasedColumn = max(cursorColumn - 1, 0)
     let spacesUntilNextStop = max(1, tabWidth - (zeroBasedColumn % tabWidth))
@@ -76,7 +76,7 @@ func terminalExpandedTabText(
 func canIncrementallyAppendInput(
     previousInput: String,
     previousCursorPosition: Int,
-    insertedText: String
+    insertedText: String,
 ) -> Bool {
     guard !insertedText.isEmpty else { return false }
     guard previousCursorPosition == previousInput.count else { return false }

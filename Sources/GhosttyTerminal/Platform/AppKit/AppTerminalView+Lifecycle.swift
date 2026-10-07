@@ -29,7 +29,7 @@
                 rect: bounds,
                 options: options,
                 owner: self,
-                userInfo: nil
+                userInfo: nil,
             )
             addTrackingArea(area)
         }
@@ -75,13 +75,13 @@
                     self,
                     selector: #selector(windowDidBecomeKey),
                     name: NSWindow.didBecomeKeyNotification,
-                    object: window
+                    object: window,
                 )
                 NotificationCenter.default.addObserver(
                     self,
                     selector: #selector(windowDidResignKey),
                     name: NSWindow.didResignKeyNotification,
-                    object: window
+                    object: window,
                 )
                 // Cross-display rescue: AppKit posts didChangeScreen when the
                 // window's screen reference changes, even when the new screen
@@ -96,7 +96,7 @@
                     self,
                     selector: #selector(windowDidChangeScreen),
                     name: NSWindow.didChangeScreenNotification,
-                    object: window
+                    object: window,
                 )
                 // A display that is reconfigured or reconnected under the
                 // window (resolution change, a VM or remote display coming
@@ -108,7 +108,7 @@
                     self,
                     selector: #selector(screenParametersDidChange),
                     name: NSApplication.didChangeScreenParametersNotification,
-                    object: nil
+                    object: nil,
                 )
                 // Minimizing, hiding the app (Cmd+H), and full cover all
                 // arrive as occlusion changes. Without this a hidden window
@@ -117,7 +117,7 @@
                     self,
                     selector: #selector(windowDidChangeOcclusionState),
                     name: NSWindow.didChangeOcclusionStateNotification,
-                    object: window
+                    object: window,
                 )
                 // Same runloop hop as `requestFocus`: attaching can happen
                 // mid SwiftUI update, where the first-responder dance must
@@ -132,9 +132,9 @@
             }
         }
 
-        // Window key state is not a first-responder change: reporting it
-        // through the focus bridge flips the host's FocusState, whose
-        // synchronizeFocus then resigns a view that is still first responder.
+        /// Window key state is not a first-responder change: reporting it
+        /// through the focus bridge flips the host's FocusState, whose
+        /// synchronizeFocus then resigns a view that is still first responder.
         @objc func windowDidBecomeKey(_: Notification) {
             let focused = window?.isKeyWindow == true
                 && window?.firstResponder === self
@@ -186,7 +186,7 @@
             }
             return Double(
                 window?.backingScaleFactor
-                    ?? NSScreen.main?.backingScaleFactor ?? 2.0
+                    ?? NSScreen.main?.backingScaleFactor ?? 2.0,
             )
         }
 
@@ -202,27 +202,27 @@
             NotificationCenter.default.removeObserver(
                 self,
                 name: NSWindow.didBecomeKeyNotification,
-                object: nil
+                object: nil,
             )
             NotificationCenter.default.removeObserver(
                 self,
                 name: NSWindow.didResignKeyNotification,
-                object: nil
+                object: nil,
             )
             NotificationCenter.default.removeObserver(
                 self,
                 name: NSWindow.didChangeScreenNotification,
-                object: nil
+                object: nil,
             )
             NotificationCenter.default.removeObserver(
                 self,
                 name: NSApplication.didChangeScreenParametersNotification,
-                object: nil
+                object: nil,
             )
             NotificationCenter.default.removeObserver(
                 self,
                 name: NSWindow.didChangeOcclusionStateNotification,
-                object: nil
+                object: nil,
             )
         }
 
@@ -265,7 +265,7 @@
             if let metal = layer as? CAMetalLayer {
                 metal.drawableSize = CGSize(
                     width: bounds.width * scale,
-                    height: bounds.height * scale
+                    height: bounds.height * scale,
                 )
             }
             // Mirror to the cached ivar in case anything else still
@@ -273,7 +273,7 @@
             metalLayer?.contentsScale = scale
             metalLayer?.drawableSize = CGSize(
                 width: bounds.width * scale,
-                height: bounds.height * scale
+                height: bounds.height * scale,
             )
         }
 

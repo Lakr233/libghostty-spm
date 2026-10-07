@@ -200,8 +200,8 @@ struct TerminalCoordinatorLifecycleStressTests {
             config.platform_tag = GHOSTTY_PLATFORM_MACOS
             config.platform = ghostty_platform_u(
                 macos: ghostty_platform_macos_s(
-                    nsview: Unmanaged.passUnretained(platformView).toOpaque()
-                )
+                    nsview: Unmanaged.passUnretained(platformView).toOpaque(),
+                ),
             )
         }
         return coordinator

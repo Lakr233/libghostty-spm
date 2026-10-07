@@ -19,7 +19,7 @@
 
         override open func touchesBegan(
             _ touches: Set<UITouch>,
-            with event: UIEvent?
+            with event: UIEvent?,
         ) {
             if handleIndirectPointerTouches(touches, phase: .began, event: event) {
                 return
@@ -61,7 +61,7 @@
 
         override open func touchesMoved(
             _ touches: Set<UITouch>,
-            with event: UIEvent?
+            with event: UIEvent?,
         ) {
             if handleIndirectPointerTouches(touches, phase: .moved, event: event) {
                 return
@@ -80,7 +80,7 @@
 
         override open func touchesEnded(
             _ touches: Set<UITouch>,
-            with event: UIEvent?
+            with event: UIEvent?,
         ) {
             if handleIndirectPointerTouches(touches, phase: .ended, event: event) {
                 return
@@ -96,7 +96,7 @@
                     if duration <= Self.tapCandidateMaxDuration {
                         TerminalDebugLog.log(
                             .input,
-                            "tap toggles keyboard visible=\(softwareKeyboard.isVisible) duration=\(String(format: "%.3f", duration))"
+                            "tap toggles keyboard visible=\(softwareKeyboard.isVisible) duration=\(String(format: "%.3f", duration))",
                         )
                         // The tap is a click first and a keyboard toggle
                         // second, in both directions: a TUI tracking the
@@ -116,7 +116,7 @@
 
         override open func touchesCancelled(
             _ touches: Set<UITouch>,
-            with event: UIEvent?
+            with event: UIEvent?,
         ) {
             if handleIndirectPointerTouches(touches, phase: .cancelled, event: event) {
                 return
@@ -132,14 +132,14 @@
             setupDropInput()
             addGestureRecognizer(TerminalScrollWheelGestureRecognizer(
                 target: self,
-                action: #selector(handleScrollWheelGesture(_:))
+                action: #selector(handleScrollWheelGesture(_:)),
             ))
             let pointerInteraction = UIPointerInteraction(delegate: self)
             addInteraction(pointerInteraction)
             pointer.pointerInteraction = pointerInteraction
             let hover = UIHoverGestureRecognizer(
                 target: self,
-                action: #selector(handlePointerHover(_:))
+                action: #selector(handlePointerHover(_:)),
             )
             hover.cancelsTouchesInView = false
             hover.delegate = self
@@ -154,7 +154,7 @@
             func setupTouchScrollInput() {
                 let gesture = UIPanGestureRecognizer(
                     target: self,
-                    action: #selector(handleTouchScrollGesture(_:))
+                    action: #selector(handleTouchScrollGesture(_:)),
                 )
                 gesture.allowedTouchTypes = [NSNumber(value: UITouch.TouchType.direct.rawValue)]
                 gesture.maximumNumberOfTouches = 1
@@ -164,7 +164,7 @@
 
                 let longPress = UILongPressGestureRecognizer(
                     target: self,
-                    action: #selector(handleLongPressForSelection(_:))
+                    action: #selector(handleLongPressForSelection(_:)),
                 )
                 longPress.minimumPressDuration = 0.7
                 longPress.allowableMovement = 10
@@ -192,12 +192,12 @@
                 surface.sendMouseButton(
                     state: GHOSTTY_MOUSE_PRESS,
                     button: GHOSTTY_MOUSE_LEFT,
-                    mods: mods
+                    mods: mods,
                 )
                 surface.sendMouseButton(
                     state: GHOSTTY_MOUSE_RELEASE,
                     button: GHOSTTY_MOUSE_LEFT,
-                    mods: mods
+                    mods: mods,
                 )
                 pointer.lastSelectionRect = nil
                 pointer.selectionStartPoint = nil
@@ -224,7 +224,7 @@
             /// Long press opens the touch menu; with inline selection off
             /// the recognizer never begins (see `gestureRecognizerShouldBegin`).
             @objc func handleLongPressForSelection(
-                _ gesture: UILongPressGestureRecognizer
+                _ gesture: UILongPressGestureRecognizer,
             ) {
                 guard gesture.state == .began, usesInlineTextSelection else { return }
                 softwareKeyboard.tapCandidateArmed = false
@@ -254,7 +254,7 @@
         /// recognizer still enters the touch arena and can subtly delay pan
         /// recognition for hosts that opted out.
         override open func gestureRecognizerShouldBegin(
-            _ gestureRecognizer: UIGestureRecognizer
+            _ gestureRecognizer: UIGestureRecognizer,
         ) -> Bool {
             if gestureRecognizer is UILongPressGestureRecognizer {
                 return usesInlineTextSelection

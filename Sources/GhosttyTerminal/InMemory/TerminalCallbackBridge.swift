@@ -34,7 +34,7 @@ final class TerminalCallbackBridge {
                 let title = String(cString: cStr)
                 TerminalDebugLog.log(
                     .actions,
-                    "callback action=set_title title=\(TerminalDebugLog.describe(title))"
+                    "callback action=set_title title=\(TerminalDebugLog.describe(title))",
                 )
                 (delegate as? any TerminalSurfaceTitleDelegate)?
                     .terminalDidChangeTitle(title)
@@ -44,7 +44,7 @@ final class TerminalCallbackBridge {
             let cellSize = action.action.cell_size
             TerminalDebugLog.log(
                 .actions,
-                "callback action=cell_size width=\(cellSize.width) height=\(cellSize.height)"
+                "callback action=cell_size width=\(cellSize.width) height=\(cellSize.height)",
             )
             onCellSizeChange?(cellSize.width, cellSize.height)
 
@@ -72,7 +72,7 @@ final class TerminalCallbackBridge {
             let percent: Int? = report.progress < 0 ? nil : Int(report.progress)
             TerminalDebugLog.log(
                 .actions,
-                "callback action=progress_report state=\(state) percent=\(percent.map { "\($0)" } ?? "nil")"
+                "callback action=progress_report state=\(state) percent=\(percent.map { "\($0)" } ?? "nil")",
             )
             (delegate as? any TerminalSurfaceProgressReportDelegate)?
                 .terminalDidReportProgress(state: state, percent: percent)
@@ -81,11 +81,11 @@ final class TerminalCallbackBridge {
             let payload = action.action.color_change
             let change = TerminalColorChange(
                 kind: TerminalColorChangeKind(payload.kind),
-                color: TerminalColor(red: payload.r, green: payload.g, blue: payload.b)
+                color: TerminalColor(red: payload.r, green: payload.g, blue: payload.b),
             )
             TerminalDebugLog.log(
                 .actions,
-                "callback action=color_change kind=\(change.kind) r=\(payload.r) g=\(payload.g) b=\(payload.b)"
+                "callback action=color_change kind=\(change.kind) r=\(payload.r) g=\(payload.g) b=\(payload.b)",
             )
             (delegate as? any TerminalSurfaceColorChangeDelegate)?
                 .terminalDidChangeColor(change)
@@ -96,12 +96,12 @@ final class TerminalCallbackBridge {
             let exit: Int? = finished.exit_code < 0 ? nil : Int(finished.exit_code)
             TerminalDebugLog.log(
                 .actions,
-                "callback action=command_finished exit=\(exit.map { "\($0)" } ?? "nil") duration_ns=\(finished.duration)"
+                "callback action=command_finished exit=\(exit.map { "\($0)" } ?? "nil") duration_ns=\(finished.duration)",
             )
             (delegate as? any TerminalSurfaceCommandFinishedDelegate)?
                 .terminalDidFinishCommand(
                     exitCode: exit,
-                    durationNanos: finished.duration
+                    durationNanos: finished.duration,
                 )
 
         case GHOSTTY_ACTION_DESKTOP_NOTIFICATION:
@@ -110,7 +110,7 @@ final class TerminalCallbackBridge {
             let body = payload.body.map { String(cString: $0) } ?? ""
             TerminalDebugLog.log(
                 .actions,
-                "callback action=desktop_notification title=\(TerminalDebugLog.describe(title)) body=\(TerminalDebugLog.describe(body))"
+                "callback action=desktop_notification title=\(TerminalDebugLog.describe(title)) body=\(TerminalDebugLog.describe(body))",
             )
             (delegate as? any TerminalSurfaceDesktopNotificationDelegate)?
                 .terminalDidRequestDesktopNotification(title: title, body: body)
@@ -126,7 +126,7 @@ final class TerminalCallbackBridge {
             } ?? ""
             TerminalDebugLog.log(
                 .actions,
-                "callback action=open_url kind=\(kind) url=\(TerminalDebugLog.describe(url))"
+                "callback action=open_url kind=\(kind) url=\(TerminalDebugLog.describe(url))",
             )
             (delegate as? any TerminalSurfaceOpenURLDelegate)?
                 .terminalDidRequestOpenURL(url, kind: kind)
@@ -135,7 +135,7 @@ final class TerminalCallbackBridge {
             let shape = action.action.mouse_shape
             TerminalDebugLog.log(
                 .actions,
-                "callback action=mouse_shape value=\(shape.rawValue)"
+                "callback action=mouse_shape value=\(shape.rawValue)",
             )
             onMouseShape?(shape)
             (delegate as? any TerminalSurfaceMouseShapeDelegate)?
@@ -150,7 +150,7 @@ final class TerminalCallbackBridge {
             }()
             TerminalDebugLog.log(
                 .actions,
-                "callback action=mouse_over_link url=\(url.map { TerminalDebugLog.describe($0) } ?? "nil")"
+                "callback action=mouse_over_link url=\(url.map { TerminalDebugLog.describe($0) } ?? "nil")",
             )
             (delegate as? any TerminalSurfaceHoverLinkDelegate)?
                 .terminalDidUpdateHoverLink(url)
@@ -161,7 +161,7 @@ final class TerminalCallbackBridge {
                 let pwd = String(cString: cStr)
                 TerminalDebugLog.log(
                     .actions,
-                    "callback action=pwd pwd=\(TerminalDebugLog.describe(pwd))"
+                    "callback action=pwd pwd=\(TerminalDebugLog.describe(pwd))",
                 )
                 (delegate as? any TerminalSurfacePwdDelegate)?
                     .terminalDidChangeWorkingDirectory(pwd)
@@ -172,21 +172,21 @@ final class TerminalCallbackBridge {
             scrollbar = TerminalScrollbar(total: payload.total, offset: payload.offset, len: payload.len)
             TerminalDebugLog.log(
                 .actions,
-                "callback action=scrollbar total=\(payload.total) offset=\(payload.offset) len=\(payload.len)"
+                "callback action=scrollbar total=\(payload.total) offset=\(payload.offset) len=\(payload.len)",
             )
             (delegate as? any TerminalSurfaceScrollbarDelegate)?
                 .terminalDidUpdateScrollbar(
                     TerminalScrollbar(
                         total: payload.total,
                         offset: payload.offset,
-                        len: payload.len
-                    )
+                        len: payload.len,
+                    ),
                 )
 
         default:
             TerminalDebugLog.log(
                 .actions,
-                "callback action=\(TerminalDebugLog.describe(action.tag))"
+                "callback action=\(TerminalDebugLog.describe(action.tag))",
             )
         }
     }
@@ -194,7 +194,7 @@ final class TerminalCallbackBridge {
     func handleClose(processAlive: Bool) {
         TerminalDebugLog.log(
             .lifecycle,
-            "callback close processAlive=\(processAlive)"
+            "callback close processAlive=\(processAlive)",
         )
         (delegate as? any TerminalSurfaceCloseDelegate)?
             .terminalDidClose(processAlive: processAlive)
@@ -203,7 +203,7 @@ final class TerminalCallbackBridge {
     func handleClipboardConfirmation(
         contents: String,
         kind: TerminalClipboardRequestKind,
-        completion: @escaping (Bool) -> Void
+        completion: @escaping (Bool) -> Void,
     ) {
         guard let delegate = delegate as? any TerminalSurfaceClipboardConfirmationDelegate else {
             completion(false)
@@ -213,8 +213,8 @@ final class TerminalCallbackBridge {
             TerminalClipboardConfirmationRequest(
                 contents: contents,
                 kind: kind,
-                completion: completion
-            )
+                completion: completion,
+            ),
         )
     }
 
@@ -244,7 +244,7 @@ final class TerminalCallbackBridge {
     /// complete/deny fires for every request" even when the host's
     /// confirmation UI never answers — see
     /// ``denyAllPendingClipboardRequests()``.
-    nonisolated(unsafe) private var pendingClipboardRequests: [Int: PendingClipboardRequest] = [:]
+    private nonisolated(unsafe) var pendingClipboardRequests: [Int: PendingClipboardRequest] = [:]
 
     /// Registers a newly received confirm request and returns the token the
     /// caller resolves once the host answers.
@@ -263,8 +263,8 @@ final class TerminalCallbackBridge {
     /// ``PendingClipboardRequest/resolve(_:contents:available:)`` and
     /// ``denyAllPendingClipboardRequests()`` race for the same request: the
     /// loser finds nothing left to take and no-ops.
-    nonisolated fileprivate func takePendingClipboardRequest(
-        _ statePtr: UnsafeMutableRawPointer
+    fileprivate nonisolated func takePendingClipboardRequest(
+        _ statePtr: UnsafeMutableRawPointer,
     ) -> PendingClipboardRequest? {
         pendingClipboardRequestsLock.lock()
         defer { pendingClipboardRequestsLock.unlock() }
@@ -306,7 +306,7 @@ final class TerminalCallbackBridge {
         /// ``denyAllPendingClipboardRequests()`` race this file's locking
         /// exists to prevent — needs some observable signal other than the
         /// (untestable) libghostty call itself.
-        nonisolated(unsafe) private var _testHooks_clipboardAnswerCount = 0
+        private nonisolated(unsafe) var _testHooks_clipboardAnswerCount = 0
         var testHooks_clipboardAnswerCount: Int {
             pendingClipboardRequestsLock.lock()
             defer { pendingClipboardRequestsLock.unlock() }
@@ -314,11 +314,11 @@ final class TerminalCallbackBridge {
         }
     #endif
 
-    nonisolated fileprivate func finishClipboardRequest(
+    fileprivate nonisolated func finishClipboardRequest(
         _ statePtr: UnsafeMutableRawPointer,
         allowed: Bool,
         contents: [TerminalClipboardContent],
-        available: [String]
+        available: [String],
     ) {
         #if DEBUG
             pendingClipboardRequestsLock.lock()
@@ -341,7 +341,7 @@ final class TerminalCallbackBridge {
             contents: contents,
             available: available,
             confirmed: true,
-            remember: false
+            remember: false,
         ) { complete in
             ghostty_surface_complete_clipboard_request(surface, complete, statePtr)
         }

@@ -20,7 +20,7 @@ class GhosttyKitTest: XCTestCase {
             read_clipboard_cb: nil,
             confirm_read_clipboard_cb: nil,
             write_clipboard_cb: nil,
-            close_surface_cb: nil
+            close_surface_cb: nil,
         )
 
         guard let app = ghostty_app_new(&runtime, config) else {

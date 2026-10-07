@@ -25,13 +25,13 @@
                 self,
                 selector: #selector(applicationDidEnterBackground),
                 name: UIApplication.didEnterBackgroundNotification,
-                object: nil
+                object: nil,
             )
             NotificationCenter.default.addObserver(
                 self,
                 selector: #selector(applicationDidBecomeActive),
                 name: UIApplication.didBecomeActiveNotification,
-                object: nil
+                object: nil,
             )
             // Scene-based apps activate scene-first; on cold launch the
             // app-level notification can precede this view's registration.
@@ -40,7 +40,7 @@
                 self,
                 selector: #selector(applicationDidBecomeActive),
                 name: UIScene.didActivateNotification,
-                object: nil
+                object: nil,
             )
             // With several scenes (iPad multi-window, Stage Manager) one can
             // go to the background while the app stays foreground, so the
@@ -50,13 +50,13 @@
                 self,
                 selector: #selector(sceneDidEnterBackground),
                 name: UIScene.didEnterBackgroundNotification,
-                object: nil
+                object: nil,
             )
             NotificationCenter.default.addObserver(
                 self,
                 selector: #selector(sceneWillEnterForeground),
                 name: UIScene.willEnterForegroundNotification,
-                object: nil
+                object: nil,
             )
         }
 
@@ -77,7 +77,7 @@
         func syncApplicationActiveState() {
             core.setApplicationActive(
                 isWindowSceneForeground
-                    ?? (UIApplication.shared.applicationState == .active)
+                    ?? (UIApplication.shared.applicationState == .active),
             )
         }
 
@@ -130,7 +130,7 @@
             super.didMoveToWindow()
             TerminalDebugLog.log(
                 .lifecycle,
-                "didMoveToWindow attached=\(window != nil)"
+                "didMoveToWindow attached=\(window != nil)",
             )
             updateDisplayScale()
             if window != nil {
@@ -187,7 +187,7 @@
             super.layoutSubviews()
             TerminalDebugLog.log(
                 .metrics,
-                "layoutSubviews bounds=\(NSCoder.string(for: bounds))"
+                "layoutSubviews bounds=\(NSCoder.string(for: bounds))",
             )
             updateSublayerFrames()
             core.fitToSize()
@@ -202,17 +202,17 @@
         /// falls back to as well.
         static var fallbackDisplayScale: CGFloat {
             #if os(visionOS)
-            2.0
+                2.0
             #else
-            UIScreen.main.nativeScale
+                UIScreen.main.nativeScale
             #endif
         }
 
         func resolvedDisplayScale() -> CGFloat {
             #if !os(visionOS)
-            if let screen = window?.screen {
-                return screen.nativeScale
-            }
+                if let screen = window?.screen {
+                    return screen.nativeScale
+                }
             #endif
             if traitCollection.displayScale > 0 {
                 return traitCollection.displayScale
@@ -224,7 +224,7 @@
             let scale = resolvedDisplayScale()
             TerminalDebugLog.log(
                 .metrics,
-                "updateDisplayScale scale=\(String(format: "%.2f", scale))"
+                "updateDisplayScale scale=\(String(format: "%.2f", scale))",
             )
             contentScaleFactor = scale
             layer.contentsScale = scale
@@ -286,12 +286,12 @@
         }
 
         override open func traitCollectionDidChange(
-            _ previousTraitCollection: UITraitCollection?
+            _ previousTraitCollection: UITraitCollection?,
         ) {
             super.traitCollectionDidChange(previousTraitCollection)
             updateDisplayScale()
             if traitCollection.hasDifferentColorAppearance(
-                comparedTo: previousTraitCollection
+                comparedTo: previousTraitCollection,
             ) {
                 updateColorScheme()
             }

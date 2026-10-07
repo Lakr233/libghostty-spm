@@ -5,15 +5,15 @@ import Testing
 
 @MainActor
 struct TerminalTouchSelectionTests {
-    @Test func geometryIncludesLargePaddingAndRetinaScale() throws {
+    @Test func `geometry includes large padding and retina scale`() throws {
         let grid = try #require(
             TerminalSelectionGrid(
                 metrics: .init(
                     columns: 10, rows: 5, widthPixels: 240, heightPixels: 300,
-                    cellWidthPixels: 20, cellHeightPixels: 40
+                    cellWidthPixels: 20, cellHeightPixels: 40,
                 ),
-                scale: 2, firstBaseline: CGPoint(x: 12, y: 54), imeBottom: 100
-            )
+                scale: 2, firstBaseline: CGPoint(x: 12, y: 54), imeBottom: 100,
+            ),
         )
         #expect(grid.origin == CGPoint(x: 12, y: 40))
         #expect(grid.cell(at: CGPoint(x: 35, y: 65), viewportOffset: 50) == 512)
@@ -22,12 +22,12 @@ struct TerminalTouchSelectionTests {
                 CGRect(x: 102, y: 40, width: 10, height: 20),
                 CGRect(x: 12, y: 60, width: 100, height: 20),
                 CGRect(x: 12, y: 80, width: 20, height: 20),
-            ]
+            ],
         )
         #expect(grid.rects(for: 0 ... 20, viewportOffset: 50).isEmpty)
     }
 
-    @Test func readsAndSelectsWideAndCombinedCharactersWithoutMouseInput() async throws {
+    @Test func `reads and selects wide and combined characters without mouse input`() async throws {
         let harness = await GhosttySurfaceHarness.make()
         defer { harness.tearDown() }
         let surface = try #require(harness.surface)
@@ -44,7 +44,7 @@ struct TerminalTouchSelectionTests {
         #expect(!bytes.contains(Data("\u{1B}[<".utf8)))
     }
 
-    @Test func wordSelectionStopsAtDelimitersAndPreservesRepeatedWideGlyphs() async throws {
+    @Test func `word selection stops at delimiters and preserves repeated wide glyphs`() async throws {
         let harness = await GhosttySurfaceHarness.make()
         defer { harness.tearDown() }
         let surface = try #require(harness.surface)
@@ -62,7 +62,7 @@ struct TerminalTouchSelectionTests {
         #expect(surface.lastTextCell(rows: 1, columns: columns) == 23)
     }
 
-    @Test func nearestTextRowSkipsWhitespaceAndStaysWithinTheVisibleRows() async throws {
+    @Test func `nearest text row skips whitespace and stays within the visible rows`() async throws {
         let harness = await GhosttySurfaceHarness.make()
         defer { harness.tearDown() }
         let surface = try #require(harness.surface)
@@ -79,7 +79,7 @@ struct TerminalTouchSelectionTests {
         #expect(surface.nearestTextRow(to: 5, in: 5 ..< rows.upperBound, columns: columns) == nil)
     }
 
-    @Test func rowTextExcludesSurroundingWhitespaceAndPreservesGlyphBoundaries() async throws {
+    @Test func `row text excludes surrounding whitespace and preserves glyph boundaries`() async throws {
         let harness = await GhosttySurfaceHarness.make()
         defer { harness.tearDown() }
         let surface = try #require(harness.surface)
@@ -95,7 +95,7 @@ struct TerminalTouchSelectionTests {
         #expect(surface.textCells(inRow: 3, columns: columns) == nil)
     }
 
-    @Test func rowTextKeepsFullRowsAndAbsoluteHistoryCoordinates() async throws {
+    @Test func `row text keeps full rows and absolute history coordinates`() async throws {
         let harness = await GhosttySurfaceHarness.make()
         defer { harness.tearDown() }
         let surface = try #require(harness.surface)
@@ -114,7 +114,7 @@ struct TerminalTouchSelectionTests {
         #expect(surface.textCells(inRow: 0, columns: columns) == 0 ... (columns - 1))
     }
 
-    @Test func selectAllStopsAfterContentAndKeepsBothCellsOfTheLastGlyph() async throws {
+    @Test func `select all stops after content and keeps both cells of the last glyph`() async throws {
         let harness = await GhosttySurfaceHarness.make()
         defer { harness.tearDown() }
         let surface = try #require(harness.surface)
@@ -125,7 +125,7 @@ struct TerminalTouchSelectionTests {
         #expect(surface.readCells(0 ... (columns + 3), columns: columns)?.text == "hello\n你好")
     }
 
-    @Test func copyingAcrossSoftWrapsDoesNotInsertNewlines() async throws {
+    @Test func `copying across soft wraps does not insert newlines`() async throws {
         let harness = await GhosttySurfaceHarness.make()
         defer { harness.tearDown() }
         let surface = try #require(harness.surface)
@@ -135,7 +135,7 @@ struct TerminalTouchSelectionTests {
         #expect(surface.readCells(0 ... (columns + 5), columns: columns)?.text == text)
     }
 
-    @Test func readsAbsoluteHistoryRowsBeforeAndAfterScrolling() async throws {
+    @Test func `reads absolute history rows before and after scrolling`() async throws {
         let harness = await GhosttySurfaceHarness.make()
         defer { harness.tearDown() }
         let surface = try #require(harness.surface)

@@ -88,7 +88,7 @@ private final class Host {
                 contentRect: frame,
                 styleMask: [.titled],
                 backing: .buffered,
-                defer: false
+                defer: false,
             )
             window.contentView = NSHostingView(rootView: Panes(tabs: tabs))
             window.orderFront(nil)

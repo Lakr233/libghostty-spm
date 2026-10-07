@@ -10,7 +10,7 @@
 
             guard let rawProperty = TISGetInputSourceProperty(
                 inputSource,
-                kTISPropertyInputSourceID
+                kTISPropertyInputSourceID,
             ) else {
                 return nil
             }

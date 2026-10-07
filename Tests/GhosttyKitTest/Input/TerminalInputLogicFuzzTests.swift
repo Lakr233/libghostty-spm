@@ -25,7 +25,7 @@ struct TerminalInputLogicFuzzTests {
         for _ in 0 ..< 2000 {
             let document = TerminalInputDocument(
                 anchorLength: random.int(in: 0 ... 3),
-                markedLength: random.int(in: 0 ... 64)
+                markedLength: random.int(in: 0 ... 64),
             )
             let offset = random.int(in: -16 ... 96)
             let position = document.position(ofMarkedOffset: offset)
@@ -41,7 +41,7 @@ struct TerminalInputLogicFuzzTests {
             let second = random.int(in: -16 ... 96)
             #expect(
                 document.markedOffset(of: min(first, second)) <= document.markedOffset(of: max(first, second)),
-                "seed \(seed): markedOffset must not decrease"
+                "seed \(seed): markedOffset must not decrease",
             )
 
             let range = NSRange(location: random.int(in: -8 ... 80), length: random.int(in: 0 ... 80))
@@ -60,7 +60,7 @@ struct TerminalInputLogicFuzzTests {
         for _ in 0 ..< 500 {
             let document = TerminalInputDocument(
                 anchorLength: random.int(in: 0 ... 3),
-                markedLength: random.int(in: 0 ... 64)
+                markedLength: random.int(in: 0 ... 64),
             )
             let whole = document.markedRange(of: NSRange(location: 0, length: document.length))
             #expect(whole == NSRange(location: 0, length: document.markedLength))
@@ -234,7 +234,9 @@ struct TerminalInputLogicFuzzTests {
                 } else if scalar == "\\" {
                     pendingBackslash = true
                 } else {
-                    if Self.shellSensitive.contains(scalar) { bare.append(scalar) }
+                    if Self.shellSensitive.contains(scalar) {
+                        bare.append(scalar)
+                    }
                     unescaped.append(scalar)
                 }
             }

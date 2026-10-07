@@ -229,7 +229,7 @@ private final class EditingFuzzRig {
             write: { _ in },
             resize: { _ in },
             surfaceWrite: { _, data in output.append(data) },
-            processExit: { _, _, _ in }
+            processExit: { _, _, _ in },
         )
         session.setSurface(UnsafeMutableRawPointer(bitPattern: 0x20)!)
         let shell = ShellDefinition(prompt: "$ ", welcomeMessage: "") {

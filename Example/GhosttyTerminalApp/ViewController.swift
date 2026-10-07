@@ -77,7 +77,7 @@ final class ViewController: NSViewController {
         terminalView.setAccessibilityIdentifier("terminal.surface")
         terminalView.setAccessibilityLabel("Terminal")
         terminalView.configuration = TerminalSurfaceOptions(
-            backend: .inMemory(shellSession.terminalSession)
+            backend: .inMemory(shellSession.terminalSession),
         )
         terminalView.controller = controller
         terminalView.translatesAutoresizingMaskIntoConstraints = false
@@ -93,7 +93,7 @@ final class ViewController: NSViewController {
         #if DEBUG
             if Self.isUITesting {
                 let output = TerminalOutputAccessibilityView(
-                    session: shellSession.terminalSession
+                    session: shellSession.terminalSession,
                 )
                 let grid = TerminalGridAccessibilityView()
                 gridAccessibility = grid
@@ -190,7 +190,7 @@ extension ViewController:
             let scale = view.window?.backingScaleFactor ?? 1
             gridAccessibility?.cellSize = CGSize(
                 width: CGFloat(size.cellWidthPixels) / scale,
-                height: CGFloat(size.cellHeightPixels) / scale
+                height: CGFloat(size.cellHeightPixels) / scale,
             )
         #endif
     }

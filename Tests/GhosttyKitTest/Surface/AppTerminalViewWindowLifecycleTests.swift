@@ -14,7 +14,7 @@
                 contentRect: view.frame,
                 styleMask: [.titled],
                 backing: .buffered,
-                defer: false
+                defer: false,
             )
             window.contentView = view
             #expect(!window.occlusionState.contains(.visible))
@@ -22,7 +22,7 @@
 
             NotificationCenter.default.post(
                 name: NSWindow.didChangeOcclusionStateNotification,
-                object: window
+                object: window,
             )
 
             #expect(!view.core.testHooks_isWindowVisible)
@@ -64,7 +64,7 @@
                 rect: view.bounds,
                 options: [.mouseEnteredAndExited, .activeAlways],
                 owner: owner,
-                userInfo: nil
+                userInfo: nil,
             )
             view.addTrackingArea(foreign)
 

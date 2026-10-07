@@ -1,5 +1,5 @@
-import XCTest
 import AppKit
+import XCTest
 
 final class GhosttyTerminalAppUITests: XCTestCase {
     private var app: XCUIApplication!
@@ -70,13 +70,13 @@ final class GhosttyTerminalAppUITests: XCTestCase {
         let grid = try XCTUnwrap(cellGeometry(), "terminal.grid reported no cell size")
         dragPointerSelection(
             from: grid.point(column: 0, row: 1, in: terminal, fraction: 0.25),
-            to: grid.point(column: anchor.count - 1, row: 1, in: terminal, fraction: 0.75)
+            to: grid.point(column: anchor.count - 1, row: 1, in: terminal, fraction: 0.75),
         )
         capture("13-pointer-selection")
         openCopyMenuAndCopySelection(
             at: grid.point(column: anchor.count / 2, row: 1, in: terminal),
             expected: anchor,
-            screenshotName: "14-pointer-copy-menu"
+            screenshotName: "14-pointer-copy-menu",
         )
         longPressTerminal(in: terminal)
         capture("15-long-press")
@@ -106,7 +106,7 @@ final class GhosttyTerminalAppUITests: XCTestCase {
             app.typeKey("h", modifierFlags: .command)
             let hidden = XCTNSPredicateExpectation(
                 predicate: NSPredicate(format: "isHittable == false"),
-                object: terminal
+                object: terminal,
             )
             XCTAssertEqual(XCTWaiter.wait(for: [hidden], timeout: 5), .completed, "App did not hide, cycle \(cycle)")
             app.activate()
@@ -207,7 +207,7 @@ final class GhosttyTerminalAppUITests: XCTestCase {
     private func waitForViewport(
         _ description: String,
         timeout: TimeInterval = 8,
-        until condition: (String) -> Bool
+        until condition: (String) -> Bool,
     ) -> String? {
         let deadline = Date().addingTimeInterval(timeout)
         repeat {
@@ -258,7 +258,9 @@ final class GhosttyTerminalAppUITests: XCTestCase {
     private func waitForFrameWidth(of window: XCUIElement, _ condition: (CGFloat) -> Bool) {
         let deadline = Date().addingTimeInterval(5)
         while Date() < deadline {
-            if condition(window.frame.width) { return }
+            if condition(window.frame.width) {
+                return
+            }
             RunLoop.current.run(until: Date().addingTimeInterval(0.1))
         }
         XCTFail("Window width never changed as expected; now \(window.frame.width)")
@@ -329,11 +331,11 @@ final class GhosttyTerminalAppUITests: XCTestCase {
             column: Int,
             row: Int,
             in element: XCUIElement,
-            fraction: CGFloat = 0.5
+            fraction: CGFloat = 0.5,
         ) -> XCUICoordinate {
             element.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(
                 dx: padding + (CGFloat(column) + fraction) * cell.width,
-                dy: padding + (CGFloat(row) + 0.5) * cell.height
+                dy: padding + (CGFloat(row) + 0.5) * cell.height,
             ))
         }
     }
@@ -347,7 +349,7 @@ final class GhosttyTerminalAppUITests: XCTestCase {
         log("cell-geometry", value)
         return CellGeometry(
             cell: CGSize(width: numbers[0], height: numbers[1]),
-            padding: numbers[2]
+            padding: numbers[2],
         )
     }
 
@@ -361,7 +363,7 @@ final class GhosttyTerminalAppUITests: XCTestCase {
     private func openCopyMenuAndCopySelection(
         at point: XCUICoordinate,
         expected: String,
-        screenshotName: String
+        screenshotName: String,
     ) {
         NSPasteboard.general.clearContents()
         disableSystemAlertMonitorBeforeContextMenu()
@@ -386,7 +388,7 @@ final class GhosttyTerminalAppUITests: XCTestCase {
         element.coordinate(withNormalizedOffset: CGVector(dx: 0.20, dy: 0.10)).rightClick()
         XCTAssertFalse(
             copyMenuItem().waitForExistence(timeout: 0.5),
-            "Copy menu item appeared without an active terminal selection."
+            "Copy menu item appeared without an active terminal selection.",
         )
     }
 
@@ -442,7 +444,7 @@ private extension XCUIElement {
     func waitForHittable(timeout: TimeInterval) -> Bool {
         let expectation = XCTNSPredicateExpectation(
             predicate: NSPredicate(format: "isHittable == true"),
-            object: self
+            object: self,
         )
         return XCTWaiter.wait(for: [expectation], timeout: timeout) == .completed
     }

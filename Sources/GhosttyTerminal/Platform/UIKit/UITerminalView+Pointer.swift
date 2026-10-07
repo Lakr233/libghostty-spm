@@ -53,7 +53,7 @@
         func handleIndirectPointerTouches(
             _ touches: Set<UITouch>,
             phase: IndirectPointerPhase,
-            event: UIEvent?
+            event: UIEvent?,
         ) -> Bool {
             let hasIndirectPointerTouch = touches.contains { $0.type == .indirectPointer }
 
@@ -99,14 +99,14 @@
             let location = touch.location(in: self)
             TerminalDebugLog.log(
                 .input,
-                "pointer touch phase=\(phase) type=\(touch.type.rawValue) button=\(button.rawValue) location=\(NSCoder.string(for: location)) mask=\(event?.buttonMask.rawValue ?? 0)"
+                "pointer touch phase=\(phase) type=\(touch.type.rawValue) button=\(button.rawValue) location=\(NSCoder.string(for: location)) mask=\(event?.buttonMask.rawValue ?? 0)",
             )
 
             switch phase {
             case .began:
                 if button == GHOSTTY_MOUSE_RIGHT,
                    TerminalPointerPolicy.shouldPresentHostSecondaryMenu(
-                       mouseCaptured: surface?.isMouseCaptured == true
+                       mouseCaptured: surface?.isMouseCaptured == true,
                    ),
                    let menuPoint = selectionMenuPoint(at: location)
                 {
@@ -125,7 +125,7 @@
                     surface?.sendMouseButton(
                         state: GHOSTTY_MOUSE_PRESS,
                         button: sent,
-                        mods: pointerMods()
+                        mods: pointerMods(),
                     )
                 }
 
@@ -151,7 +151,7 @@
                     surface?.sendMouseButton(
                         state: GHOSTTY_MOUSE_RELEASE,
                         button: sent,
-                        mods: pointerMods()
+                        mods: pointerMods(),
                     )
                 }
                 if released == GHOSTTY_MOUSE_LEFT {
@@ -178,7 +178,7 @@
             return TerminalPointerPolicy.ghosttyButton(
                 secondary: mask.contains(.secondary),
                 middle: mask.contains(.button(3)),
-                extraButtonNumber: extra
+                extraButtonNumber: extra,
             )
         }
 
@@ -196,10 +196,18 @@
             #if targetEnvironment(macCatalyst)
                 if hardwareKeyboard.heldModifierFlags.isEmpty, let flags = CGEvent(source: nil)?.flags {
                     var mods = TerminalInputModifiers()
-                    if flags.contains(.maskCommand) { mods.insert(.super_) }
-                    if flags.contains(.maskControl) { mods.insert(.ctrl) }
-                    if flags.contains(.maskShift) { mods.insert(.shift) }
-                    if flags.contains(.maskAlternate) { mods.insert(.alt) }
+                    if flags.contains(.maskCommand) {
+                        mods.insert(.super_)
+                    }
+                    if flags.contains(.maskControl) {
+                        mods.insert(.ctrl)
+                    }
+                    if flags.contains(.maskShift) {
+                        mods.insert(.shift)
+                    }
+                    if flags.contains(.maskAlternate) {
+                        mods.insert(.alt)
+                    }
                     return mods.ghosttyMods
                 }
             #endif
@@ -214,10 +222,18 @@
                     keyboard.button(forKeyCode: key)?.isPressed == true
                 }
                 var mods = TerminalInputModifiers()
-                if pressed(.leftShift) || pressed(.rightShift) { mods.insert(.shift) }
-                if pressed(.leftControl) || pressed(.rightControl) { mods.insert(.ctrl) }
-                if pressed(.leftAlt) || pressed(.rightAlt) { mods.insert(.alt) }
-                if pressed(.leftGUI) || pressed(.rightGUI) { mods.insert(.super_) }
+                if pressed(.leftShift) || pressed(.rightShift) {
+                    mods.insert(.shift)
+                }
+                if pressed(.leftControl) || pressed(.rightControl) {
+                    mods.insert(.ctrl)
+                }
+                if pressed(.leftAlt) || pressed(.rightAlt) {
+                    mods.insert(.alt)
+                }
+                if pressed(.leftGUI) || pressed(.rightGUI) {
+                    mods.insert(.super_)
+                }
                 return mods.ghosttyMods
             }
         #endif
@@ -238,7 +254,7 @@
             surface?.sendMousePos(
                 x: Double(point.x),
                 y: Double(point.y),
-                mods: pointerMods()
+                mods: pointerMods(),
             )
         }
 
@@ -257,7 +273,7 @@
                 surface?.sendMouseButton(
                     state: GHOSTTY_MOUSE_RELEASE,
                     button: sent,
-                    mods: pointerMods()
+                    mods: pointerMods(),
                 )
             }
             pointer.pendingSelectionMenuPoint = nil
@@ -272,11 +288,11 @@
                 x: min(start.x, point.x),
                 y: min(start.y, point.y),
                 width: abs(start.x - point.x),
-                height: abs(start.y - point.y)
+                height: abs(start.y - point.y),
             ).insetBy(dx: -2, dy: -2)
             logPointerSelectionDiagnostics(
                 context: "updatePointerSelectionRect",
-                point: point
+                point: point,
             )
         }
 
@@ -291,7 +307,7 @@
             }
             logPointerSelectionDiagnostics(
                 context: "finishPointerSelection",
-                point: point
+                point: point,
             )
         }
 
@@ -314,7 +330,7 @@
             } ?? "nil"
             TerminalDebugLog.log(
                 .input,
-                "pointer selection \(context) viewBounds=\(NSCoder.string(for: bounds)) point=\(NSCoder.string(for: point)) rect=\(rectDescription) metrics=\(metricsDescription) selection=\(selectionDescription) quicklook=\(wordDescription)"
+                "pointer selection \(context) viewBounds=\(NSCoder.string(for: bounds)) point=\(NSCoder.string(for: point)) rect=\(rectDescription) metrics=\(metricsDescription) selection=\(selectionDescription) quicklook=\(wordDescription)",
             )
         }
 
@@ -322,7 +338,7 @@
             func setupIndirectPointerSelectionGesture() {
                 let gesture = UIPanGestureRecognizer(
                     target: self,
-                    action: #selector(handleIndirectPointerSelectionGesture(_:))
+                    action: #selector(handleIndirectPointerSelectionGesture(_:)),
                 )
                 gesture.allowedTouchTypes = [NSNumber(value: UITouch.TouchType.indirectPointer.rawValue)]
                 gesture.minimumNumberOfTouches = 1
@@ -334,12 +350,12 @@
             }
 
             @objc func handleIndirectPointerSelectionGesture(
-                _ gesture: UIPanGestureRecognizer
+                _ gesture: UIPanGestureRecognizer,
             ) {
                 let location = gesture.location(in: self)
                 TerminalDebugLog.log(
                     .input,
-                    "indirect pointer gesture state=\(gesture.state.rawValue) location=\(NSCoder.string(for: location)) translation=\(NSCoder.string(for: gesture.translation(in: self)))"
+                    "indirect pointer gesture state=\(gesture.state.rawValue) location=\(NSCoder.string(for: location)) translation=\(NSCoder.string(for: gesture.translation(in: self)))",
                 )
 
                 switch gesture.state {
@@ -361,7 +377,7 @@
                         surface?.sendMouseButton(
                             state: GHOSTTY_MOUSE_PRESS,
                             button: sent,
-                            mods: pointerMods()
+                            mods: pointerMods(),
                         )
                     }
                     if pointer.selectionStartPoint == nil {
@@ -385,7 +401,7 @@
                         surface?.sendMouseButton(
                             state: GHOSTTY_MOUSE_RELEASE,
                             button: sent,
-                            mods: pointerMods()
+                            mods: pointerMods(),
                         )
                     }
                     finishPointerSelection(at: location)
@@ -409,7 +425,7 @@
     extension UITerminalView: UIGestureRecognizerDelegate {
         public func gestureRecognizer(
             _ gestureRecognizer: UIGestureRecognizer,
-            shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer
+            shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer,
         ) -> Bool {
             gestureRecognizer === pointer.hoverRecognizer
                 || otherGestureRecognizer === pointer.hoverRecognizer
@@ -419,13 +435,13 @@
     extension UITerminalView: UIPointerInteractionDelegate {
         public func pointerInteraction(
             _: UIPointerInteraction,
-            styleFor _: UIPointerRegion
+            styleFor _: UIPointerRegion,
         ) -> UIPointerStyle? {
             switch pointer.mouseShape {
             case .text:
-                return UIPointerStyle(shape: .verticalBeam(length: 24))
+                UIPointerStyle(shape: .verticalBeam(length: 24))
             case .pointer, .notAllowed, .default, .other:
-                return nil
+                nil
             }
         }
     }

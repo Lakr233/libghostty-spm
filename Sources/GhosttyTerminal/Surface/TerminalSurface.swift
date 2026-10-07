@@ -37,7 +37,7 @@ public final class TerminalSurface {
         let result = ghostty_surface_key(s, event)
         TerminalDebugLog.log(
             .input,
-            "surface key action=\(TerminalDebugLog.describe(event.action)) keycode=\(event.keycode) mods=0x\(String(event.mods.rawValue, radix: 16)) consumed=0x\(String(event.consumed_mods.rawValue, radix: 16)) text=\(terminalKeyText(event)) composing=\(event.composing) result=\(result)"
+            "surface key action=\(TerminalDebugLog.describe(event.action)) keycode=\(event.keycode) mods=0x\(String(event.mods.rawValue, radix: 16)) consumed=0x\(String(event.consumed_mods.rawValue, radix: 16)) text=\(terminalKeyText(event)) composing=\(event.composing) result=\(result)",
         )
         return result
     }
@@ -53,7 +53,7 @@ public final class TerminalSurface {
         }
         TerminalDebugLog.log(
             .input,
-            "surface text=\(TerminalDebugLog.describe(text))"
+            "surface text=\(TerminalDebugLog.describe(text))",
         )
         text.withCString { cStr in
             ghostty_surface_text(s, cStr, UInt(text.utf8.count))
@@ -65,7 +65,7 @@ public final class TerminalSurface {
     public func sendMouseButton(
         state: ghostty_input_mouse_state_e,
         button: ghostty_input_mouse_button_e,
-        modifiers: TerminalInputModifiers = []
+        modifiers: TerminalInputModifiers = [],
     ) -> Bool {
         sendMouseButton(state: state, button: button, mods: modifiers.ghosttyMods)
     }
@@ -74,7 +74,7 @@ public final class TerminalSurface {
     public func sendMouseButton(
         state: ghostty_input_mouse_state_e,
         button: ghostty_input_mouse_button_e,
-        mods: ghostty_input_mods_e
+        mods: ghostty_input_mods_e,
     ) -> Bool {
         guard let s = surface else {
             TerminalDebugLog.log(.input, "surface mouse button ignored: missing surface")
@@ -83,7 +83,7 @@ public final class TerminalSurface {
         let result = ghostty_surface_mouse_button(s, state, button, mods)
         TerminalDebugLog.log(
             .input,
-            "surface mouseButton state=\(TerminalDebugLog.describe(state)) button=\(button.rawValue) mods=0x\(String(mods.rawValue, radix: 16)) result=\(result)"
+            "surface mouseButton state=\(TerminalDebugLog.describe(state)) button=\(button.rawValue) mods=0x\(String(mods.rawValue, radix: 16)) result=\(result)",
         )
         return result
     }
@@ -91,7 +91,7 @@ public final class TerminalSurface {
     public func sendMousePos(
         x: Double,
         y: Double,
-        modifiers: TerminalInputModifiers = []
+        modifiers: TerminalInputModifiers = [],
     ) {
         sendMousePos(x: x, y: y, mods: modifiers.ghosttyMods)
     }
@@ -103,7 +103,7 @@ public final class TerminalSurface {
         }
         TerminalDebugLog.log(
             .input,
-            "surface mousePos x=\(String(format: "%.2f", x)) y=\(String(format: "%.2f", y)) mods=0x\(String(mods.rawValue, radix: 16))"
+            "surface mousePos x=\(String(format: "%.2f", x)) y=\(String(format: "%.2f", y)) mods=0x\(String(mods.rawValue, radix: 16))",
         )
         ghostty_surface_mouse_pos(s, x, y, mods)
     }
@@ -111,7 +111,7 @@ public final class TerminalSurface {
     public func sendMouseScroll(
         x: Double,
         y: Double,
-        mods: TerminalScrollModifiers = TerminalScrollModifiers(precision: true)
+        mods: TerminalScrollModifiers = TerminalScrollModifiers(precision: true),
     ) {
         sendMouseScroll(x: x, y: y, mods: mods.rawValue)
     }
@@ -123,7 +123,7 @@ public final class TerminalSurface {
         }
         TerminalDebugLog.log(
             .input,
-            "surface scroll x=\(String(format: "%.2f", x)) y=\(String(format: "%.2f", y)) mods=0x\(String(mods, radix: 16))"
+            "surface scroll x=\(String(format: "%.2f", x)) y=\(String(format: "%.2f", y)) mods=0x\(String(mods, radix: 16))",
         )
         ghostty_surface_mouse_scroll(s, x, y, mods)
     }
@@ -165,7 +165,7 @@ public final class TerminalSurface {
         }
         TerminalDebugLog.log(
             .actions,
-            "binding action=\(TerminalDebugLog.describe(action)) result=\(result)"
+            "binding action=\(TerminalDebugLog.describe(action)) result=\(result)",
         )
         return result
     }
@@ -216,7 +216,7 @@ public final class TerminalSurface {
         }
         TerminalDebugLog.log(
             .metrics,
-            "surface contentScale x=\(String(format: "%.2f", x)) y=\(String(format: "%.2f", y))"
+            "surface contentScale x=\(String(format: "%.2f", x)) y=\(String(format: "%.2f", y))",
         )
         ghostty_surface_set_content_scale(s, x, y)
     }
@@ -292,7 +292,7 @@ public final class TerminalSurface {
             return SelectionResult(
                 text: "",
                 offsetStart: out.offset_start,
-                offsetLength: out.offset_len
+                offsetLength: out.offset_len,
             )
         }
 
@@ -301,12 +301,12 @@ public final class TerminalSurface {
         let text = String(decoding: bytes, as: UTF8.self)
         TerminalDebugLog.log(
             .input,
-            "surface readSelection bytes=\(text.utf8.count) lines=\(TerminalInputText.lineCount(in: text)) offset=\(out.offset_start)+\(out.offset_len)"
+            "surface readSelection bytes=\(text.utf8.count) lines=\(TerminalInputText.lineCount(in: text)) offset=\(out.offset_start)+\(out.offset_len)",
         )
         return SelectionResult(
             text: text,
             offsetStart: out.offset_start,
-            offsetLength: out.offset_len
+            offsetLength: out.offset_len,
         )
     }
 
@@ -322,7 +322,7 @@ public final class TerminalSurface {
         }
         TerminalDebugLog.log(
             .ime,
-            "surface imePoint x=\(String(format: "%.2f", x)) y=\(String(format: "%.2f", y)) width=\(String(format: "%.2f", w)) height=\(String(format: "%.2f", h))"
+            "surface imePoint x=\(String(format: "%.2f", x)) y=\(String(format: "%.2f", y)) width=\(String(format: "%.2f", w)) height=\(String(format: "%.2f", h))",
         )
         return (x, y, w, h)
     }
@@ -370,14 +370,14 @@ public final class TerminalSurface {
             }
             TerminalDebugLog.log(
                 .input,
-                "surface quicklookWord word=\(TerminalDebugLog.describe(word)) offset=\(out.offset_start)+\(out.offset_len) pointX=\(String(format: "%.2f", out.tl_px_x)) pointY=\(String(format: "%.2f", out.tl_px_y))"
+                "surface quicklookWord word=\(TerminalDebugLog.describe(word)) offset=\(out.offset_start)+\(out.offset_len) pointX=\(String(format: "%.2f", out.tl_px_x)) pointY=\(String(format: "%.2f", out.tl_px_y))",
             )
             return QuicklookWordResult(
                 word: word,
                 offsetStart: out.offset_start,
                 offsetLength: out.offset_len,
                 pointX: out.tl_px_x,
-                pointY: out.tl_px_y
+                pointY: out.tl_px_y,
             )
         }
 
@@ -395,7 +395,7 @@ public final class TerminalSurface {
             let contains = wordStart >= selectionStart && wordEnd <= selectionEnd
             TerminalDebugLog.log(
                 .input,
-                "surface selectionContainsQuicklookWord=\(contains) selection=\(selected.offsetStart)+\(selected.offsetLength) word=\(word.offsetStart)+\(word.offsetLength)"
+                "surface selectionContainsQuicklookWord=\(contains) selection=\(selected.offsetStart)+\(selected.offsetLength) word=\(word.offsetStart)+\(word.offsetLength)",
             )
             return contains
         }
@@ -431,7 +431,7 @@ public final class TerminalSurface {
         guard let ptr = str.ptr, str.len > 0 else { return nil }
         return String(
             decoding: UnsafeRawBufferPointer(start: ptr, count: Int(str.len)),
-            as: UTF8.self
+            as: UTF8.self,
         )
     }
 

@@ -20,7 +20,7 @@ public struct TerminalSurfaceView: View {
 
     init(
         context: TerminalViewState,
-        focusBinding: TerminalFocusBinding?
+        focusBinding: TerminalFocusBinding?,
     ) {
         self.context = context
         self.focusBinding = focusBinding
@@ -46,7 +46,7 @@ public struct TerminalSurfaceView: View {
             controller: context.controller,
             configuration: context.configuration,
             isSurfaceVisible: context.isSurfaceVisible,
-            focusBinding: focusBinding
+            focusBinding: focusBinding,
         )
         #if canImport(UIKit)
             #if !targetEnvironment(macCatalyst)
@@ -58,26 +58,26 @@ public struct TerminalSurfaceView: View {
     }
 
     public func terminalFocused(
-        _ condition: FocusState<Bool>.Binding
+        _ condition: FocusState<Bool>.Binding,
     ) -> TerminalSurfaceView {
         TerminalSurfaceView(
             context: context,
-            focusBinding: .bool(condition)
+            focusBinding: .bool(condition),
         )
     }
 
     public func terminalFocused<Value: Hashable>(
         _ binding: FocusState<Value?>.Binding,
-        equals value: Value
+        equals value: Value,
     ) -> TerminalSurfaceView {
         TerminalSurfaceView(
             context: context,
-            focusBinding: .optional(binding, equals: value)
+            focusBinding: .optional(binding, equals: value),
         )
     }
 
     public func terminalFocusOnAppear(
-        _ condition: FocusState<Bool>.Binding
+        _ condition: FocusState<Bool>.Binding,
     ) -> some View {
         terminalFocused(condition)
             .onAppear {
@@ -87,7 +87,7 @@ public struct TerminalSurfaceView: View {
 
     public func terminalFocusOnAppear<Value: Hashable>(
         _ binding: FocusState<Value?>.Binding,
-        equals value: Value
+        equals value: Value,
     ) -> some View {
         terminalFocused(binding, equals: value)
             .onAppear {

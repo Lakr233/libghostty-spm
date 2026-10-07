@@ -14,7 +14,7 @@ extension TerminalController {
     public static var managedConfigDirectory: URL {
         FileManager.default.temporaryDirectory.appendingPathComponent(
             Bundle.main.bundleIdentifier ?? ProcessInfo.processInfo.processName,
-            isDirectory: true
+            isDirectory: true,
         )
     }
 
@@ -41,7 +41,7 @@ extension TerminalController {
     func applyResolvedConfig(
         _ resolved: (source: ConfigSource, contents: String),
         willChange: (() -> Void)?,
-        applyState: () -> Void = {}
+        applyState: () -> Void = {},
     ) -> Bool {
         guard resolved.source != configSource else {
             // ObservableObject subscribers expect will-change semantics.
@@ -128,7 +128,7 @@ extension TerminalController {
     }
 
     private static func prepareConfig(
-        source: ConfigSource
+        source: ConfigSource,
     ) -> Result<PreparedConfig, ConfigurationIssue> {
         let resolvedContents: String
         let configPath: String
@@ -186,7 +186,7 @@ extension TerminalController {
                 try? FileManager.default.removeItem(at: managedConfigURL)
             }
             return .failure(
-                ConfigurationIssue("ghostty config diagnostics: \(diagnostics.joined(separator: " | "))")
+                ConfigurationIssue("ghostty config diagnostics: \(diagnostics.joined(separator: " | "))"),
             )
         }
 
@@ -194,8 +194,8 @@ extension TerminalController {
             PreparedConfig(
                 rawValue: rawValue,
                 managedConfigURL: managedConfigURL,
-                renderedContents: resolvedContents
-            )
+                renderedContents: resolvedContents,
+            ),
         )
     }
 

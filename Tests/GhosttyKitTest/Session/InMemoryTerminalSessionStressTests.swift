@@ -1,13 +1,13 @@
-@testable import GhosttyTerminal
 import Foundation
 import GhosttyKit
+@testable import GhosttyTerminal
 import Testing
 
-// Hosts call `receive` from whatever thread their transport lands on, and the
-// view rebuilds its surface whenever it likes. These tests hammer the output
-// queue from many threads at once against a stand-in surface and check the
-// three things a terminal cannot afford to get wrong: every byte arrives,
-// none arrives twice, and each writer's bytes keep their order.
+/// Hosts call `receive` from whatever thread their transport lands on, and the
+/// view rebuilds its surface whenever it likes. These tests hammer the output
+/// queue from many threads at once against a stand-in surface and check the
+/// three things a terminal cannot afford to get wrong: every byte arrives,
+/// none arrives twice, and each writer's bytes keep their order.
 struct InMemoryTerminalSessionStressTests {
     @Test
     func `concurrent writers lose and duplicate nothing and keep per-writer order`() throws {
@@ -15,7 +15,7 @@ struct InMemoryTerminalSessionStressTests {
         let session = InMemoryTerminalSession(
             write: { _ in },
             resize: { _ in },
-            surfaceWrite: { _, data in sink.append(data) }
+            surfaceWrite: { _, data in sink.append(data) },
         )
         session.setSurface(stressSurface(0x100))
 
@@ -48,7 +48,7 @@ struct InMemoryTerminalSessionStressTests {
                     Issue.record("write reached a released surface")
                 }
                 sink.append(data)
-            }
+            },
         )
 
         let writers = 8
@@ -67,7 +67,9 @@ struct InMemoryTerminalSessionStressTests {
         while writersDone.wait(timeout: .now()) == .timedOut || swaps < 50 {
             let surface = stressSurface(address)
             session.setSurface(surface)
-            if swaps % 3 == 0 { sched_yield() }
+            if swaps % 3 == 0 {
+                sched_yield()
+            }
             session.clearSurface(ifMatches: surface)
             released.insert(surface)
             address += 0x10
@@ -90,7 +92,7 @@ struct InMemoryTerminalSessionStressTests {
         let session = InMemoryTerminalSession(
             write: { _ in },
             resize: { _ in },
-            surfaceWrite: { _, data in sink.append(data) }
+            surfaceWrite: { _, data in sink.append(data) },
         )
 
         let writers = 8
@@ -132,7 +134,7 @@ struct InMemoryTerminalSessionStressTests {
         let session = InMemoryTerminalSession(
             write: { _ in },
             resize: { resizes.append($0) },
-            surfaceWrite: { _, data in sink.append(data) }
+            surfaceWrite: { _, data in sink.append(data) },
         )
         session.setSurface(stressSurface(0x300))
 
@@ -170,7 +172,7 @@ struct InMemoryTerminalSessionStressTests {
         let session = InMemoryTerminalSession(
             write: { _ in },
             resize: { _ in },
-            surfaceWrite: { _, data in sink.add(data) }
+            surfaceWrite: { _, data in sink.add(data) },
         )
         session.setSurface(stressSurface(0x400))
 
@@ -199,9 +201,11 @@ struct InMemoryTerminalSessionStressTests {
             write: { _ in },
             resize: { _ in },
             surfaceWrite: { _, data in
-                if sink.writeCount == 0 { gate.wait() }
+                if sink.writeCount == 0 {
+                    gate.wait()
+                }
                 sink.add(data)
-            }
+            },
         )
         session.setSurface(stressSurface(0x500))
 
@@ -228,7 +232,7 @@ struct InMemoryTerminalSessionStressTests {
         let session = InMemoryTerminalSession(
             write: { _ in },
             resize: { _ in },
-            surfaceWrite: { _, data in sink.add(data) }
+            surfaceWrite: { _, data in sink.add(data) },
         )
 
         let chunk = Data(repeating: UInt8(ascii: "z"), count: 64)
@@ -254,7 +258,7 @@ struct InMemoryTerminalSessionStressTests {
             widthPixels: UInt32(columns) * 8,
             heightPixels: UInt32(rows) * 16,
             cellWidthPixels: 8,
-            cellHeightPixels: 16
+            cellHeightPixels: 16,
         )
     }
 }
@@ -299,7 +303,7 @@ private enum StressRecord {
     static func expectComplete(
         _ records: [Decoded],
         writers: Int,
-        recordsPerWriter: Int
+        recordsPerWriter: Int,
     ) throws {
         #expect(records.count == writers * recordsPerWriter)
         var next = [Int](repeating: 0, count: writers)
@@ -307,7 +311,7 @@ private enum StressRecord {
             try #require(record.writer < writers)
             try #require(
                 record.sequence == next[record.writer],
-                "writer \(record.writer) expected \(next[record.writer]) got \(record.sequence)"
+                "writer \(record.writer) expected \(next[record.writer]) got \(record.sequence)",
             )
             next[record.writer] += 1
         }

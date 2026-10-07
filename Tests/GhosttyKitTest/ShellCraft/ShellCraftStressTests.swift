@@ -88,7 +88,7 @@ struct ShellCraftStressTests {
                 for step in 0 ..< 3000 {
                     events.yield(.resize(InMemoryTerminalViewport(
                         columns: UInt16(10 + (step * 7) % 150),
-                        rows: UInt16(5 + (step * 3) % 60)
+                        rows: UInt16(5 + (step * 3) % 60),
                     )))
                 }
             }
@@ -165,13 +165,15 @@ private struct StressShellRig {
             write: { _ in },
             resize: { _ in },
             surfaceWrite: { _, data in output.append(data) },
-            processExit: { _, _, _ in }
+            processExit: { _, _, _ in },
         )
         session.setSurface(UnsafeMutableRawPointer(bitPattern: 0x20)!)
         let extra = commands()
         let shell = ShellDefinition(prompt: "$ ", welcomeMessage: "") {
             ShellCommand("echo", summary: "Echo text back") { .output($0.arguments + "\r\n") }
-            for command in extra { command }
+            for command in extra {
+                command
+            }
         }
         engine = Engine(shell: shell, session: session)
     }

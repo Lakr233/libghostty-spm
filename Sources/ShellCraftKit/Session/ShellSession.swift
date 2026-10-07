@@ -19,7 +19,7 @@ public final class ShellSession {
             },
             resize: { size in
                 events.yield(.resize(size))
-            }
+            },
         )
         let engine = Engine(shell: shell, session: terminalSession)
 

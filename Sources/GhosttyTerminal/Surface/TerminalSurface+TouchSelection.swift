@@ -22,11 +22,11 @@ extension TerminalSurface {
         func point(_ cell: Int) -> ghostty_point_s {
             ghostty_point_s(
                 tag: tag, coord: GHOSTTY_POINT_COORD_EXACT,
-                x: UInt32(cell % columns), y: UInt32(cell / columns)
+                x: UInt32(cell % columns), y: UInt32(cell / columns),
             )
         }
         let selection = ghostty_selection_s(
-            top_left: point(range.lowerBound), bottom_right: point(range.upperBound), rectangle: false
+            top_left: point(range.lowerBound), bottom_right: point(range.upperBound), rectangle: false,
         )
         var result = ghostty_text_s()
         guard ghostty_surface_read_text(surface, selection, &result) else { return nil }

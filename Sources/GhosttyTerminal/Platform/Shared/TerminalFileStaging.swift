@@ -61,7 +61,7 @@ public enum TerminalFileStaging {
         var resolved: [String] {
             lock.lock()
             defer { lock.unlock() }
-            return values.compactMap { $0 }
+            return values.compactMap(\.self)
         }
     }
 
@@ -98,7 +98,7 @@ public enum TerminalFileStaging {
     @MainActor
     static func stage(
         _ items: [Item],
-        completion: @escaping @MainActor (String?) -> Void
+        completion: @escaping @MainActor (String?) -> Void,
     ) {
         let directory = directory
         guard prepareDirectory(directory, staleAge: staleFileAge) else {
@@ -116,7 +116,7 @@ public enum TerminalFileStaging {
                 guard let url else {
                     TerminalDebugLog.log(
                         .input,
-                        "staging file representation failed type=\(item.type.identifier) error=\(String(describing: error))"
+                        "staging file representation failed type=\(item.type.identifier) error=\(String(describing: error))",
                     )
                     return
                 }
@@ -146,7 +146,7 @@ public enum TerminalFileStaging {
         data: Data,
         name: String,
         type: UTType,
-        completion: @escaping @MainActor (String?) -> Void
+        completion: @escaping @MainActor (String?) -> Void,
     ) {
         let directory = directory
         let staleAge = staleFileAge
@@ -198,7 +198,7 @@ public enum TerminalFileStaging {
         let existing = suggested.pathExtension
         return (
             existing.isEmpty ? suggested as String : suggested.deletingPathExtension,
-            existing.isEmpty ? preferred : existing
+            existing.isEmpty ? preferred : existing,
         )
     }
 
@@ -208,7 +208,7 @@ public enum TerminalFileStaging {
     /// covers everything else.
     static func uniqueURL(name: String, extension fileExtension: String, in directory: URL) -> URL {
         let safeName = String(
-            name.map { $0 == "/" || $0.isNewline || $0.asciiValue.map { $0 < 0x20 } == true ? "_" : $0 }
+            name.map { $0 == "/" || $0.isNewline || $0.asciiValue.map { $0 < 0x20 } == true ? "_" : $0 },
         )
         let stamp = Int(Date().timeIntervalSince1970)
         var candidate = directory.appendingPathComponent("\(safeName)-\(stamp).\(fileExtension)")
@@ -232,7 +232,7 @@ public enum TerminalFileStaging {
         name: String,
         extension fileExtension: String,
         in directory: URL,
-        write: (URL) throws -> Void
+        write: (URL) throws -> Void,
     ) -> String? {
         storeLock.lock()
         defer { storeLock.unlock() }
@@ -247,7 +247,7 @@ public enum TerminalFileStaging {
             // handed out.
             try FileManager.default.setAttributes(
                 [.posixPermissions: 0o644, .modificationDate: Date()],
-                ofItemAtPath: destination.path
+                ofItemAtPath: destination.path,
             )
             return destination.path
         } catch {
@@ -264,7 +264,7 @@ public enum TerminalFileStaging {
             try FileManager.default.createDirectory(
                 at: directory,
                 withIntermediateDirectories: true,
-                attributes: [.posixPermissions: 0o755]
+                attributes: [.posixPermissions: 0o755],
             )
         } catch {
             TerminalDebugLog.log(.input, "staging directory unavailable: \(error)")
@@ -281,7 +281,7 @@ public enum TerminalFileStaging {
         let cutoff = Date().addingTimeInterval(-age)
         let contents = (try? manager.contentsOfDirectory(
             at: directory,
-            includingPropertiesForKeys: [.contentModificationDateKey]
+            includingPropertiesForKeys: [.contentModificationDateKey],
         )) ?? []
         for url in contents {
             let modified = (try? url.resourceValues(forKeys: [.contentModificationDateKey]))?

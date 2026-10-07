@@ -52,6 +52,7 @@ final class TerminalSurfaceCoordinator {
     var displayLinkContext: DisplayLinkContext = .main {
         didSet { displayLink?.context = displayLinkContext }
     }
+
     var scaleFactor: () -> Double = { 2.0 }
     var viewSize: () -> (width: Double, height: Double) = { (0, 0) }
     var platformSetup: ((inout ghostty_surface_config_s) -> Void)?
@@ -129,7 +130,7 @@ final class TerminalSurfaceCoordinator {
     private static let displayLinkFrameRateRange = DisplayLinkFrameRateRange(
         minimum: 60,
         maximum: 120,
-        preferred: 120
+        preferred: 120,
     )
     private static let idleFramesBeforeRelease = 30
 
@@ -178,7 +179,7 @@ final class TerminalSurfaceCoordinator {
             let size = viewSize()
             TerminalDebugLog.log(
                 .lifecycle,
-                "surface kept: view size temporarily invalid \(String(format: "%.2f", size.width))x\(String(format: "%.2f", size.height))"
+                "surface kept: view size temporarily invalid \(String(format: "%.2f", size.width))x\(String(format: "%.2f", size.height))",
             )
 
             return
@@ -198,7 +199,7 @@ final class TerminalSurfaceCoordinator {
             let size = viewSize()
             TerminalDebugLog.log(
                 .lifecycle,
-                "surface rebuild skipped: invalid view size=\(String(format: "%.2f", size.width))x\(String(format: "%.2f", size.height))"
+                "surface rebuild skipped: invalid view size=\(String(format: "%.2f", size.width))x\(String(format: "%.2f", size.height))",
             )
             return
         }
@@ -206,7 +207,7 @@ final class TerminalSurfaceCoordinator {
         let scale = scaleFactor()
         TerminalDebugLog.log(
             .lifecycle,
-            "surface rebuild scale=\(String(format: "%.2f", scale)) \(configuration.debugSummary)"
+            "surface rebuild scale=\(String(format: "%.2f", scale)) \(configuration.debugSummary)",
         )
         let rawSurface = controller.createSurface(
             bridge: bridge,
@@ -214,7 +215,7 @@ final class TerminalSurfaceCoordinator {
             platformSetup: { [self] config in
                 platformSetup?(&config)
                 config.scale_factor = scale
-            }
+            },
         )
         guard let rawSurface else {
             TerminalDebugLog.log(.lifecycle, "surface rebuild failed")
@@ -240,7 +241,7 @@ final class TerminalSurfaceCoordinator {
             },
             onWakeup: { [weak self] in
                 self?.requestImmediateTick()
-            }
+            },
         )
         TerminalDebugLog.log(.lifecycle, "surface rebuild succeeded")
         onSurfaceRebuild?()
@@ -252,27 +253,27 @@ final class TerminalSurfaceCoordinator {
 
     // MARK: - Metrics
 
-    // Ghostty's IO thread coalesces resize messages with a hardcoded 25ms
-    // trailing-only window (Thread.zig). For an alt-screen TUI that fully
-    // repaints on every winsize (Claude Code), a live divider drag posts new
-    // sizes faster than that window resolves — the grid reflow runs
-    // permanently behind the layer bounds and the renderer composites the
-    // stale grid into the new frame: the mid-drag collapse. Bounding the
-    // stream (leading edge for responsiveness, trailing edge so the final
-    // size always lands) hands the engine a signal it can settle on.
-    //
-    // The right window is CONTENT-dependent, so it is a per-surface value
-    // the host sets (`TerminalSurfaceOptions.resizeThrottleMilliseconds`, or
-    // the platform setter for a live change): a primary-screen transcript
-    // that never re-emits its scrollback (codex-style) renders best fully
-    // unthrottled — large throttled jumps read as blinking — while the
-    // alt-screen full-repaint agents need ~96ms. 0 disables. The env var
-    // GHOSTTY_SURFACE_RESIZE_THROTTLE_MS, when set, overrides every surface
-    // for whole-process A/B runs.
+    /// Ghostty's IO thread coalesces resize messages with a hardcoded 25ms
+    /// trailing-only window (Thread.zig). For an alt-screen TUI that fully
+    /// repaints on every winsize (Claude Code), a live divider drag posts new
+    /// sizes faster than that window resolves — the grid reflow runs
+    /// permanently behind the layer bounds and the renderer composites the
+    /// stale grid into the new frame: the mid-drag collapse. Bounding the
+    /// stream (leading edge for responsiveness, trailing edge so the final
+    /// size always lands) hands the engine a signal it can settle on.
+    ///
+    /// The right window is CONTENT-dependent, so it is a per-surface value
+    /// the host sets (`TerminalSurfaceOptions.resizeThrottleMilliseconds`, or
+    /// the platform setter for a live change): a primary-screen transcript
+    /// that never re-emits its scrollback (codex-style) renders best fully
+    /// unthrottled — large throttled jumps read as blinking — while the
+    /// alt-screen full-repaint agents need ~96ms. 0 disables. The env var
+    /// GHOSTTY_SURFACE_RESIZE_THROTTLE_MS, when set, overrides every surface
+    /// for whole-process A/B runs.
     private static let resizeThrottleOverride: TimeInterval? = {
         guard
             let raw = ProcessInfo.processInfo
-                .environment["GHOSTTY_SURFACE_RESIZE_THROTTLE_MS"],
+            .environment["GHOSTTY_SURFACE_RESIZE_THROTTLE_MS"],
             let ms = Double(raw), ms >= 0
         else { return nil }
         return ms / 1000
@@ -284,8 +285,12 @@ final class TerminalSurfaceCoordinator {
     var resizeThrottleInterval: TimeInterval?
 
     private var effectiveResizeThrottle: TimeInterval {
-        if let override = Self.resizeThrottleOverride { return override }
-        if let interval = resizeThrottleInterval { return interval }
+        if let override = Self.resizeThrottleOverride {
+            return override
+        }
+        if let interval = resizeThrottleInterval {
+            return interval
+        }
         return max(0, configuration.resizeThrottleMilliseconds) / 1000
     }
 
@@ -341,7 +346,7 @@ final class TerminalSurfaceCoordinator {
         resizeThrottleArmed = true
         let generation = resizeThrottleGeneration
         DispatchQueue.main.asyncAfter(
-            deadline: .now() + effectiveResizeThrottle
+            deadline: .now() + effectiveResizeThrottle,
         ) { [weak self] in
             guard let self else { return }
             // A teardown bumped the generation: this timer belongs to a
@@ -370,7 +375,7 @@ final class TerminalSurfaceCoordinator {
         guard size.width > 0, size.height > 0 else {
             TerminalDebugLog.log(
                 .metrics,
-                "synchronizeMetrics skipped: invalid view size=\(String(format: "%.2f", size.width))x\(String(format: "%.2f", size.height))"
+                "synchronizeMetrics skipped: invalid view size=\(String(format: "%.2f", size.width))x\(String(format: "%.2f", size.height))",
             )
             return false
         }
@@ -380,14 +385,14 @@ final class TerminalSurfaceCoordinator {
         guard pixelWidth > 0, pixelHeight > 0 else {
             TerminalDebugLog.log(
                 .metrics,
-                "synchronizeMetrics skipped: invalid pixel size=\(pixelWidth)x\(pixelHeight)"
+                "synchronizeMetrics skipped: invalid pixel size=\(pixelWidth)x\(pixelHeight)",
             )
             return false
         }
 
         TerminalDebugLog.log(
             .metrics,
-            "sync view=\(String(format: "%.2f", size.width))x\(String(format: "%.2f", size.height)) scale=\(String(format: "%.2f", scale)) pixels=\(pixelWidth)x\(pixelHeight)"
+            "sync view=\(String(format: "%.2f", size.width))x\(String(format: "%.2f", size.height)) scale=\(String(format: "%.2f", scale)) pixels=\(pixelWidth)x\(pixelHeight)",
         )
 
         surface.setContentScale(x: scale, y: scale)
@@ -407,7 +412,7 @@ final class TerminalSurfaceCoordinator {
         guard metrics != lastMetrics else {
             TerminalDebugLog.log(
                 .metrics,
-                "sync unchanged \(metrics.debugSummary)"
+                "sync unchanged \(metrics.debugSummary)",
             )
             onMetricsUpdate?()
             return true
@@ -437,7 +442,7 @@ final class TerminalSurfaceCoordinator {
         } else if let delegate = delegate as? any TerminalSurfaceResizeDelegate {
             delegate.terminalDidResize(
                 columns: Int(surfaceSize.columns),
-                rows: Int(surfaceSize.rows)
+                rows: Int(surfaceSize.rows),
             )
         }
         onMetricsUpdate?()
@@ -544,19 +549,33 @@ final class TerminalSurfaceCoordinator {
     }
 
     #if DEBUG
-        // Test access to the host-managed resize state. Read-only apart from
-        // `pendingRebuild`, which tests set to drive the redemption path
-        // without needing a real ghostty surface.
+        /// Test access to the host-managed resize state. Read-only apart from
+        /// `pendingRebuild`, which tests set to drive the redemption path
+        /// without needing a real ghostty surface.
         var testHooks_pendingRebuild: Bool {
             get { pendingRebuild }
             set { pendingRebuild = newValue }
         }
 
-        var testHooks_throttleArmed: Bool { resizeThrottleArmed }
-        var testHooks_throttleTrailing: Bool { resizeThrottleTrailing }
-        var testHooks_throttleGeneration: Int { resizeThrottleGeneration }
-        var testHooks_isWindowVisible: Bool { isWindowVisible }
-        var testHooks_canRenderFrame: Bool { canRenderFrame }
+        var testHooks_throttleArmed: Bool {
+            resizeThrottleArmed
+        }
+
+        var testHooks_throttleTrailing: Bool {
+            resizeThrottleTrailing
+        }
+
+        var testHooks_throttleGeneration: Int {
+            resizeThrottleGeneration
+        }
+
+        var testHooks_isWindowVisible: Bool {
+            isWindowVisible
+        }
+
+        var testHooks_canRenderFrame: Bool {
+            canRenderFrame
+        }
     #endif
 
     // MARK: - Cleanup
@@ -624,7 +643,7 @@ final class TerminalSurfaceCoordinator {
     private func handleCellSizeChange(width: UInt32, height: UInt32) {
         TerminalDebugLog.log(
             .metrics,
-            "cell size changed width=\(width) height=\(height)"
+            "cell size changed width=\(width) height=\(height)",
         )
         synchronizeMetrics()
         requestImmediateTick()
@@ -643,7 +662,7 @@ final class TerminalSurfaceCoordinator {
         } else {
             let link = DisplayLink(
                 context: displayLinkContext,
-                preferredFrameRateRange: Self.displayLinkFrameRateRange
+                preferredFrameRateRange: Self.displayLinkFrameRateRange,
             )
             link.delegate = self
             displayLink = link

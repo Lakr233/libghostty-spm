@@ -22,7 +22,7 @@ public struct ShellCommand: Sendable {
     public init(
         _ name: String,
         summary: String = "",
-        handler: @escaping @Sendable (CommandContext) -> CommandResult
+        handler: @escaping @Sendable (CommandContext) -> CommandResult,
     ) {
         self.name = name
         self.summary = summary

@@ -16,11 +16,11 @@ struct TerminalPointerReportingTests {
         surface.sendMousePos(x: 12, y: 12)
         _ = surface.sendMouseButton(
             state: GHOSTTY_MOUSE_PRESS,
-            button: GHOSTTY_MOUSE_LEFT
+            button: GHOSTTY_MOUSE_LEFT,
         )
         _ = surface.sendMouseButton(
             state: GHOSTTY_MOUSE_RELEASE,
-            button: GHOSTTY_MOUSE_LEFT
+            button: GHOSTTY_MOUSE_LEFT,
         )
 
         let bytes = await harness.drain()
@@ -36,11 +36,11 @@ struct TerminalPointerReportingTests {
         surface.sendMousePos(x: 12, y: 12)
         _ = surface.sendMouseButton(
             state: GHOSTTY_MOUSE_PRESS,
-            button: GHOSTTY_MOUSE_LEFT
+            button: GHOSTTY_MOUSE_LEFT,
         )
         _ = surface.sendMouseButton(
             state: GHOSTTY_MOUSE_RELEASE,
-            button: GHOSTTY_MOUSE_LEFT
+            button: GHOSTTY_MOUSE_LEFT,
         )
 
         let bytes = await harness.drain()

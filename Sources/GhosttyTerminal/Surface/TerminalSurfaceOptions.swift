@@ -51,7 +51,7 @@ public struct TerminalSurfaceOptions: Sendable {
         command: String? = nil,
         waitAfterCommand: Bool? = nil,
         context: TerminalSurfaceContext = .window,
-        resizeThrottleMilliseconds: Double = 0
+        resizeThrottleMilliseconds: Double = 0,
     ) {
         self.backend = backend
         self.fontSize = fontSize
@@ -63,10 +63,10 @@ public struct TerminalSurfaceOptions: Sendable {
         self.resizeThrottleMilliseconds = max(0, resizeThrottleMilliseconds)
     }
 
-    // `resizeThrottleMilliseconds` is deliberately absent: it is a delivery
-    // policy, not part of the surface's identity. Including it would tear down
-    // and rebuild a live surface — discarding its grid and scrollback — for a
-    // change that only affects how often the existing surface is resized.
+    /// `resizeThrottleMilliseconds` is deliberately absent: it is a delivery
+    /// policy, not part of the surface's identity. Including it would tear down
+    /// and rebuild a live surface — discarding its grid and scrollback — for a
+    /// change that only affects how often the existing surface is resized.
     func isEquivalent(to other: TerminalSurfaceOptions) -> Bool {
         fontSize == other.fontSize
             && workingDirectory == other.workingDirectory

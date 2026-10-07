@@ -133,19 +133,19 @@ struct TerminalFocusBinding {
     static func bool(_ binding: FocusState<Bool>.Binding) -> TerminalFocusBinding {
         TerminalFocusBinding(
             read: { binding.wrappedValue },
-            write: { binding.wrappedValue = $0 }
+            write: { binding.wrappedValue = $0 },
         )
     }
 
     static func optional<Value: Hashable>(
         _ binding: FocusState<Value?>.Binding,
-        equals value: Value
+        equals value: Value,
     ) -> TerminalFocusBinding {
         TerminalFocusBinding(
             read: { binding.wrappedValue == value },
             write: { focused in
                 binding.wrappedValue = focused ? value : nil
-            }
+            },
         )
     }
 }
