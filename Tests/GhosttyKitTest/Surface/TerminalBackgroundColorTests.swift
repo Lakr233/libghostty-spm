@@ -1,3 +1,4 @@
+import AppKit
 @testable import GhosttyTerminal
 import Testing
 
@@ -16,6 +17,22 @@ struct TerminalBackgroundColorTests {
 
         controller.setColorScheme(.dark)
         #expect(controller.backgroundColor == TerminalColor(red: 0x44, green: 0x55, blue: 0x66))
+    }
+
+    @Test
+    func `the state follows a scheme the view sets for another delegate`() async {
+        let state = TerminalViewState(theme: Self.theme)
+        let delegate = ColorChangeRecorder()
+        let view = AppTerminalView(frame: .zero)
+        view.appearance = NSAppearance(named: .darkAqua)
+        view.delegate = delegate
+        view.controller = state.controller
+
+        view.updateColorScheme()
+
+        let dark = TerminalColor(red: 0x44, green: 0x55, blue: 0x66)
+        await waitUntil { state.backgroundColor == dark }
+        #expect(state.backgroundColor == dark)
     }
 
     @Test

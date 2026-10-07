@@ -51,7 +51,7 @@ extension TerminalViewState:
     /// They are requests with an answer expected, not state: a clipboard
     /// confirmation must reach its host while the request is still live, and a
     /// close must act before the surface goes.
-    private func publishSoon(
+    func publishSoon(
         _ key: TerminalPendingPublishes.Key,
         _ apply: @escaping TerminalPendingPublishes.Apply,
     ) {

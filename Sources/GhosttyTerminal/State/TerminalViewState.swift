@@ -225,23 +225,28 @@ public final class TerminalViewState: ObservableObject {
         }
     }
 
-    public init(
+    public convenience init(
         configSource: TerminalController.ConfigSource = .none,
         theme: TerminalTheme = .default,
         terminalConfiguration: TerminalConfiguration = .init(),
     ) {
-        let controller = TerminalController(
+        self.init(controller: TerminalController(
             configSource: configSource,
             theme: theme,
             terminalConfiguration: terminalConfiguration,
-        )
-        self.controller = controller
-        backgroundColor = controller.backgroundColor
+        ))
     }
 
     public init(controller: TerminalController) {
         self.controller = controller
         backgroundColor = controller.backgroundColor
+        controller.addConfigObserver(ObjectIdentifier(self)) { [weak self] in
+            self?.publishSoon(.config) { $0.publishBackgroundColor() }
+        }
+    }
+
+    isolated deinit {
+        controller.removeConfigObserver(ObjectIdentifier(self))
     }
 
     // MARK: - Forwarded from Controller (single source of truth)
