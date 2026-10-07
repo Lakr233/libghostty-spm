@@ -393,8 +393,25 @@
                 softwareKeyboard.isVisible = true
             }
 
-            @objc func keyboardDidHide(_: Notification) {
-                softwareKeyboard.isVisible = false
+            /// A hide whose end frame is still on screen is the software
+            /// keys collapsing to the accessory bar: iOS 27 posts it when
+            /// hardware-keyboard input starts, and the bar stays up and
+            /// ours, so the next tap must put it away, not re-acquire.
+            @objc func keyboardDidHide(_ notification: Notification) {
+                softwareKeyboard.isVisible = isFirstResponder && keyboardEndFrameIsOnScreen(notification)
+            }
+
+            private func keyboardEndFrameIsOnScreen(_ notification: Notification) -> Bool {
+                #if os(visionOS)
+                    return false
+                #else
+                    guard let frame = notification.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect,
+                          let screen = window?.screen
+                    else { return false }
+                    // A fully hidden keyboard ends below the screen, touching
+                    // its bottom edge: `intersects` is false for that.
+                    return frame.intersects(screen.bounds)
+                #endif
             }
         #endif
 
