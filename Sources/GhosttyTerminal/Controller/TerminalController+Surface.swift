@@ -178,6 +178,30 @@ extension TerminalController {
             session.setSurface(surface)
         }
 
+        holdFontSize(of: surface, from: configuration)
+
         return surface
+    }
+
+    /// `font_size` above sizes the new surface but leaves Ghostty's
+    /// "manually adjusted" flag clear, and a surface with that flag clear
+    /// snaps back to the config's `font-size` on every config reload
+    /// (`Surface.updateConfig`) — a theme change, or the light/dark switch
+    /// of a theme with two variants, quietly undid the size the host asked
+    /// for. `set_font_size` is the same size through the binding, which
+    /// sets the flag, so the option holds the way a zoom does.
+    /// `reset_font_size` (Cmd+0) still returns to the config's size: Ghostty
+    /// resets to the config, never to the creation option.
+    private func holdFontSize(
+        of surface: ghostty_surface_t,
+        from configuration: TerminalSurfaceOptions,
+    ) {
+        // 0 is how the C config spells "unset"; the binding would clamp it
+        // to 1 point instead.
+        guard let fontSize = configuration.fontSize, fontSize > 0 else { return }
+        let action = "set_font_size:\(fontSize)"
+        _ = action.withCString { cStr in
+            ghostty_surface_binding_action(surface, cStr, UInt(action.utf8.count))
+        }
     }
 }

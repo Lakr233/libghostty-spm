@@ -32,6 +32,14 @@ public final class TerminalViewState: ObservableObject {
     /// update). Drives a host-drawn scrollbar.
     @Published public internal(set) var scrollbar: TerminalScrollbar?
 
+    /// The attached surface's font size in points (nil until a surface is
+    /// built): a pinch, Cmd+=/-/0, a font-size binding action or a config
+    /// reload moves it. To open every new terminal at the size last zoomed
+    /// to, hand it to the next surface's ``TerminalSurfaceOptions/fontSize``
+    /// — not to this state's own `configuration`, which would rebuild the
+    /// surface it is showing.
+    @Published public internal(set) var fontSize: Float?
+
     /// The effective config's `background`, or the color a program set with
     /// OSC 11 while the surface lives.
     @Published public internal(set) var backgroundColor: TerminalColor

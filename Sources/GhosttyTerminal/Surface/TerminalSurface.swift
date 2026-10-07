@@ -17,6 +17,11 @@ import GhosttyKit
 public final class TerminalSurface {
     private var surface: ghostty_surface_t?
     private var hasBeenFreed = false
+    /// Told about every font-size action this surface performed, whichever
+    /// path it came by: a host's binding action, a pinch, Cmd+=/-/0 on a
+    /// hardware keyboard, a host's `sendKey`. Ghostty cannot report the
+    /// resulting size, so the coordinator keeps it (`TerminalFontSize`).
+    var onFontSizeAction: ((TerminalFontSizeAction) -> Void)?
 
     init(_ surface: ghostty_surface_t) {
         self.surface = surface
@@ -34,11 +39,17 @@ public final class TerminalSurface {
             TerminalDebugLog.log(.input, "surface key ignored: missing surface")
             return false
         }
+        // Asked before the key goes in: the binding check reads the
+        // surface's keybind state, which performing the key can move on.
+        let fontSizeAction = fontSizeAction(forKey: event)
         let result = ghostty_surface_key(s, event)
         TerminalDebugLog.log(
             .input,
             "surface key action=\(TerminalDebugLog.describe(event.action)) keycode=\(event.keycode) mods=0x\(String(event.mods.rawValue, radix: 16)) consumed=0x\(String(event.consumed_mods.rawValue, radix: 16)) text=\(terminalKeyText(event)) composing=\(event.composing) result=\(result)",
         )
+        if result, let fontSizeAction {
+            onFontSizeAction?(fontSizeAction)
+        }
         return result
     }
 
@@ -167,6 +178,9 @@ public final class TerminalSurface {
             .actions,
             "binding action=\(TerminalDebugLog.describe(action)) result=\(result)",
         )
+        if result, let fontSizeAction = TerminalFontSizeAction(bindingAction: action) {
+            onFontSizeAction?(fontSizeAction)
+        }
         return result
     }
 

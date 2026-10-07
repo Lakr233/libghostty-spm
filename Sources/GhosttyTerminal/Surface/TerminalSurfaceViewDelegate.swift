@@ -263,6 +263,23 @@ public protocol TerminalSurfaceScrollbarDelegate: TerminalSurfaceViewDelegate {
     func terminalDidUpdateScrollbar(_ scrollbar: TerminalScrollbar)
 }
 
+/// The surface's font size changed, in points: a pinch (iOS), Cmd+=, Cmd+-
+/// or Cmd+0 on a hardware keyboard, a font-size binding action from the host,
+/// a config reload that moved an unzoomed surface, or a new surface starting
+/// at a different size than the last one. Fires only when the size actually
+/// moved. A host that remembers zoom feeds this into the *next* surface's
+/// ``TerminalSurfaceOptions/fontSize``; writing it into this surface's own
+/// options rebuilds the surface.
+///
+/// The C API has no font-size getter, so the wrapper tracks the size itself,
+/// rule for rule with Ghostty. Font-size actions sent through the raw
+/// ``TerminalSurface`` count too; a keybind that a custom config moves off
+/// Cmd+=/-/0 does not.
+@MainActor
+public protocol TerminalSurfaceFontSizeDelegate: TerminalSurfaceViewDelegate {
+    func terminalDidChangeFontSize(_ fontSize: Float)
+}
+
 /// Notifies a delegate when the underlying ``TerminalSurface`` is created or
 /// torn down. Useful when a consumer needs surface-level APIs (e.g.
 /// ``TerminalSurface/paste(text:)``) reachable from outside the platform view.

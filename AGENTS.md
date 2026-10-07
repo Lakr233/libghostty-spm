@@ -197,7 +197,7 @@ All example apps run in App Sandbox. Use `GHOSTTY_SURFACE_IO_BACKEND_HOST_MANAGE
 4. **IME / marked text** → `setMarkedText` / `unmarkText` delegate to `TerminalTextInputHandler`, which keeps the composition in a `TerminalMarkedTextState` and calls `surface.preedit()` for inline composition preview. Committed text goes through `insertText`. Sticky modifiers are respected during IME composition (`handleStickyMarkedText` / `handleStickyCommittedText`).
 5. **Text positioning** → `TerminalTextPosition` / `TerminalTextRange` (UITextPosition/UITextRange subclasses) provide minimal cursor geometry. On iOS the document starts with one empty anchor position ahead of the marked text (`TerminalTextInputHandler.document`, a `TerminalInputDocument`), and every position UIKit sees is in those coordinates: UIKit stops a held software-keyboard Delete whenever `-[UIResponder _selectionAtDocumentStart]` (selection start == `beginningOfDocument`) is true, and with an empty document at a prompt that was always, so a held Delete sent one backspace. The anchor reads as no text; selection, `text(in:)` and geometry all convert through `TerminalInputDocument`, never by hand. `caretRect`/`firstRect` use `surface.imePoint()` for IME candidate window placement.
 
-Hosts drive the same paths through `+PublicInput.swift`: `sendKey(_:)` (commits an open composition, applies armed sticky modifiers), `paste(text:)`, `acquireProgrammaticFocus()`, `performBindingAction`, `jumpToPrompt(by:)`, `scrollToRow`.
+Hosts drive the same paths through `+PublicInput.swift`: `sendKey(_:)` (commits an open composition, applies armed sticky modifiers), `paste(text:)`, `acquireProgrammaticFocus()`, `performBindingAction`, `jumpToPrompt(by:)`, `scrollToRow`, and read `fontSize` (see "Font Size").
 
 Files in `Platform/UIKit/`:
 
@@ -207,8 +207,8 @@ Files in `Platform/UIKit/`:
 - `InputAccessory/UITerminalView+InputAccessory.swift` — input accessory bar integration (iOS only), key actions, sticky modifier dispatch, `sendSyntheticKey` / `sendControlByte` / `sendModifiedTextKey`
 - `UITerminalView+Interaction.swift` — tap-to-click and keyboard toggle, touch scrolling, momentum scroll via CADisplayLink, scroll-wheel recognizer, indirect-pointer selection, long-press menu, copy/paste actions; `PointerInteractionState`, `MomentumScrollState`
 - `UITerminalView+Drop.swift` — drag and drop: files staged to paths, text and links as text (see "Key Path vs Text Path")
-- `UITerminalView+PinchZoom.swift` — pinch changes font size via `increase_font_size` / `decrease_font_size` bindings (iOS only); `FontZoomState`
-- `UITerminalView+PublicInput.swift` — public `acquireProgrammaticFocus`, `paste(text:)`, `sendKey`, `performBindingAction`, `jumpToPrompt(by:)`, `scrollToRow`
+- `UITerminalView+PinchZoom.swift` — pinch changes font size via `increase_font_size` / `decrease_font_size` bindings (iOS only); `FontZoomState` (the gesture's scale only — the size itself is tracked by the coordinator, see "Font Size")
+- `UITerminalView+PublicInput.swift` — public `acquireProgrammaticFocus`, `paste(text:)`, `sendKey`, `performBindingAction`, `jumpToPrompt(by:)`, `scrollToRow`, `fontSize`
 - `InputAccessory/UITerminalView+PublicSticky.swift` — public sticky-modifier API (`TerminalPublicStickyModifier` / `TerminalPublicStickyActivation`) for hosts with their own accessory UI (iOS only)
 - `UITerminalView+Snapshot.swift` — public `snapshotImage()`: render-server snapshot (`drawHierarchy`) of the surface, Metal layer included; the AppKit twin (`AppTerminalView+Snapshot.swift`, `cacheDisplay`) is best-effort for Metal content. Reached from state via `TerminalViewState.attachedPlatformView`
 - `UITerminalView+Lifecycle.swift` — application active/background observers, display scale, sublayer frames (held at `core.syncedViewSize`, not the bounds, while a resize throttle has the surface at an older size — a layer stretched to the new bounds shows the old frame scaled and the engine's derived `contentsScale` fights the post-render correction every tick), focus, color scheme; `FocusBridgeState`
@@ -230,6 +230,7 @@ Files in `Platform/Shared/` (both platforms; the Foundation-only ones have unit 
 - `TerminalMarkedTextState.swift` — marked text + selected range struct used by both `TerminalTextInputHandler`s
 - `TerminalInputDocument.swift` — UITextInput document positions (empty anchor + marked text) ↔ marked-text offsets
 - `TerminalKeyRepeat.swift` — which held hardware keys repeat on iOS, and the repeat timing
+- `TerminalFontSize.swift` — a surface's font size under Ghostty's own rules (steps, clamps, reset, config reload); `TerminalFontSizeAction.swift` — the four font-size actions from a binding-action string or a Cmd key's characters (see "Font Size")
 - `TerminalMainActor.swift` — `terminalRunOnMain` for C callbacks
 - `TerminalView+Process.swift` — `foregroundPid` / `ttyName` on `TerminalView`
 
@@ -433,9 +434,59 @@ so in the code — "it's just text" is the mistake this section exists to preven
   cancel touches. Do not wrap the view in a host `ScrollView` that steals
   wheel or pan events.
 - A pinch (`+PinchZoom`, iOS only) steps the font size through the
-  `increase_font_size:1` / `decrease_font_size:1` bindings, clamped to
-  `minFontSize`…`maxFontSize` (4…64); Cmd+`=`/`-` on a hardware keyboard
-  moves the same `FontZoomState` counter.
+  `increase_font_size:1` / `decrease_font_size:1` bindings, one step per
+  0.1 of scale, and stops at `minFontSize`…`maxFontSize` (4…64), checked
+  against the tracked size (see "Font Size"). Cmd+`=`/`-`/`0` on a
+  hardware keyboard are Ghostty's own keybinds on every platform.
+
+### Font Size
+
+The C API has no font-size getter: `font_size` exists only in the
+creation-time `ghostty_surface_config_s`, and `ghostty_surface_size_s`
+carries grid, pixel and cell sizes. So the wrapper tracks the size itself
+and reports it through `TerminalSurfaceFontSizeDelegate`
+(`terminalDidChangeFontSize`), `TerminalViewState.fontSize` (published
+through `publishSoon`, key `.fontSize`) and the views' read-only
+`fontSize`. A host that remembers zoom app-wide hands the value to the
+*next* surface's `TerminalSurfaceOptions.fontSize`; writing it into the
+live surface's own options rebuilds it.
+
+- `TerminalFontSize` (`Platform/Shared`, unit-tested in
+  `TerminalFontSizeTests`) mirrors `Surface.zig` rule for rule: increase
+  and decrease clamp the step to 0…255 and the result to 1…255,
+  `set_font_size` clamps its argument, `reset_font_size` returns to the
+  config's `font-size` (never to the creation option), and each sets or
+  clears Ghostty's `font_size_adjusted`; a config reload moves the size
+  only while that flag is clear. The pinch's 4…64 is the gesture's limit,
+  not Ghostty's.
+- It lives in the coordinator (`TerminalSurfaceCoordinator+FontSize`),
+  not in a view, because the rebuild, the config reload, the delegate and
+  the surface all meet there, and AppKit, Catalyst and iOS share it.
+  `startFontSizeTracking` starts every new surface at the option or the
+  controller's `configuredFontSize` and always reports it; teardown clears
+  it. Otherwise the delegate hears only a size that moved.
+- Every font-size action reaches it through `TerminalSurface`, the one
+  funnel for both platforms: `performBindingAction` parses the action
+  string (`TerminalFontSizeAction(bindingAction:)`), so a host's call on a
+  view, on `TerminalViewState` or on the raw surface counts, and so does
+  the pinch; `sendKeyEvent` recognizes Cmd+`=`/`+`/`-`/`_`/`0` from the
+  key's text and unshifted codepoint and counts it only when
+  `ghostty_surface_key_is_binding` says the key is bound — under the kitty
+  keyboard protocol an unbound Cmd key is encoded for the program and
+  reported handled too. A keybind that a custom config moves to another
+  key is not seen.
+- `TerminalController.configuredFontSize` is read back from the effective
+  ghostty config (`ghostty_config_get` "font-size"), never assumed:
+  `TerminalConfiguration.default` sets 10 on iOS and Mac Catalyst and 14
+  elsewhere, and Ghostty's default applies when a config sets none. The
+  controller takes a new config *before* `ghostty_app_update_config`, so
+  the `CONFIG_CHANGE` each surface reports from inside that call
+  (`TerminalCallbackBridge.onConfigChange`) reads the new value.
+- `TerminalSurfaceOptions.fontSize` is applied through `set_font_size` as
+  well as the config's `font_size` (`TerminalController.holdFontSize`):
+  `font_size` alone leaves the adjusted flag clear, and every reload — a
+  theme change, a light/dark switch — snapped the surface back to the
+  config's size.
 
 ### Clipboard Confirmation
 

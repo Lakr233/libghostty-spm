@@ -26,6 +26,7 @@ struct TerminalPendingPublishes {
         case scrollbar
         case background
         case commandFinished
+        case fontSize
     }
 
     typealias Apply = @MainActor (TerminalViewState) -> Void

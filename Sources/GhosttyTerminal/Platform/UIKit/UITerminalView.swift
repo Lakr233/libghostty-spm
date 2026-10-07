@@ -228,15 +228,6 @@
                 self?.enforceSublayerScale()
                 self?.refreshTouchSelection()
             }
-            #if !targetEnvironment(macCatalyst)
-                // Every rebuild — a fontSize change, a controller swap, any
-                // non-equivalent options — starts the surface at the
-                // configured size, so the pinch counter restarts with it.
-                core.onSurfaceRebuild = { [weak self] in
-                    guard let self else { return }
-                    fontZoom.currentFontSize = core.configuration.fontSize ?? 14
-                }
-            #endif
 
             setupApplicationLifecycleObservers()
             syncApplicationActiveState()

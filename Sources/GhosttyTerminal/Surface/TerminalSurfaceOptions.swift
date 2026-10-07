@@ -9,6 +9,10 @@ import GhosttyKit
 
 public struct TerminalSurfaceOptions: Sendable {
     public var backend: TerminalSessionBackend
+    /// Points this surface starts at, in place of the config's `font-size`.
+    /// It holds across config reloads (a theme or appearance change) the way
+    /// a zoom does; `reset_font_size` (Cmd+0) returns to the config's size.
+    /// Part of the surface's identity: changing it rebuilds the surface.
     public var fontSize: Float?
     public var workingDirectory: String?
     /// Extra environment variables set in the child process spawned for this

@@ -56,10 +56,19 @@
         }
 
         /// Invoke a named Ghostty binding action (e.g. "copy_to_clipboard",
-        /// "clear_screen"). Returns true when the action dispatched.
+        /// "clear_screen"). Returns true when the action dispatched. The four
+        /// font-size actions (`increase_font_size:N`, `decrease_font_size:N`,
+        /// `set_font_size:N`, `reset_font_size`) move ``fontSize``.
         @discardableResult
         func performBindingAction(_ action: String) -> Bool {
             surface?.performBindingAction(action) ?? false
+        }
+
+        /// The surface's font size in points, nil while there is no surface.
+        /// Ghostty cannot report it, so the wrapper tracks every change it
+        /// makes; ``TerminalSurfaceFontSizeDelegate`` hears each one.
+        var fontSize: Float? {
+            core.fontSize?.points
         }
 
         /// Jump the viewport by a number of shell prompts.
