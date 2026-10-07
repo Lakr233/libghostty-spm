@@ -250,5 +250,9 @@ extension TerminalController {
         if ghostty_config_get(prepared.rawValue, &fontSize, fontSizeKey, UInt(fontSizeKey.utf8.count)) {
             configuredFontSize = fontSize
         }
+
+        for onChange in configObservers.values {
+            onChange()
+        }
     }
 }

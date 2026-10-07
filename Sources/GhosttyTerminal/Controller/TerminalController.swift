@@ -78,6 +78,20 @@ public final class TerminalController {
         wakeupObservers.removeValue(forKey: key)
     }
 
+    /// One state's interest in a new effective config. The config changes
+    /// through the controller as well as through a state — a platform view
+    /// whose delegate is not the state switches the color scheme here — and
+    /// several states can share one controller.
+    private(set) var configObservers: [ObjectIdentifier: () -> Void] = [:]
+
+    func addConfigObserver(_ key: ObjectIdentifier, onChange: @escaping () -> Void) {
+        configObservers[key] = onChange
+    }
+
+    func removeConfigObserver(_ key: ObjectIdentifier) {
+        configObservers.removeValue(forKey: key)
+    }
+
     // MARK: - Config Resolution State
 
     /// The base config before theme/colorScheme are applied: what actually

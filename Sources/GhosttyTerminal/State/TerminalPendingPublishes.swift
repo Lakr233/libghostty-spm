@@ -25,6 +25,7 @@ struct TerminalPendingPublishes {
         case workingDirectory
         case scrollbar
         case background
+        case config
         case commandFinished
         case fontSize
     }
