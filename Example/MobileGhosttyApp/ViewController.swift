@@ -10,6 +10,9 @@ final class ViewController: UIViewController {
     private lazy var terminalView = MobileExampleTerminalView(frame: .zero)
     private lazy var shellSession: ShellSession = .init(shell: defaultSandboxShell)
     private var isKeyboardVisible = false
+    private lazy var keyboardOverlapConstraint = terminalView.bottomAnchor.constraint(
+        lessThanOrEqualTo: view.bottomAnchor,
+    )
     private lazy var controller: TerminalController = .init(
         theme: Self.savedTerminalTheme(),
     ) { builder in
@@ -81,6 +84,13 @@ final class ViewController: UIViewController {
         terminalView.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(terminalView)
 
+        // The keyboard layout guide is the bottom edge, but an iPad on iOS 18
+        // settles it at the keyboard's own top and leaves the input accessory
+        // bar out, so the bar covered the last rows and the prompt.
+        // `keyboardOverlapConstraint` holds the edge above the frame the
+        // keyboard notifications report, which includes the bar.
+        let fillToKeyboard = terminalView.bottomAnchor.constraint(equalTo: view.keyboardLayoutGuide.topAnchor)
+        fillToKeyboard.priority = .defaultHigh
         NSLayoutConstraint.activate([
             terminalView.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
             // The safe area, not the view edges: in landscape the sensor
@@ -88,7 +98,9 @@ final class ViewController: UIViewController {
             // columns. The view's background fills the margins.
             terminalView.leadingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.leadingAnchor),
             terminalView.trailingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.trailingAnchor),
-            terminalView.bottomAnchor.constraint(equalTo: view.keyboardLayoutGuide.topAnchor),
+            terminalView.bottomAnchor.constraint(lessThanOrEqualTo: view.keyboardLayoutGuide.topAnchor),
+            keyboardOverlapConstraint,
+            fillToKeyboard,
         ])
 
         #if DEBUG
@@ -177,6 +189,23 @@ final class ViewController: UIViewController {
             name: UIResponder.keyboardWillHideNotification,
             object: nil,
         )
+        center.addObserver(
+            self,
+            selector: #selector(keyboardWillChangeFrame),
+            name: UIResponder.keyboardWillChangeFrameNotification,
+            object: nil,
+        )
+    }
+
+    /// The reported frame includes the input accessory bar. A floating
+    /// keyboard, or one going away, leaves the edge to the layout guide.
+    @objc private func keyboardWillChangeFrame(_ notification: Notification) {
+        guard let end = notification.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect,
+              let screen = view.window?.windowScene?.screen
+        else { return }
+        let keyboard = view.convert(end, from: screen.coordinateSpace)
+        let docked = keyboard.minX <= view.bounds.minX && keyboard.maxX >= view.bounds.maxX
+        keyboardOverlapConstraint.constant = docked ? min(0, keyboard.minY - view.bounds.maxY) : 0
     }
 
     @objc private func keyboardWillShow() {
