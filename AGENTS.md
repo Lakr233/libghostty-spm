@@ -491,7 +491,10 @@ tracks; both are `open` in the class body. The default menu titles (Copy,
 Paste, Select, Select All, and AppKit's Copy) come from
 `Resources/Localizable.xcstrings` through `String(localized:bundle: .module)`,
 in the 18 languages `TerminalLocalizationTests` lists; a new title gets every
-one of them. SwiftPM's native build system (the default `swift test` before
+one of them. A host app must declare its localizations or set
+`CFBundleAllowMixedLocalizations` for the titles to follow the user's
+language: otherwise the system resolves the package bundle to the app's own
+languages, English alone (both examples set the key). SwiftPM's native build system (the default `swift test` before
 Swift 6.4, so CI's) copies the catalog into the bundle uncompiled — no
 `.lproj` — while Xcode and swiftbuild compile it, so the test reads
 whichever the bundle holds. The example UI tests cover
