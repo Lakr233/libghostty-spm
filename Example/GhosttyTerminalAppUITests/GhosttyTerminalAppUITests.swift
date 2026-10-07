@@ -104,11 +104,7 @@ final class GhosttyTerminalAppUITests: XCTestCase {
 
         for cycle in 1 ... 3 {
             app.typeKey("h", modifierFlags: .command)
-            let hidden = XCTNSPredicateExpectation(
-                predicate: NSPredicate(format: "isHittable == false"),
-                object: terminal,
-            )
-            XCTAssertEqual(XCTWaiter.wait(for: [hidden], timeout: 5), .completed, "App did not hide, cycle \(cycle)")
+            XCTAssertTrue(waitForAppHidden(timeout: 5), "App did not hide, cycle \(cycle)")
             app.activate()
             XCTAssertTrue(terminal.waitForHittable(timeout: 5), "Terminal did not come back, cycle \(cycle)")
             capture("unhidden-\(cycle)")
@@ -249,10 +245,30 @@ final class GhosttyTerminalAppUITests: XCTestCase {
         return nil
     }
 
+    /// Asks AppKit, not XCTest, whether the app is hidden. `isHittable` on a
+    /// hidden app's element hit-tests the screen point under it, which then
+    /// lands on whatever app is behind; with another terminal there, XCTest
+    /// fails resolving the hit (an `XCUIApplication` init assertion) and the
+    /// wait times out although the app hid.
+    private func waitForAppHidden(timeout: TimeInterval) -> Bool {
+        let bundleIdentifier = "wiki.qaq.GhosttyTerminalApp"
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            let running = NSRunningApplication.runningApplications(withBundleIdentifier: bundleIdentifier)
+            if running.contains(where: \.isHidden) {
+                return true
+            }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.1))
+        }
+        return false
+    }
+
     private func dragWindowRightEdge(_ window: XCUIElement, by dx: CGFloat) {
         let edge = window.coordinate(withNormalizedOffset: CGVector(dx: 1, dy: 0.5))
             .withOffset(CGVector(dx: -1, dy: 0))
-        edge.press(forDuration: 0.3, thenDragTo: edge.withOffset(CGVector(dx: dx, dy: 0)))
+        // A mouse drag. Since Xcode 27 `press(forDuration:thenDragTo:)` plays
+        // a touch digitizer gesture on the Mac, which moves no window edge.
+        edge.click(forDuration: 0.3, thenDragTo: edge.withOffset(CGVector(dx: dx, dy: 0)))
     }
 
     private func waitForFrameWidth(of window: XCUIElement, _ condition: (CGFloat) -> Bool) {
@@ -357,7 +373,8 @@ final class GhosttyTerminalAppUITests: XCTestCase {
     /// last, so both ends fall on the selected side of their cell's midpoint.
     private func dragPointerSelection(from start: XCUICoordinate, to end: XCUICoordinate) {
         log("pointer-selection-coordinates", "start=\(start.screenPoint) end=\(end.screenPoint)")
-        start.press(forDuration: 0.1, thenDragTo: end)
+        // A mouse drag, not `press(...thenDragTo:)`: see `dragWindowRightEdge`.
+        start.click(forDuration: 0.1, thenDragTo: end)
     }
 
     private func openCopyMenuAndCopySelection(

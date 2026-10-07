@@ -372,7 +372,10 @@ import XCTest
                 for _ in 0 ..< 2 {
                     let edge = window.coordinate(withNormalizedOffset: CGVector(dx: 0, dy: 0.5))
                         .withOffset(CGVector(dx: 1, dy: 0))
-                    edge.press(forDuration: 0.3, thenDragTo: edge.withOffset(CGVector(dx: dx, dy: 0)))
+                    // A mouse drag. Since Xcode 27 `press(forDuration:thenDragTo:)`
+                    // plays a touch digitizer gesture on the Mac, which moves no
+                    // window edge and selects nothing.
+                    edge.click(forDuration: 0.3, thenDragTo: edge.withOffset(CGVector(dx: dx, dy: 0)))
                     if abs(window.frame.width - originalWidth) > 20 {
                         return
                     }
@@ -1107,7 +1110,8 @@ import XCTest
             private func dragPointerSelection(in element: XCUIElement) {
                 let start = pointerCell(in: element, column: catalystPointerSelectionPrefix.count, fraction: 0)
                 let end = pointerCell(in: element, column: catalystPointerSelectionPrefix.count + expectedPointerSelection.count + 1)
-                start.press(forDuration: 0.3, thenDragTo: end, withVelocity: .slow, thenHoldForDuration: 0.2)
+                // A mouse drag, not `press(...thenDragTo:)`: see `dragWindowLeftEdge`.
+                start.click(forDuration: 0.3, thenDragTo: end, withVelocity: .slow, thenHoldForDuration: 0.2)
             }
         #else
             private var isIPad: Bool {

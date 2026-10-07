@@ -707,7 +707,13 @@ Two release tracks, decoupled since 1.4.0:
   iPad simulator can start with only the accessory bar up, as if a hardware
   keyboard were attached, until XCTest first types; `requireSoftwareKeyboard`
   types a space and deletes it to bring the keys up, because a tap toggles
-  the focused terminal's keyboard away
+  the focused terminal's keyboard away. On the Mac (AppKit and Catalyst) a
+  drag is `click(forDuration:thenDragTo:)`: since Xcode 27,
+  `press(forDuration:thenDragTo:)` plays a touch digitizer gesture there, so
+  it resizes no window and selects nothing. iOS touch drags keep `press`.
+  Whether the AppKit app hid is asked of `NSRunningApplication.isHidden`,
+  not `isHittable`: a hidden app's hit test lands on the app behind it, and
+  with another terminal there XCTest fails resolving the hit
 - Apps run in **App Sandbox** (`ENABLE_APP_SANDBOX = YES` in both projects)
   — must NOT spawn subprocesses (non-negotiable)
 - Use simulated terminal IO with the real GhosttyTerminal surface/view layer:
