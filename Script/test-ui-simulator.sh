@@ -43,16 +43,21 @@ iPad) PATTERNS=("iPad Air 13-inch (M3)" "iPad Air 13-inch" "iPad Pro 13-inch" "i
     ;;
 esac
 
-RUNTIME=$(xcrun simctl list runtimes available | awk '/^iOS .*com\.apple\.CoreSimulator\.SimRuntime\.iOS/ { runtime=$NF } END { print runtime }')
-[ -n "$RUNTIME" ] || { echo "[!] no available iOS simulator runtime"; exit 1; }
-DEVICE=
+# LIBGHOSTTY_SIM_IOS=18 picks the newest iOS 18.x runtime; the default is the
+# newest installed.
+RUNTIME=$(xcrun simctl list runtimes available | awk -v version="${LIBGHOSTTY_SIM_IOS:-}" '
+    /^iOS .*com\.apple\.CoreSimulator\.SimRuntime\.iOS/ && index($2, version) == 1 { runtime=$NF }
+    END { print runtime }')
+[ -n "$RUNTIME" ] || { echo "[!] no available iOS ${LIBGHOSTTY_SIM_IOS:-} simulator runtime"; exit 1; }
+# The first device type the runtime accepts: an older runtime cannot create
+# the newest models.
+UDID=
 for pattern in "${PATTERNS[@]}"; do
     DEVICE=$(xcrun simctl list devicetypes | sed -n "/$pattern/s/.*(\(com\.apple\.CoreSimulator\.SimDeviceType\.[^)]*\)).*/\1/p" | head -1)
-    [ -n "$DEVICE" ] && break
+    [ -n "$DEVICE" ] || continue
+    UDID=$(xcrun simctl create "libghostty-ui-$LABEL-$$" "$DEVICE" "$RUNTIME" 2>/dev/null) && break
 done
-[ -n "$DEVICE" ] || { echo "[!] no available $LABEL simulator device type"; exit 1; }
-
-UDID=$(xcrun simctl create "libghostty-ui-$LABEL-$$" "$DEVICE" "$RUNTIME")
+[ -n "$UDID" ] || { echo "[!] no $LABEL simulator device type runs $RUNTIME"; exit 1; }
 trap 'xcrun simctl shutdown "$UDID" >/dev/null 2>&1 || true; xcrun simctl delete "$UDID" >/dev/null 2>&1 || true' EXIT
 echo "[*] $LABEL simulator $UDID ($DEVICE, $RUNTIME)"
 

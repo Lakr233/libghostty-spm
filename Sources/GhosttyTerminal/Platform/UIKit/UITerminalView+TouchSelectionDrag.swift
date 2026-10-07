@@ -20,6 +20,7 @@
                 let rect = grid.rect(for: cell, viewportOffset: touchViewportOffset)
                 touchSelection.dragOrigin = CGPoint(x: rect.midX, y: rect.midY)
                 touchSelection.endpoint = endpoint
+                beginTouchSelectionLoupe(at: gesture.location(in: self), from: gesture.view)
                 #if !targetEnvironment(macCatalyst)
                     softwareKeyboard.tapCandidateArmed = false
                 #endif
@@ -32,6 +33,7 @@
                 if gesture.state == .ended {
                     finishTouchSelectionDrag(at: point)
                 } else {
+                    moveTouchSelectionLoupe(to: point)
                     startTouchSelectionScrolling()
                 }
             case .cancelled, .failed:
@@ -82,11 +84,13 @@
                         // The next tick publishes the new viewport offset.
                     }
                     extendTouchSelection(to: point, endpoint: endpoint)
+                    moveTouchSelectionLoupe(to: point)
                 }
             }
         }
 
         func finishTouchSelectionDrag(at point: CGPoint) {
+            endTouchSelectionLoupe()
             touchSelection.scrollTask?.cancel()
             touchSelection.scrollTask = nil
             touchSelection.dragPoint = nil

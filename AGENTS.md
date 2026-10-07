@@ -107,7 +107,7 @@ GhosttyTerminal (Swift wrapper, ~70 files)
   ├─ Platform/AppKit/  macOS NSView: key events, NSTextInputClient IME, CAMetalLayer, public input
   ├─ Platform/Shared/  Pasteboard reading, file staging, shell escaping, key tables, IME state, foreground pid
   ├─ Platform/UIKit/   iOS UIView: UITextInput, keyboard, touch/gesture, drop, pinch zoom, IME, input accessory bar
-  ├─ Resources/        Our MIT bash/zsh shell integration + Ghostty terminfo (exec backend; see "No GPL Files")
+  ├─ Resources/        Our MIT bash/zsh shell integration + Ghostty terminfo (exec backend; see "No GPL Files"), Localizable.xcstrings
   ├─ State/            ObservableObject TerminalViewState (SwiftUI state container)
   ├─ Surface/          TerminalSurface, coordinator + display link, SwiftUI TerminalSurfaceView, delegates, TerminalKey/TerminalKeyPress
   └─ View/             TerminalView typealias + platform representables
@@ -481,7 +481,17 @@ elements unchanged; the host owns grouping, ordering and separators. Paste remai
 on `pasteFromPasteboard`. While a selection is active the menu targets the
 whole highlight plus both handles (`touchMenuTargetRect`, the edit-menu
 delegate's `targetRectFor`), so UIKit places it clear of the selection —
-pointed at the touch it covered the lower handle and nothing could drag it. The example UI tests cover
+pointed at the touch it covered the lower handle and nothing could drag it.
+While a finger drags a handle or a one-finger pan extends the selection, the
+system loupe (`UITextLoupeSession`, iOS 17+, not visionOS) magnifies the moving
+endpoint (`+TouchSelectionLoupe`); the endpoint is the bound the drag carried
+away from `pivot`. `usesTouchSelectionLoupe` turns it off and
+`touchSelectionLoupeCaretRect(forEndpointCell:isStart:)` shapes the caret it
+tracks; both are `open` in the class body. The default menu titles (Copy,
+Paste, Select, Select All, and AppKit's Copy) come from
+`Resources/Localizable.xcstrings` through `String(localized:bundle: .module)`,
+in the 18 languages `TerminalLocalizationTests` lists; a new title gets every
+one of them. The example UI tests cover
 the gesture and menu contracts.
 
 Setting `usesInlineTextSelection = false` opts out of touch selection

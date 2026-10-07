@@ -34,6 +34,8 @@
         var dragOrigin: CGPoint?
         var endpoint: TerminalTouchSelectionOverlay.Endpoint?
         var scrollTask: Task<Void, Never>?
+        var loupe: TerminalTouchSelectionLoupe?
+        var loupeEnabled = true
         var lastValidation: TimeInterval = 0
     }
 
@@ -105,6 +107,7 @@
                 return
             }
             stopMomentumScrolling()
+            endTouchSelectionLoupe()
             touchSelection.scrollTask?.cancel()
             touchSelection.scrollTask = nil
             touchSelection.overlay?.removeFromSuperview()

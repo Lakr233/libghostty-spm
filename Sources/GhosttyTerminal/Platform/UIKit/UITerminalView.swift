@@ -102,6 +102,27 @@
             }
         }
 
+        /// Shows the system text loupe over the moving endpoint while a finger
+        /// drags a selection handle or extends a selection, on by default.
+        /// It needs iOS 17 or later and never appears on visionOS or Mac Catalyst.
+        open var usesTouchSelectionLoupe: Bool {
+            get { touchSelection.loupeEnabled }
+            set {
+                if !newValue {
+                    endTouchSelectionLoupe()
+                }
+                touchSelection.loupeEnabled = newValue
+            }
+        }
+
+        /// The caret the loupe tracks for the moving endpoint, in view points.
+        /// `cellRect` is the endpoint's cell; the default is a 2-point bar on
+        /// its leading edge for the start, its trailing edge for the end.
+        /// Return `.null` to let the loupe follow the finger alone.
+        open func touchSelectionLoupeCaretRect(forEndpointCell cellRect: CGRect, isStart: Bool) -> CGRect {
+            CGRect(x: isStart ? cellRect.minX : cellRect.maxX - 2, y: cellRect.minY, width: 2, height: cellRect.height)
+        }
+
         /// Builds the menu when no text is selected, on iOS 16 and later.
         /// Override to localize, group or reorder the default actions and system menus.
         /// Action identifiers are terminal.paste, terminal.select and terminal.selectAll.
@@ -334,7 +355,7 @@
 
         open func selectionContextMenuElements() -> [UIMenuElement] {
             let copy = UIAction(
-                title: "Copy",
+                title: String(localized: "Copy", bundle: .module),
                 image: UIImage(systemName: "doc.on.doc")
             ) { [weak self] _ in
                 self?.copySelectedTextToPasteboard()
