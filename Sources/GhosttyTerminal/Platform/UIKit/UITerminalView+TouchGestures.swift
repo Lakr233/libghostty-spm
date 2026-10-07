@@ -89,12 +89,14 @@
                     }
                     touchSelection.pivot = surface?.glyphCells(at: fixed, columns: grid.columns)
                     touchSelection.endpoint = .end
+                    beginTouchSelectionLoupe(at: point, from: nil)
                 case .changed, .ended:
                     touchSelection.dragPoint = point
                     extendTouchSelection(to: point, endpoint: .end)
                     if gesture.state == .ended {
                         finishTouchSelectionDrag(at: point)
                     } else {
+                        moveTouchSelectionLoupe(to: point)
                         startTouchSelectionScrolling()
                     }
                 case .cancelled, .failed:

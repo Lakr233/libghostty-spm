@@ -12,6 +12,7 @@ let swiftSettings: [SwiftSetting] = [
 
 let package = Package(
     name: "GhosttyKit",
+    defaultLocalization: "en",
     platforms: [
         .iOS(.v15),
         .macOS(.v13),
@@ -45,6 +46,7 @@ let package = Package(
             resources: [
                 .copy("Resources/Ghostty"),
                 .copy("Resources/terminfo"),
+                .process("Resources/Localizable.xcstrings"),
             ],
             swiftSettings: swiftSettings
         ),
