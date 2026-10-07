@@ -22,7 +22,7 @@ enum TerminalKeyRepeat {
     static func repeats(
         usage: UInt16,
         isCommandModified: Bool,
-        isKeyCommand: Bool
+        isKeyCommand: Bool,
     ) -> Bool {
         !isModifier(usage: usage) && !isCommandModified && !isKeyCommand
     }

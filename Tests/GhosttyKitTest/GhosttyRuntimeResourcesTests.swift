@@ -13,16 +13,16 @@ struct GhosttyRuntimeResourcesTests {
         #expect(fileManager.fileExists(
             atPath: resources
                 .appendingPathComponent("shell-integration/zsh/ghostty-integration")
-                .path
+                .path,
         ))
         #expect(fileManager.fileExists(
-            atPath: terminfo.appendingPathComponent("78/xterm-ghostty").path
+            atPath: terminfo.appendingPathComponent("78/xterm-ghostty").path,
         ))
         #expect(
             resources.deletingLastPathComponent()
                 .appendingPathComponent("terminfo")
                 .standardizedFileURL
-                == terminfo.standardizedFileURL
+                == terminfo.standardizedFileURL,
         )
     }
 
@@ -35,7 +35,7 @@ struct GhosttyRuntimeResourcesTests {
         let integration = resources.appendingPathComponent("shell-integration")
         let enumerator = try #require(FileManager.default.enumerator(
             at: integration,
-            includingPropertiesForKeys: [.isRegularFileKey]
+            includingPropertiesForKeys: [.isRegularFileKey],
         ))
 
         var files: [String] = []
@@ -43,7 +43,7 @@ struct GhosttyRuntimeResourcesTests {
             guard try url.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile == true else { continue }
             files.append(url.resolvingSymlinksInPath().path.replacingOccurrences(
                 of: integration.resolvingSymlinksInPath().path + "/",
-                with: ""
+                with: "",
             ))
 
             let text = try String(contentsOf: url, encoding: .utf8)

@@ -1,8 +1,8 @@
 // swift-tools-version: 6.2
 import PackageDescription
 
-// Swift 6.2's upcoming features, on for every target so the package builds
-// the same under a host that enables them.
+/// Swift 6.2's upcoming features, on for every target so the package builds
+/// the same under a host that enables them.
 let swiftSettings: [SwiftSetting] = [
     .enableUpcomingFeature("NonisolatedNonsendingByDefault"),
     .enableUpcomingFeature("InferIsolatedConformances"),
@@ -37,7 +37,7 @@ let package = Package(
             linkerSettings: [
                 .linkedLibrary("c++"),
                 .linkedFramework("Carbon", .when(platforms: [.macOS])),
-            ]
+            ],
         ),
         .target(
             name: "GhosttyTerminal",
@@ -48,30 +48,30 @@ let package = Package(
                 .copy("Resources/terminfo"),
                 .process("Resources/Localizable.xcstrings"),
             ],
-            swiftSettings: swiftSettings
+            swiftSettings: swiftSettings,
         ),
         .target(
             name: "ShellCraftKit",
             dependencies: ["GhosttyTerminal"],
             path: "Sources/ShellCraftKit",
-            swiftSettings: swiftSettings
+            swiftSettings: swiftSettings,
         ),
         .target(
             name: "GhosttyTheme",
             dependencies: ["GhosttyTerminal"],
             path: "Sources/GhosttyTheme",
             exclude: ["LICENSE"],
-            swiftSettings: swiftSettings
+            swiftSettings: swiftSettings,
         ),
         .binaryTarget(
             name: "libghostty",
-            path: "BinaryTarget/GhosttyKit.xcframework"
+            path: "BinaryTarget/GhosttyKit.xcframework",
         ),
         .testTarget(
             name: "GhosttyKitTest",
             dependencies: ["GhosttyKit", "GhosttyTerminal", "GhosttyTheme", "ShellCraftKit"],
-            swiftSettings: swiftSettings
+            swiftSettings: swiftSettings,
         ),
     ],
-    swiftLanguageModes: [.v6]
+    swiftLanguageModes: [.v6],
 )

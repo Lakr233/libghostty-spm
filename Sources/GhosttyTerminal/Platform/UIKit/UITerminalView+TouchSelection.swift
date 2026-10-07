@@ -50,7 +50,7 @@
             else { return nil }
             return TerminalSelectionGrid(
                 metrics: metrics, scale: resolvedDisplayScale(),
-                firstBaseline: first.firstBaseline, imeBottom: surface.imePoint().y
+                firstBaseline: first.firstBaseline, imeBottom: surface.imePoint().y,
             )
         }
 
@@ -75,7 +75,7 @@
                 } else {
                     let visibleRows = touchViewportOffset ..< min(total, touchViewportOffset + grid.rows)
                     guard let row = surface.nearestTextRow(
-                        to: cell / grid.columns, in: visibleRows, columns: grid.columns
+                        to: cell / grid.columns, in: visibleRows, columns: grid.columns,
                     ), let textCells = surface.textCells(inRow: row, columns: grid.columns) else { return }
                     // Seed a character selection from the nearest row's text;
                     // both handles must remain free to move within that row.

@@ -70,7 +70,7 @@ struct TerminalSurfaceInputStressTests {
         }
 
         harness.receive("\u{1B}[<u")
-        #expect(surface.sendKey(TerminalKeyPress(typing: "q")!))
+        #expect(try surface.sendKey(#require(TerminalKeyPress(typing: "q"))))
         #expect(await harness.takeOutbound() == Data("q".utf8))
     }
 
@@ -89,7 +89,9 @@ struct TerminalSurfaceInputStressTests {
         var expected = Data()
         for _ in 0 ..< 2000 {
             var text = random.string(from: alphabet, maxLength: 24)
-            if text.isEmpty { text = "x" }
+            if text.isEmpty {
+                text = "x"
+            }
             #expect(surface.paste(text: text))
             expected.append(Data("\u{1B}[200~\(text)\u{1B}[201~".utf8))
         }
@@ -136,7 +138,7 @@ struct TerminalSurfaceInputStressTests {
                 surface.sendMouseScroll(
                     x: Double(random.int(in: -40 ... 40)) / 4,
                     y: Double(random.int(in: -80 ... 80)) / 4,
-                    mods: TerminalScrollModifiers(precision: random.chance(0.7))
+                    mods: TerminalScrollModifiers(precision: random.chance(0.7)),
                 )
             }
         }
@@ -166,7 +168,7 @@ struct TerminalSurfaceInputStressTests {
         _ = surface.scrollToRow(0)
         _ = await harness.takeOutbound()
 
-        #expect(surface.sendKey(TerminalKeyPress(typing: "k")!))
+        #expect(try surface.sendKey(#require(TerminalKeyPress(typing: "k"))))
         #expect(await harness.takeOutbound() == Data("k".utf8))
     }
 
@@ -219,11 +221,11 @@ struct TerminalSurfaceInputStressTests {
             case 3: coordinator.tick()
             default:
                 let character = Character(Unicode.Scalar(UInt8(random.int(in: 0x61 ... 0x7A))))
-                #expect(surface.sendKey(TerminalKeyPress(typing: character)!))
+                #expect(try surface.sendKey(#require(TerminalKeyPress(typing: character))))
                 expected.append(character)
             }
         }
-        #expect(String(decoding: await harness.takeOutbound(), as: UTF8.self) == expected)
+        #expect(await String(decoding: harness.takeOutbound(), as: UTF8.self) == expected)
 
         coordinator.setDisplayVisible(true)
         coordinator.setWindowVisible(true)
@@ -277,7 +279,7 @@ struct TerminalSurfaceInputStressTests {
         #expect(coordinator.syncedViewSize?.width == final.width)
         await settleGrid(harness)
         harness.receive("")
-        #expect(surface.sendKey(TerminalKeyPress(typing: "z")!))
+        #expect(try surface.sendKey(#require(TerminalKeyPress(typing: "z"))))
         #expect(await harness.takeOutbound() == Data("z".utf8))
     }
 

@@ -114,17 +114,17 @@ public enum TerminalConfigCommand: Sendable, Hashable {
         }
     }
 
-    // ghostty parses the value with std.fmt.parseFloat, which accepts only a
-    // `.` separator and ASCII digits; the default style follows the device
-    // region (`13,5` in de_DE, `١٤` in ar_EG) and the whole config is rejected.
+    /// ghostty parses the value with std.fmt.parseFloat, which accepts only a
+    /// `.` separator and ASCII digits; the default style follows the device
+    /// region (`13,5` in de_DE, `١٤` in ar_EG) and the whole config is rejected.
     private func configLiteral<Value: BinaryFloatingPoint>(
         _ value: Value,
-        maximumFractionDigits: Int
+        maximumFractionDigits: Int,
     ) -> String {
         value.formatted(
             FloatingPointFormatStyle<Value>(locale: Locale(identifier: "en_US_POSIX"))
                 .precision(.fractionLength(0 ... maximumFractionDigits))
-                .grouping(.never)
+                .grouping(.never),
         )
     }
 }
@@ -242,7 +242,7 @@ public struct TerminalConfiguration: Sendable, Hashable {
 
     public init(
         startingFrom base: TerminalConfiguration,
-        configure: (inout Builder) -> Void
+        configure: (inout Builder) -> Void,
     ) {
         var builder = Builder(commands: base.commands)
         configure(&builder)

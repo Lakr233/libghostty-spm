@@ -9,7 +9,7 @@ struct ShellCraftKitTests {
     func `styled prompt uses visible column width`() {
         let shell = ShellDefinition(
             prompt: "\u{1B}[38;5;110mcolor\u{1B}[0m > ",
-            welcomeMessage: ""
+            welcomeMessage: "",
         ) {}
 
         #expect(shell.promptDisplayWidth == 8)
@@ -52,7 +52,7 @@ struct ShellCraftKitTests {
             promptDisplayWidth: 18,
             input: input,
             cursorPosition: input.count,
-            terminalColumns: 80
+            terminalColumns: 80,
         )
         #expect(atEnd.totalLineCount == 2)
         #expect(atEnd.cursorLineOffset == 1)
@@ -62,7 +62,7 @@ struct ShellCraftKitTests {
             promptDisplayWidth: 18,
             input: input,
             cursorPosition: 62,
-            terminalColumns: 80
+            terminalColumns: 80,
         )
         #expect(afterWide.cursorLineOffset == 1)
         #expect(afterWide.cursorColumn == 3)
@@ -71,7 +71,7 @@ struct ShellCraftKitTests {
             promptDisplayWidth: 18,
             input: input,
             cursorPosition: 61,
-            terminalColumns: 80
+            terminalColumns: 80,
         )
         #expect(beforeWide.cursorLineOffset == 0)
         #expect(beforeWide.cursorColumn == 80)
@@ -80,7 +80,7 @@ struct ShellCraftKitTests {
             promptDisplayWidth: 0,
             input: String(repeating: "a", count: 19) + "你" + String(repeating: "a", count: 19),
             cursorPosition: 0,
-            terminalColumns: 20
+            terminalColumns: 20,
         )
         #expect(straddling.totalLineCount == 3)
     }
@@ -92,8 +92,8 @@ struct ShellCraftKitTests {
                 promptDisplayWidth: 8,
                 input: "测试",
                 cursorPosition: 2,
-                terminalColumns: .max
-            ).cursorColumn == 13
+                terminalColumns: .max,
+            ).cursorColumn == 13,
         )
 
         #expect(
@@ -101,8 +101,8 @@ struct ShellCraftKitTests {
                 promptDisplayWidth: 8,
                 input: "a测b",
                 cursorPosition: 2,
-                terminalColumns: .max
-            ).cursorColumn == 12
+                terminalColumns: .max,
+            ).cursorColumn == 12,
         )
 
         #expect(
@@ -110,8 +110,8 @@ struct ShellCraftKitTests {
                 promptDisplayWidth: 8,
                 input: "你好吗",
                 cursorPosition: 1,
-                terminalColumns: .max
-            ).cursorColumn == 11
+                terminalColumns: .max,
+            ).cursorColumn == 11,
         )
     }
 
@@ -121,7 +121,7 @@ struct ShellCraftKitTests {
             promptDisplayWidth: 18,
             input: "hello world",
             cursorPosition: 11,
-            terminalColumns: 20
+            terminalColumns: 20,
         )
 
         #expect(state.totalLineCount == 2)
@@ -135,7 +135,7 @@ struct ShellCraftKitTests {
             promptDisplayWidth: 18,
             input: "",
             cursorPosition: 0,
-            terminalColumns: 10
+            terminalColumns: 10,
         )
 
         #expect(state.totalLineCount == 2)
@@ -155,7 +155,7 @@ struct ShellCraftKitTests {
             promptDisplayWidth: 18,
             input: "ab",
             cursorPosition: 2,
-            terminalColumns: 20
+            terminalColumns: 20,
         )
 
         #expect(state.totalLineCount == 1)
@@ -169,7 +169,7 @@ struct ShellCraftKitTests {
             promptDisplayWidth: 18,
             input: "abc",
             cursorPosition: 2,
-            terminalColumns: 20
+            terminalColumns: 20,
         )
 
         #expect(state.totalLineCount == 2)
@@ -183,15 +183,15 @@ struct ShellCraftKitTests {
             canIncrementallyAppendInput(
                 previousInput: "hello",
                 previousCursorPosition: 5,
-                insertedText: " world"
-            )
+                insertedText: " world",
+            ),
         )
         #expect(
             canIncrementallyAppendInput(
                 previousInput: "ni",
                 previousCursorPosition: 2,
-                insertedText: "你好"
-            )
+                insertedText: "你好",
+            ),
         )
     }
 
@@ -201,15 +201,15 @@ struct ShellCraftKitTests {
             !canIncrementallyAppendInput(
                 previousInput: "hello",
                 previousCursorPosition: 2,
-                insertedText: "X"
-            )
+                insertedText: "X",
+            ),
         )
         #expect(
             !canIncrementallyAppendInput(
                 previousInput: "hello",
                 previousCursorPosition: 5,
-                insertedText: "\t"
-            )
+                insertedText: "\t",
+            ),
         )
     }
 
@@ -220,16 +220,16 @@ struct ShellCraftKitTests {
                 promptDisplayWidth: 2,
                 input: "abc",
                 cursorPosition: 3,
-                terminalColumns: 80
-            ) == "   "
+                terminalColumns: 80,
+            ) == "   ",
         )
         #expect(
             terminalExpandedTabText(
                 promptDisplayWidth: 7,
                 input: "",
                 cursorPosition: 0,
-                terminalColumns: 80
-            ) == " "
+                terminalColumns: 80,
+            ) == " ",
         )
     }
 
@@ -240,8 +240,8 @@ struct ShellCraftKitTests {
                 promptDisplayWidth: 18,
                 input: "ab",
                 cursorPosition: 2,
-                terminalColumns: 20
-            ) == String(repeating: " ", count: 5)
+                terminalColumns: 20,
+            ) == String(repeating: " ", count: 5),
         )
     }
 
@@ -260,31 +260,31 @@ struct ShellCraftKitTests {
     func `csi editing action recognizes modified arrow word sequences`() {
         #expect(
             terminalCSIEditingAction(params: Data("1;3".utf8), finalByte: 0x44)
-                == .moveCursorBackwardWord
+                == .moveCursorBackwardWord,
         )
         #expect(
             terminalCSIEditingAction(params: Data("1;3".utf8), finalByte: 0x43)
-                == .moveCursorForwardWord
+                == .moveCursorForwardWord,
         )
         #expect(
             terminalCSIEditingAction(params: Data(), finalByte: 0x44)
-                == .moveCursorLeft
+                == .moveCursorLeft,
         )
         #expect(
             terminalCSIEditingAction(params: Data(), finalByte: 0x43)
-                == .moveCursorRight
+                == .moveCursorRight,
         )
         #expect(
             terminalCSIEditingAction(params: Data("3".utf8), finalByte: 0x7E)
-                == .deleteForward
+                == .deleteForward,
         )
         #expect(
             terminalCSIEditingAction(params: Data("1;4".utf8), finalByte: 0x44)
-                == .moveCursorBackwardWord
+                == .moveCursorBackwardWord,
         )
         #expect(
             terminalCSIEditingAction(params: Data("3;3".utf8), finalByte: 0x7E)
-                == .deleteForwardWord
+                == .deleteForwardWord,
         )
     }
 
@@ -318,7 +318,7 @@ struct ShellCraftKitTests {
     func `delete backward word removes previous word and trailing spaces`() {
         let result = terminalDeleteBackwardWord(
             input: "alpha beta  ",
-            cursorPosition: 12
+            cursorPosition: 12,
         )
 
         #expect(result.input == "alpha ")
@@ -329,7 +329,7 @@ struct ShellCraftKitTests {
     func `delete forward word removes next word and leading spaces`() {
         let result = terminalDeleteForwardWord(
             input: "alpha   beta gamma",
-            cursorPosition: 5
+            cursorPosition: 5,
         )
 
         #expect(result.input == "alpha gamma")
@@ -340,7 +340,7 @@ struct ShellCraftKitTests {
     func `delete backward shell word removes previous whitespace delimited token`() {
         let result = terminalDeleteBackwardShellWord(
             input: "foo-bar baz  ",
-            cursorPosition: 13
+            cursorPosition: 13,
         )
 
         #expect(result.input == "foo-bar ")
@@ -357,7 +357,7 @@ struct ShellCraftKitTests {
         guard case let .output(custom) = shell.processCommand(
             "help",
             username: "tester",
-            terminalSize: viewport
+            terminalSize: viewport,
         ) else {
             Issue.record("expected the user's help command to run")
             return
@@ -370,7 +370,7 @@ struct ShellCraftKitTests {
         guard case let .output(listing) = builtIn.processCommand(
             "help",
             username: "tester",
-            terminalSize: viewport
+            terminalSize: viewport,
         ) else {
             Issue.record("expected the built-in help listing")
             return
@@ -387,13 +387,13 @@ struct ShellCraftKitTests {
             columns: 80,
             rows: 24,
             widthPixels: 0,
-            heightPixels: 0
+            heightPixels: 0,
         )
 
         switch defaultSandboxShell.processCommand(
             "exit",
             username: "tester",
-            terminalSize: viewport
+            terminalSize: viewport,
         ) {
         case .exit:
             break
@@ -405,7 +405,7 @@ struct ShellCraftKitTests {
         if case let .output(message) = defaultSandboxShell.processCommand(
             "missing-command",
             username: "tester",
-            terminalSize: viewport
+            terminalSize: viewport,
         ) {
             #expect(message.contains("\u{1B}["))
             #expect(message.contains("missing-command"))
@@ -653,7 +653,7 @@ struct EngineHarness {
             write: { _ in },
             resize: { _ in },
             surfaceWrite: { _, data in output.append(data) },
-            processExit: { _, _, _ in }
+            processExit: { _, _, _ in },
         )
         session.setSurface(UnsafeMutableRawPointer(bitPattern: 0x10)!)
         let shell = ShellDefinition(prompt: prompt, welcomeMessage: "") {

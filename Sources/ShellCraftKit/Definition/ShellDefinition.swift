@@ -43,7 +43,7 @@ public struct ShellDefinition: Sendable {
         prompt: String = "$ ",
         welcomeMessage: String? = nil,
         fallback: (@Sendable (String) -> String)? = nil,
-        @ShellCommandBuilder _ build: () -> [ShellCommand]
+        @ShellCommandBuilder _ build: () -> [ShellCommand],
     ) {
         self.prompt = prompt
         self.welcomeMessage = welcomeMessage ?? Self.defaultWelcomeMessage
@@ -71,7 +71,7 @@ public struct ShellDefinition: Sendable {
     func processCommand(
         _ input: String,
         username: String,
-        terminalSize: InMemoryTerminalViewport
+        terminalSize: InMemoryTerminalViewport,
     ) -> CommandResult {
         let trimmed = input.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else {
@@ -93,7 +93,7 @@ public struct ShellDefinition: Sendable {
             command: cmd,
             arguments: args,
             username: username,
-            terminalSize: terminalSize
+            terminalSize: terminalSize,
         )
 
         return command.handler(context)
@@ -104,7 +104,7 @@ public struct ShellDefinition: Sendable {
 
         let maxNameLen = max(
             commandOrder.map(\.count).max() ?? 0,
-            4 // "help"
+            4, // "help"
         )
 
         lines.append("  \("help".padding(toLength: maxNameLen + 2, withPad: " ", startingAt: 0))- Show this help message\r")
@@ -201,7 +201,7 @@ extension String {
     func terminalCharacterOffset(
         startingLine line: Int,
         after width: Int,
-        terminalColumns: Int
+        terminalColumns: Int,
     ) -> Int {
         let columns = max(terminalColumns, 1)
         var width = width

@@ -11,7 +11,7 @@ public struct TerminalTheme: Sendable, Hashable {
 
     public init(
         light: TerminalConfiguration = .init(),
-        dark: TerminalConfiguration = .init()
+        dark: TerminalConfiguration = .init(),
     ) {
         self.light = light
         self.dark = dark

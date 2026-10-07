@@ -54,7 +54,7 @@ enum TerminalSoftwareKeyCommitRouter {
     static func route(
         text: String,
         hasMarkedText: Bool,
-        hardwareKeyHandled: Bool
+        hardwareKeyHandled: Bool,
     ) -> TerminalSoftwareKeyCommitRoute {
         if hardwareKeyHandled {
             return .suppressHardwareDuplicate

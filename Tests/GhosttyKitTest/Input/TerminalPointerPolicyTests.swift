@@ -13,53 +13,53 @@ struct TerminalPointerPolicyTests {
 
         #expect(
             TerminalPointerPolicy.ghosttyButton(secondary: true, middle: false)
-                == GHOSTTY_MOUSE_RIGHT
+                == GHOSTTY_MOUSE_RIGHT,
         )
         #expect(
             TerminalPointerPolicy.ghosttyButton(secondary: false, middle: true)
-                == GHOSTTY_MOUSE_MIDDLE
+                == GHOSTTY_MOUSE_MIDDLE,
         )
         #expect(
             TerminalPointerPolicy.ghosttyButton(
                 secondary: false,
                 middle: false,
-                extraButtonNumber: 4
-            ) == GHOSTTY_MOUSE_FOUR
+                extraButtonNumber: 4,
+            ) == GHOSTTY_MOUSE_FOUR,
         )
         #expect(
             TerminalPointerPolicy.ghosttyButton(
                 secondary: false,
                 middle: false,
-                extraButtonNumber: 11
-            ) == GHOSTTY_MOUSE_ELEVEN
+                extraButtonNumber: 11,
+            ) == GHOSTTY_MOUSE_ELEVEN,
         )
         #expect(
             TerminalPointerPolicy.ghosttyButton(secondary: false, middle: false)
-                == GHOSTTY_MOUSE_LEFT
+                == GHOSTTY_MOUSE_LEFT,
         )
         #expect(
             TerminalPointerPolicy.ghosttyButton(
                 secondary: false,
                 middle: false,
-                extraButtonNumber: 3
-            ) == GHOSTTY_MOUSE_LEFT
+                extraButtonNumber: 3,
+            ) == GHOSTTY_MOUSE_LEFT,
         )
         #expect(
             TerminalPointerPolicy.ghosttyButton(
                 secondary: true,
                 middle: true,
-                extraButtonNumber: 4
-            ) == GHOSTTY_MOUSE_RIGHT
+                extraButtonNumber: 4,
+            ) == GHOSTTY_MOUSE_RIGHT,
         )
     }
 
     @Test
     func `host secondary menu is blocked while the mouse is captured`() {
         #expect(
-            TerminalPointerPolicy.shouldPresentHostSecondaryMenu(mouseCaptured: false)
+            TerminalPointerPolicy.shouldPresentHostSecondaryMenu(mouseCaptured: false),
         )
         #expect(
-            !TerminalPointerPolicy.shouldPresentHostSecondaryMenu(mouseCaptured: true)
+            !TerminalPointerPolicy.shouldPresentHostSecondaryMenu(mouseCaptured: true),
         )
     }
 

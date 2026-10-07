@@ -65,7 +65,7 @@
 
         func setMarkedText(
             _ string: Any,
-            selectedRange: NSRange
+            selectedRange: NSRange,
         ) {
             let text: String
             if let attrStr = string as? NSAttributedString {
@@ -124,7 +124,7 @@
 
         func attributedSubstring(
             forProposedRange range: NSRange,
-            actualRange: NSRangePointer?
+            actualRange: NSRangePointer?,
         ) -> NSAttributedString? {
             guard markedTextState.hasMarkedText else {
                 return nil

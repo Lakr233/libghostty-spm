@@ -8,15 +8,15 @@ struct TerminalInputTextTests {
             TerminalSoftwareKeyCommitRouter.route(
                 text: "\n",
                 hasMarkedText: false,
-                hardwareKeyHandled: false
-            ) == .semanticEnter
+                hardwareKeyHandled: false,
+            ) == .semanticEnter,
         )
         #expect(
             TerminalSoftwareKeyCommitRouter.route(
                 text: "\r",
                 hasMarkedText: false,
-                hardwareKeyHandled: false
-            ) == .semanticEnter
+                hardwareKeyHandled: false,
+            ) == .semanticEnter,
         )
     }
 
@@ -27,16 +27,16 @@ struct TerminalInputTextTests {
                 TerminalSoftwareKeyCommitRouter.route(
                     text: text,
                     hasMarkedText: false,
-                    hardwareKeyHandled: false
-                ) == .text
+                    hardwareKeyHandled: false,
+                ) == .text,
             )
         }
         #expect(
             TerminalSoftwareKeyCommitRouter.route(
                 text: "\n",
                 hasMarkedText: true,
-                hardwareKeyHandled: false
-            ) == .text
+                hardwareKeyHandled: false,
+            ) == .text,
         )
     }
 
@@ -46,8 +46,8 @@ struct TerminalInputTextTests {
             TerminalSoftwareKeyCommitRouter.route(
                 text: "\n",
                 hasMarkedText: false,
-                hardwareKeyHandled: true
-            ) == .suppressHardwareDuplicate
+                hardwareKeyHandled: true,
+            ) == .suppressHardwareDuplicate,
         )
     }
 

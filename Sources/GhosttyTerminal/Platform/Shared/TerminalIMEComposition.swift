@@ -33,9 +33,11 @@ enum TerminalIMEComposition {
     static func shouldDeferKey(
         characters: String?,
         hasMarkedText: Bool,
-        inputModeUsesComposition: Bool
+        inputModeUsesComposition: Bool,
     ) -> Bool {
-        if hasMarkedText { return true }
+        if hasMarkedText {
+            return true
+        }
         guard inputModeUsesComposition else { return false }
         guard
             let text = TerminalInputText.filteredFunctionKeyText(characters),

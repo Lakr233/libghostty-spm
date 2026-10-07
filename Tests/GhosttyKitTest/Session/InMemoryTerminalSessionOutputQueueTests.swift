@@ -1,7 +1,7 @@
-@testable import GhosttyTerminal
 import Darwin
 import Foundation
 import GhosttyKit
+@testable import GhosttyTerminal
 import Testing
 
 struct InMemoryTerminalSessionOutputQueueTests {
@@ -40,7 +40,7 @@ struct InMemoryTerminalSessionOutputQueueTests {
             },
             processExit: { _, exitCode, runtimeMilliseconds in
                 events.append("exit:\(exitCode):\(runtimeMilliseconds)")
-            }
+            },
         )
         session.setSurface(testSurface(2))
 
@@ -75,7 +75,7 @@ struct InMemoryTerminalSessionOutputQueueTests {
             },
             processExit: { surface, exitCode, _ in
                 events.append("\(Int(bitPattern: surface)):exit:\(exitCode)")
-            }
+            },
         )
         session.setSurface(surface.rawValue)
         session.receive("first")
@@ -161,12 +161,12 @@ struct InMemoryTerminalSessionOutputQueueTests {
 }
 
 private func makeSession(
-    surfaceWrite: @escaping InMemoryTerminalSurfaceAccess.Write
+    surfaceWrite: @escaping InMemoryTerminalSurfaceAccess.Write,
 ) -> InMemoryTerminalSession {
     InMemoryTerminalSession(
         write: { _ in },
         resize: { _ in },
-        surfaceWrite: surfaceWrite
+        surfaceWrite: surfaceWrite,
     )
 }
 

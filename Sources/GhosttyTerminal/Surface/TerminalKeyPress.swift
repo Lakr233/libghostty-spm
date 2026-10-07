@@ -61,7 +61,7 @@ public struct TerminalKeyPress: Sendable, Hashable {
     /// buffer is alive.
     func withKeyEvent<Result>(
         action: ghostty_input_action_e,
-        _ body: (ghostty_input_key_s) -> Result
+        _ body: (ghostty_input_key_s) -> Result,
     ) -> Result {
         var event = ghostty_input_key_s()
         event.action = action
@@ -105,7 +105,7 @@ public extension TerminalSurface {
         guard press.key.hasPlatformKeycode else {
             TerminalDebugLog.log(
                 .input,
-                "surface key ignored: \(press.key) has no platform keycode"
+                "surface key ignored: \(press.key) has no platform keycode",
             )
             return false
         }

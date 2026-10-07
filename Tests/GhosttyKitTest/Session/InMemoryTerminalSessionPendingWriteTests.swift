@@ -1,12 +1,12 @@
-@testable import GhosttyTerminal
 import Foundation
 import GhosttyKit
+@testable import GhosttyTerminal
 import Testing
 
-// A session's transport does not pause while a view (re)builds its surface:
-// bytes that land in that gap — a daemon reattach replay, mostly — must wait
-// for the next surface instead of vanishing. These tests pin the pending
-// buffer that closes the gap.
+/// A session's transport does not pause while a view (re)builds its surface:
+/// bytes that land in that gap — a daemon reattach replay, mostly — must wait
+/// for the next surface instead of vanishing. These tests pin the pending
+/// buffer that closes the gap.
 struct InMemoryTerminalSessionPendingWriteTests {
     @Test
     func `bytes received before a surface attaches flush into it in order`() {
@@ -59,7 +59,7 @@ struct InMemoryTerminalSessionPendingWriteTests {
             },
             processExit: { _, exitCode, runtimeMilliseconds in
                 events.append("exit:\(exitCode):\(runtimeMilliseconds)")
-            }
+            },
         )
 
         session.setSurface(surface.rawValue)
@@ -89,7 +89,7 @@ struct InMemoryTerminalSessionPendingWriteTests {
             },
             processExit: { _, exitCode, _ in
                 events.append("exit:\(exitCode)")
-            }
+            },
         )
 
         session.receive("a")
@@ -142,12 +142,12 @@ struct InMemoryTerminalSessionPendingWriteTests {
 }
 
 private func makeSession(
-    surfaceWrite: @escaping InMemoryTerminalSurfaceAccess.Write
+    surfaceWrite: @escaping InMemoryTerminalSurfaceAccess.Write,
 ) -> InMemoryTerminalSession {
     InMemoryTerminalSession(
         write: { _ in },
         resize: { _ in },
-        surfaceWrite: surfaceWrite
+        surfaceWrite: surfaceWrite,
     )
 }
 

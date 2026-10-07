@@ -177,13 +177,13 @@ struct TerminalKeyPressIntegrationTests {
     }
 
     @Test
-    func `a typed character sends its text`() async {
+    func `a typed character sends its text`() async throws {
         let harness = await GhosttySurfaceHarness.make()
         defer { harness.tearDown() }
         guard let surface = harness.surface else { return }
 
-        #expect(surface.sendKey(TerminalKeyPress(typing: "A")!))
-        #expect(surface.sendKey(TerminalKeyPress(typing: "~")!))
+        #expect(try surface.sendKey(#require(TerminalKeyPress(typing: "A"))))
+        #expect(try surface.sendKey(#require(TerminalKeyPress(typing: "~"))))
 
         let bytes = await harness.drain()
         #expect(bytes == Data("A~".utf8))

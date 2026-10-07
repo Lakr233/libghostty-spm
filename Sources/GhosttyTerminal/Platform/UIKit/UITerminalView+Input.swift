@@ -26,7 +26,7 @@
         @discardableResult
         func sendInputKeyEvent(
             _ event: ghostty_input_key_s,
-            committingMarkedText: Bool = false
+            committingMarkedText: Bool = false,
         ) -> Bool {
             guard let surface else { return false }
             if event.action == GHOSTTY_ACTION_PRESS {
@@ -53,7 +53,7 @@
                 }
 
                 let key = TerminalHardwareKeyRouter.ghosttyKey(
-                    forAppKitKeyCode: UInt16(clamping: event.keycode)
+                    forAppKitKeyCode: UInt16(clamping: event.keycode),
                 )
                 switch key {
                 case GHOSTTY_KEY_SHIFT_LEFT, GHOSTTY_KEY_SHIFT_RIGHT,

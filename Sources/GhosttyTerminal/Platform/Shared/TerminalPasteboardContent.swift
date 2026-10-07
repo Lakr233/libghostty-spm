@@ -61,8 +61,12 @@ public enum TerminalPasteboardContent {
         /// ``files(from:completion:)`` would; the edit menu asks this on
         /// every validation, so it stays on cheap pasteboard queries.
         static func hasContent(_ pasteboard: UIPasteboard = .general) -> Bool {
-            if pasteboard.hasStrings || pasteboard.hasURLs || pasteboard.hasImages { return true }
-            if pasteboard.contains(pasteboardTypes: [UTType.fileURL.identifier]) { return true }
+            if pasteboard.hasStrings || pasteboard.hasURLs || pasteboard.hasImages {
+                return true
+            }
+            if pasteboard.contains(pasteboardTypes: [UTType.fileURL.identifier]) {
+                return true
+            }
             return TerminalFileStaging.fileType(among: pasteboard.types) != nil
         }
 
@@ -95,9 +99,15 @@ public enum TerminalPasteboardContent {
         static func fileURLs(in pasteboard: UIPasteboard) -> [URL] {
             pasteboard.items.compactMap { item -> URL? in
                 guard let value = item[UTType.fileURL.identifier] else { return nil }
-                if let url = value as? URL { return url }
-                if let data = value as? Data { return URL(dataRepresentation: data, relativeTo: nil) }
-                if let string = value as? String { return URL(string: string) }
+                if let url = value as? URL {
+                    return url
+                }
+                if let data = value as? Data {
+                    return URL(dataRepresentation: data, relativeTo: nil)
+                }
+                if let string = value as? String {
+                    return URL(string: string)
+                }
                 return nil
             }
             .filter(\.isFileURL)
@@ -109,7 +119,7 @@ public enum TerminalPasteboardContent {
         @MainActor
         static func files(
             from pasteboard: UIPasteboard = .general,
-            completion: @escaping @MainActor (String?) -> Void
+            completion: @escaping @MainActor (String?) -> Void,
         ) {
             let items = pasteboard.itemProviders.compactMap { provider in
                 TerminalFileStaging.fileType(among: provider.registeredTypeIdentifiers)
@@ -145,7 +155,7 @@ public enum TerminalPasteboardContent {
         static func text(from pasteboard: NSPasteboard = .general) -> String? {
             text(
                 string: pasteboard.string(forType: .string),
-                urls: (pasteboard.readObjects(forClasses: [NSURL.self]) as? [URL]) ?? []
+                urls: (pasteboard.readObjects(forClasses: [NSURL.self]) as? [URL]) ?? [],
             )
         }
 

@@ -84,7 +84,7 @@
                 characters: equivalent,
                 charactersIgnoringModifiers: equivalent,
                 isARepeat: event.isARepeat,
-                keyCode: event.keyCode
+                keyCode: event.keyCode,
             ) else {
                 return false
             }
@@ -123,7 +123,7 @@
             if let text = NSPasteboard.general.string(forType: .string) {
                 TerminalDebugLog.log(
                     .input,
-                    "paste binding bytes=\(text.utf8.count) lines=\(TerminalInputText.lineCount(in: text))"
+                    "paste binding bytes=\(text.utf8.count) lines=\(TerminalInputText.lineCount(in: text))",
                 )
             }
             _ = surface?.performBindingAction("paste_from_clipboard")
@@ -133,7 +133,7 @@
             _ = surface?.performBindingAction("select_all")
         }
 
-        internal func mousePoint(from event: NSEvent) -> (x: CGFloat, y: CGFloat) {
+        func mousePoint(from event: NSEvent) -> (x: CGFloat, y: CGFloat) {
             let point = convert(event.locationInWindow, from: nil)
             return (point.x, bounds.height - point.y)
         }
@@ -147,7 +147,7 @@
             surface?.sendMouseButton(
                 state: GHOSTTY_MOUSE_PRESS,
                 button: GHOSTTY_MOUSE_LEFT,
-                mods: mods.ghosttyMods
+                mods: mods.ghosttyMods,
             )
         }
 
@@ -158,7 +158,7 @@
             surface?.sendMouseButton(
                 state: GHOSTTY_MOUSE_RELEASE,
                 button: GHOSTTY_MOUSE_LEFT,
-                mods: mods.ghosttyMods
+                mods: mods.ghosttyMods,
             )
         }
 
@@ -174,7 +174,7 @@
             surface?.sendMouseButton(
                 state: GHOSTTY_MOUSE_PRESS,
                 button: GHOSTTY_MOUSE_RIGHT,
-                mods: mods.ghosttyMods
+                mods: mods.ghosttyMods,
             )
         }
 
@@ -190,7 +190,7 @@
             surface?.sendMouseButton(
                 state: GHOSTTY_MOUSE_RELEASE,
                 button: GHOSTTY_MOUSE_RIGHT,
-                mods: mods.ghosttyMods
+                mods: mods.ghosttyMods,
             )
         }
 
@@ -210,7 +210,7 @@
             surface?.sendMouseButton(
                 state: GHOSTTY_MOUSE_PRESS,
                 button: GHOSTTY_MOUSE_MIDDLE,
-                mods: mods.ghosttyMods
+                mods: mods.ghosttyMods,
             )
         }
 
@@ -221,7 +221,7 @@
             surface?.sendMouseButton(
                 state: GHOSTTY_MOUSE_RELEASE,
                 button: GHOSTTY_MOUSE_MIDDLE,
-                mods: mods.ghosttyMods
+                mods: mods.ghosttyMods,
             )
         }
 
@@ -231,9 +231,9 @@
             surface?.sendMousePos(x: x, y: y, mods: mods.ghosttyMods)
         }
 
-        // ghostty clears link hover only on a negative position; the
-        // tracking area stops delivering mouseMoved outside the view. Skipped
-        // during a drag, where mouseDragged keeps reporting real positions.
+        /// ghostty clears link hover only on a negative position; the
+        /// tracking area stops delivering mouseMoved outside the view. Skipped
+        /// during a drag, where mouseDragged keeps reporting real positions.
         override open func mouseExited(with event: NSEvent) {
             guard NSEvent.pressedMouseButtons == 0 else { return }
             let mods = TerminalInputModifiers(from: event.modifierFlags)
@@ -255,12 +255,12 @@
         override open func scrollWheel(with event: NSEvent) {
             let scrollMods = TerminalScrollModifiers(
                 precision: event.hasPreciseScrollingDeltas,
-                momentum: TerminalScrollModifiers.momentumFrom(phase: event.momentumPhase)
+                momentum: TerminalScrollModifiers.momentumFrom(phase: event.momentumPhase),
             )
             surface?.sendMouseScroll(
                 x: event.scrollingDeltaX,
                 y: event.scrollingDeltaY,
-                mods: scrollMods.rawValue
+                mods: scrollMods.rawValue,
             )
         }
 
@@ -271,7 +271,7 @@
 
         private func keyIsBinding(
             _ event: NSEvent,
-            on surface: TerminalSurface
+            on surface: TerminalSurface,
         ) -> Bool {
             guard let rawSurface = surface.rawValue else {
                 return false

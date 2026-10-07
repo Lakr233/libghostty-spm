@@ -27,7 +27,7 @@
         }
 
         nonisolated static func shouldReplayInterpretedCommand(
-            _ selector: Selector
+            _ selector: Selector,
         ) -> Bool {
             // AppKit sometimes resolves non-text keys into editing commands
             // (for example Shift-Tab -> insertBacktab:). In a terminal, those
@@ -58,7 +58,7 @@
             if let collected = inputMethodHandler?.finishCollectingText() {
                 var input = event.buildKeyInput(
                     action: action,
-                    translationModifiers: translationEvent.modifierFlags
+                    translationModifiers: translationEvent.modifierFlags,
                 )
                 for text in collected {
                     text.withCString { ptr in
@@ -78,7 +78,7 @@
                         action: action,
                         to: surface,
                         includeText: false,
-                        composing: inputMethodHandler?.hasMarkedText == true || markedTextBefore
+                        composing: inputMethodHandler?.hasMarkedText == true || markedTextBefore,
                     )
                     return
                 }
@@ -90,7 +90,7 @@
                 action: action,
                 to: surface,
                 includeText: true,
-                composing: inputMethodHandler?.hasMarkedText == true || markedTextBefore
+                composing: inputMethodHandler?.hasMarkedText == true || markedTextBefore,
             )
         }
 
@@ -152,11 +152,11 @@
             action: ghostty_input_action_e,
             to surface: TerminalSurface,
             includeText: Bool,
-            composing: Bool = false
+            composing: Bool = false,
         ) {
             var input = event.buildKeyInput(
                 action: action,
-                translationModifiers: translationEvent.modifierFlags
+                translationModifiers: translationEvent.modifierFlags,
             )
             input.composing = composing
             guard includeText,
@@ -175,7 +175,7 @@
 
         private func translatedEvent(
             for event: NSEvent,
-            on surface: TerminalSurface
+            on surface: TerminalSurface,
         ) -> NSEvent {
             guard let rawSurface = surface.rawValue else {
                 return event
@@ -184,8 +184,8 @@
             let translatedMods = eventModifierFlags(
                 from: ghostty_surface_key_translation_mods(
                     rawSurface,
-                    TerminalInputModifiers(from: event.modifierFlags).ghosttyMods
-                )
+                    TerminalInputModifiers(from: event.modifierFlags).ghosttyMods,
+                ),
             )
 
             var finalModifiers = event.modifierFlags
@@ -216,16 +216,24 @@
                 characters: event.characters(byApplyingModifiers: finalModifiers) ?? "",
                 charactersIgnoringModifiers: event.charactersIgnoringModifiers ?? "",
                 isARepeat: event.isARepeat,
-                keyCode: event.keyCode
+                keyCode: event.keyCode,
             ) ?? event
         }
 
         private func eventModifierFlags(from mods: ghostty_input_mods_e) -> NSEvent.ModifierFlags {
             var flags = NSEvent.ModifierFlags()
-            if mods.rawValue & GHOSTTY_MODS_SHIFT.rawValue != 0 { flags.insert(.shift) }
-            if mods.rawValue & GHOSTTY_MODS_CTRL.rawValue != 0 { flags.insert(.control) }
-            if mods.rawValue & GHOSTTY_MODS_ALT.rawValue != 0 { flags.insert(.option) }
-            if mods.rawValue & GHOSTTY_MODS_SUPER.rawValue != 0 { flags.insert(.command) }
+            if mods.rawValue & GHOSTTY_MODS_SHIFT.rawValue != 0 {
+                flags.insert(.shift)
+            }
+            if mods.rawValue & GHOSTTY_MODS_CTRL.rawValue != 0 {
+                flags.insert(.control)
+            }
+            if mods.rawValue & GHOSTTY_MODS_ALT.rawValue != 0 {
+                flags.insert(.option)
+            }
+            if mods.rawValue & GHOSTTY_MODS_SUPER.rawValue != 0 {
+                flags.insert(.command)
+            }
             return flags
         }
 
@@ -239,7 +247,7 @@
     extension NSEvent {
         func buildKeyInput(
             action: ghostty_input_action_e,
-            translationModifiers: NSEvent.ModifierFlags? = nil
+            translationModifiers: NSEvent.ModifierFlags? = nil,
         ) -> ghostty_input_key_s {
             var input = ghostty_input_key_s()
             input.action = action
@@ -287,7 +295,7 @@
                 var flags = modifierFlags
                 flags.remove(.control)
                 return TerminalInputText.filteredFunctionKeyText(
-                    characters(byApplyingModifiers: flags)
+                    characters(byApplyingModifiers: flags),
                 )
             }
 

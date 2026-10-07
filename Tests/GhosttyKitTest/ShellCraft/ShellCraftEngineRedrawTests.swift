@@ -14,8 +14,8 @@ struct ShellCraftEngineRedrawTests {
                 promptDisplayWidth: 2,
                 input: "\u{1F44D}\u{1F3FD}ab",
                 cursorPosition: 2,
-                terminalColumns: 80
-            ).cursorColumn == 6
+                terminalColumns: 80,
+            ).cursorColumn == 6,
         )
     }
 

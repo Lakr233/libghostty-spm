@@ -11,7 +11,7 @@ final class ViewController: UIViewController {
     private lazy var shellSession: ShellSession = .init(shell: defaultSandboxShell)
     private var isKeyboardVisible = false
     private lazy var controller: TerminalController = .init(
-        theme: Self.savedTerminalTheme()
+        theme: Self.savedTerminalTheme(),
     ) { builder in
         builder.withBackgroundOpacity(0)
         #if DEBUG
@@ -58,7 +58,7 @@ final class ViewController: UIViewController {
 
     override func viewWillTransition(
         to size: CGSize,
-        with coordinator: any UIViewControllerTransitionCoordinator
+        with coordinator: any UIViewControllerTransitionCoordinator,
     ) {
         super.viewWillTransition(to: size, with: coordinator)
         coordinator.animate { [weak self] _ in
@@ -73,7 +73,7 @@ final class ViewController: UIViewController {
         terminalView.accessibilityIdentifier = "terminal.surface"
         terminalView.accessibilityLabel = "Terminal"
         terminalView.configuration = TerminalSurfaceOptions(
-            backend: .inMemory(shellSession.terminalSession)
+            backend: .inMemory(shellSession.terminalSession),
         )
         terminalView.controller = controller
         terminalView.backgroundColor = .clear
@@ -103,7 +103,7 @@ final class ViewController: UIViewController {
             }
             if ProcessInfo.processInfo.arguments.contains("--ui-testing") {
                 let output = TerminalOutputAccessibilityView(
-                    session: shellSession.terminalSession
+                    session: shellSession.terminalSession,
                 )
                 let menus = UILabel(frame: CGRect(x: 0, y: 0, width: 1, height: 1))
                 menus.isAccessibilityElement = true
@@ -169,13 +169,13 @@ final class ViewController: UIViewController {
             self,
             selector: #selector(keyboardWillShow),
             name: UIResponder.keyboardWillShowNotification,
-            object: nil
+            object: nil,
         )
         center.addObserver(
             self,
             selector: #selector(keyboardWillHide),
             name: UIResponder.keyboardWillHideNotification,
-            object: nil
+            object: nil,
         )
     }
 
@@ -231,7 +231,7 @@ final class ViewController: UIViewController {
     }
 
     private static func savedThemeDefinition(
-        forKey key: String
+        forKey key: String,
     ) -> GhosttyThemeDefinition? {
         guard let name = UserDefaults.standard.string(forKey: key) else {
             return nil
@@ -276,7 +276,7 @@ final class ViewController: UIViewController {
     private func configureThemeMenu() {
         navigationItem.rightBarButtonItem = UIBarButtonItem(
             image: UIImage(systemName: "paintpalette"),
-            menu: buildThemeMenu()
+            menu: buildThemeMenu(),
         )
         navigationItem.rightBarButtonItem?.accessibilityIdentifier = "terminal.themeButton"
     }
@@ -290,23 +290,23 @@ final class ViewController: UIViewController {
                 "Gruvbox Dark", "Gruvbox Light", "Tokyo Night",
                 "One Half Dark", "One Half Light", "Rose Pine",
                 "Monokai Pro", "GitHub Dark", "GitHub Light",
-            ]
+            ],
         )
 
         let dark = UIMenu(
             title: "Dark",
             image: UIImage(systemName: "moon.fill"),
             children: alphabeticalSubmenus(
-                themes: GhosttyThemeCatalog.allThemes.filter(\.isDark)
-            )
+                themes: GhosttyThemeCatalog.allThemes.filter(\.isDark),
+            ),
         )
 
         let light = UIMenu(
             title: "Light",
             image: UIImage(systemName: "sun.max.fill"),
             children: alphabeticalSubmenus(
-                themes: GhosttyThemeCatalog.allThemes.filter { !$0.isDark }
-            )
+                themes: GhosttyThemeCatalog.allThemes.filter { !$0.isDark },
+            ),
         )
 
         return UIMenu(title: "Theme", children: [popular, dark, light])
@@ -314,7 +314,7 @@ final class ViewController: UIViewController {
 
     private func buildSubmenu(
         title: String,
-        themes names: [String]
+        themes names: [String],
     ) -> UIMenu {
         let actions = names.compactMap { name -> UIAction? in
             guard let theme = GhosttyThemeCatalog.theme(named: name) else {
@@ -325,12 +325,12 @@ final class ViewController: UIViewController {
         return UIMenu(
             title: title,
             image: UIImage(systemName: "star.fill"),
-            children: actions
+            children: actions,
         )
     }
 
     private func alphabeticalSubmenus(
-        themes: [GhosttyThemeDefinition]
+        themes: [GhosttyThemeDefinition],
     ) -> [UIMenu] {
         var grouped: [String: [GhosttyThemeDefinition]] = [:]
         for theme in themes {
@@ -342,7 +342,7 @@ final class ViewController: UIViewController {
         return grouped.sorted { $0.key < $1.key }.map { key, themes in
             UIMenu(
                 title: key,
-                children: themes.map { themeAction(for: $0) }
+                children: themes.map { themeAction(for: $0) },
             )
         }
     }
@@ -426,7 +426,7 @@ extension ViewController:
             let scale = terminalView.traitCollection.displayScale
             gridAccessibility?.cellSize = CGSize(
                 width: CGFloat(size.cellWidthPixels) / scale,
-                height: CGFloat(size.cellHeightPixels) / scale
+                height: CGFloat(size.cellHeightPixels) / scale,
             )
         #endif
     }
@@ -454,7 +454,7 @@ private extension UIColor {
             red: CGFloat(r) / 255,
             green: CGFloat(g) / 255,
             blue: CGFloat(b) / 255,
-            alpha: 1
+            alpha: 1,
         )
     }
 }

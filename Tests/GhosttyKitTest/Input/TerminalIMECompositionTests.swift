@@ -1,10 +1,10 @@
 @testable import GhosttyTerminal
 import Testing
 
-// Hardware keys must not race a composition input method: while a CJK input
-// mode is active, printable presses open (or extend) the IME's preedit, and
-// the terminal only sees the committed text. These tests pin the routing
-// decisions that keep pinyin keystrokes out of the shell.
+/// Hardware keys must not race a composition input method: while a CJK input
+/// mode is active, printable presses open (or extend) the IME's preedit, and
+/// the terminal only sees the committed text. These tests pin the routing
+/// decisions that keep pinyin keystrokes out of the shell.
 struct TerminalIMECompositionTests {
     @Test
     func `composition languages are detected by primary language prefix`() {
@@ -26,13 +26,13 @@ struct TerminalIMECompositionTests {
             #expect(TerminalIMEComposition.shouldDeferKey(
                 characters: characters,
                 hasMarkedText: true,
-                inputModeUsesComposition: true
+                inputModeUsesComposition: true,
             ))
             // Marked text can outlive an input-mode switch mid-composition.
             #expect(TerminalIMEComposition.shouldDeferKey(
                 characters: characters,
                 hasMarkedText: true,
-                inputModeUsesComposition: false
+                inputModeUsesComposition: false,
             ))
         }
     }
@@ -43,7 +43,7 @@ struct TerminalIMECompositionTests {
             #expect(TerminalIMEComposition.shouldDeferKey(
                 characters: characters,
                 hasMarkedText: false,
-                inputModeUsesComposition: true
+                inputModeUsesComposition: true,
             ))
         }
     }
@@ -62,7 +62,7 @@ struct TerminalIMECompositionTests {
             #expect(!TerminalIMEComposition.shouldDeferKey(
                 characters: characters,
                 hasMarkedText: false,
-                inputModeUsesComposition: true
+                inputModeUsesComposition: true,
             ))
         }
     }
@@ -73,7 +73,7 @@ struct TerminalIMECompositionTests {
             #expect(!TerminalIMEComposition.shouldDeferKey(
                 characters: characters,
                 hasMarkedText: false,
-                inputModeUsesComposition: false
+                inputModeUsesComposition: false,
             ))
         }
     }

@@ -11,7 +11,7 @@ enum GhosttyConfigRenderer {
     static func render(
         baseContents: String,
         configuration: TerminalConfiguration,
-        theme: TerminalConfiguration
+        theme: TerminalConfiguration,
     ) -> String {
         var sections: [String] = []
 

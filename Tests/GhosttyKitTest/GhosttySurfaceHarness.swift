@@ -42,7 +42,7 @@ final class GhosttySurfaceHarness {
         let outbound = outbound
         session = InMemoryTerminalSession(
             write: { outbound.append($0) },
-            resize: { _ in }
+            resize: { _ in },
         )
         platformView.wantsLayer = true
         coordinator.isAttached = { true }
@@ -52,8 +52,8 @@ final class GhosttySurfaceHarness {
             config.platform_tag = GHOSTTY_PLATFORM_MACOS
             config.platform = ghostty_platform_u(
                 macos: ghostty_platform_macos_s(
-                    nsview: Unmanaged.passUnretained(platformView).toOpaque()
-                )
+                    nsview: Unmanaged.passUnretained(platformView).toOpaque(),
+                ),
             )
         }
         coordinator.configuration = TerminalSurfaceOptions(backend: .inMemory(session))

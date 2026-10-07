@@ -26,7 +26,7 @@ struct InMemoryTerminalSessionResizeTests {
         columns: UInt16,
         rows: UInt16,
         widthPixels: UInt32,
-        heightPixels: UInt32
+        heightPixels: UInt32,
     ) -> TerminalGridMetrics {
         TerminalGridMetrics(
             columns: columns,
@@ -34,7 +34,7 @@ struct InMemoryTerminalSessionResizeTests {
             widthPixels: widthPixels,
             heightPixels: heightPixels,
             cellWidthPixels: 17,
-            cellHeightPixels: 37
+            cellHeightPixels: 37,
         )
     }
 
@@ -48,7 +48,7 @@ struct InMemoryTerminalSessionResizeTests {
         let session = InMemoryTerminalSession(
             write: { _ in },
             resize: { recorder.record($0) },
-            suppressesPixelOnlyResizes: true
+            suppressesPixelOnlyResizes: true,
         )
 
         session.updateViewport(metrics(columns: 100, rows: 40, widthPixels: 1700, heightPixels: 1480))
@@ -68,7 +68,7 @@ struct InMemoryTerminalSessionResizeTests {
         let session = InMemoryTerminalSession(
             write: { _ in },
             resize: { recorder.record($0) },
-            suppressesPixelOnlyResizes: true
+            suppressesPixelOnlyResizes: true,
         )
 
         session.updateViewport(metrics(columns: 100, rows: 40, widthPixels: 1700, heightPixels: 1480))
@@ -88,7 +88,7 @@ struct InMemoryTerminalSessionResizeTests {
         let recorder = ResizeRecorder()
         let session = InMemoryTerminalSession(
             write: { _ in },
-            resize: { recorder.record($0) }
+            resize: { recorder.record($0) },
         )
 
         #expect(!session.suppressesPixelOnlyResizes)
@@ -99,9 +99,4 @@ struct InMemoryTerminalSessionResizeTests {
         #expect(recorder.dispatches.count == 2)
         #expect(recorder.dispatches.last?.widthPixels == 1712)
     }
-
-
-
-
-
 }

@@ -1,5 +1,5 @@
-@testable import GhosttyTerminal
 import Foundation
+@testable import GhosttyTerminal
 import Testing
 
 struct InMemoryTerminalPendingOperationsTests {

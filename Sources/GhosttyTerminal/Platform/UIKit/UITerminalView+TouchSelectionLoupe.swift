@@ -10,7 +10,7 @@
     /// One session per drag; earlier systems and visionOS show none.
     @MainActor
     final class TerminalTouchSelectionLoupe {
-        // Erased so the package still deploys to iOS 15.
+        /// Erased so the package still deploys to iOS 15.
         private var session: AnyObject?
 
         init(at point: CGPoint, from widget: UIView?, in view: UIView) {

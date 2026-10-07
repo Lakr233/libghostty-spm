@@ -37,7 +37,7 @@ func terminalMetaEditingAction(for byte: UInt8) -> TerminalMetaEditingAction? {
 
 func terminalCSIEditingAction(
     params: Data,
-    finalByte: UInt8
+    finalByte: UInt8,
 ) -> TerminalCSIEditingAction? {
     switch finalByte {
     case 0x41: // A - Up

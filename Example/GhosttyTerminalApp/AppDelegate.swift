@@ -17,7 +17,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             contentRect: NSRect(origin: .zero, size: defaultContentSize),
             styleMask: [.titled, .closable, .miniaturizable, .resizable],
             backing: .buffered,
-            defer: false
+            defer: false,
         )
         window.title = "GhosttyKit Sandbox Demo"
         window.isOpaque = true

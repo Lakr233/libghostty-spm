@@ -29,13 +29,13 @@ actor Engine {
     private var renderedInputState = TerminalRenderedInputState(
         totalLineCount: 1,
         cursorLineOffset: 0,
-        cursorColumn: 1
+        cursorColumn: 1,
     )
     private var terminalSize = InMemoryTerminalViewport(
         columns: 80,
         rows: 20,
         widthPixels: 0,
-        heightPixels: 0
+        heightPixels: 0,
     )
 
     init(shell: ShellDefinition, session: InMemoryTerminalSession) {
@@ -78,7 +78,7 @@ actor Engine {
 
         shellDebugLog(
             .metrics,
-            "shell resize cols=\(previous.columns)x\(previous.rows) -> \(size.columns)x\(size.rows) pixels=\(size.widthPixels)x\(size.heightPixels)"
+            "shell resize cols=\(previous.columns)x\(previous.rows) -> \(size.columns)x\(size.rows) pixels=\(size.widthPixels)x\(size.heightPixels)",
         )
 
         guard hasStarted, !isTerminated else { return }
@@ -86,7 +86,7 @@ actor Engine {
 
         shellDebugLog(
             .actions,
-            "shell redraw after resize input=\(shellDebugDescribe(currentInput)) cursorPosition=\(cursorPosition)"
+            "shell redraw after resize input=\(shellDebugDescribe(currentInput)) cursorPosition=\(cursorPosition)",
         )
         // ghostty reflows the soft-wrapped prompt+input block to the new
         // width before it reports the resize, so the cursor's row offset
@@ -95,7 +95,7 @@ actor Engine {
             promptDisplayWidth: shell.promptDisplayWidth,
             input: currentInput,
             cursorPosition: cursorPosition,
-            terminalColumns: Int(size.columns)
+            terminalColumns: Int(size.columns),
         )
         renderedHiddenLineCount = hiddenLineCount(of: renderedInputState, printedFrom: 0)
         redrawInputLine()
@@ -107,7 +107,7 @@ actor Engine {
             guard !Task.isCancelled else { return }
             redrawInputLineIfViewportStable(
                 size,
-                expectedRevision: expectedRevision
+                expectedRevision: expectedRevision,
             )
         }
     }
@@ -244,8 +244,8 @@ actor Engine {
                     promptDisplayWidth: shell.promptDisplayWidth,
                     input: currentInput,
                     cursorPosition: cursorPosition,
-                    terminalColumns: Int(terminalSize.columns)
-                )
+                    terminalColumns: Int(terminalSize.columns),
+                ),
             )
 
         default:
@@ -344,7 +344,7 @@ actor Engine {
     private func moveCursorBackwardWord() {
         let nextCursorPosition = terminalPreviousWordBoundary(
             in: currentInput,
-            from: cursorPosition
+            from: cursorPosition,
         )
         guard nextCursorPosition != cursorPosition else { return }
         cursorPosition = nextCursorPosition
@@ -354,7 +354,7 @@ actor Engine {
     private func moveCursorForwardWord() {
         let nextCursorPosition = terminalNextWordBoundary(
             in: currentInput,
-            from: cursorPosition
+            from: cursorPosition,
         )
         guard nextCursorPosition != cursorPosition else { return }
         cursorPosition = nextCursorPosition
@@ -376,7 +376,7 @@ actor Engine {
         if applyIncrementalAppendIfPossible(
             insertedText: text,
             previousInput: previousInput,
-            previousCursorPosition: previousCursorPosition
+            previousCursorPosition: previousCursorPosition,
         ) {
             return
         }
@@ -398,7 +398,7 @@ actor Engine {
     private func deleteBackwardWord() {
         let result = terminalDeleteBackwardWord(
             input: currentInput,
-            cursorPosition: cursorPosition
+            cursorPosition: cursorPosition,
         )
         guard result.cursorPosition != cursorPosition else { return }
         currentInput = result.input
@@ -409,7 +409,7 @@ actor Engine {
     private func deleteBackwardShellWord() {
         let result = terminalDeleteBackwardShellWord(
             input: currentInput,
-            cursorPosition: cursorPosition
+            cursorPosition: cursorPosition,
         )
         guard result.cursorPosition != cursorPosition else { return }
         currentInput = result.input
@@ -430,7 +430,7 @@ actor Engine {
     private func deleteForwardWord() {
         let result = terminalDeleteForwardWord(
             input: currentInput,
-            cursorPosition: cursorPosition
+            cursorPosition: cursorPosition,
         )
         guard result.input != currentInput else { return }
         currentInput = result.input
@@ -451,7 +451,7 @@ actor Engine {
     private func killToEndOfLine() {
         guard cursorPosition < currentInput.count else { return }
         currentInput.removeSubrange(
-            currentInput.index(currentInput.startIndex, offsetBy: cursorPosition) ..< currentInput.endIndex
+            currentInput.index(currentInput.startIndex, offsetBy: cursorPosition) ..< currentInput.endIndex,
         )
         redrawInputLine()
     }
@@ -537,7 +537,7 @@ actor Engine {
         switch shell.processCommand(
             command,
             username: NSUserName(),
-            terminalSize: terminalSize
+            terminalSize: terminalSize,
         ) {
         case let .output(output):
             if !output.isEmpty {
@@ -554,7 +554,7 @@ actor Engine {
             send("logout\r\n")
             session?.finish(
                 exitCode: 0,
-                runtimeMilliseconds: elapsedMilliseconds
+                runtimeMilliseconds: elapsedMilliseconds,
             )
         }
     }
@@ -565,7 +565,7 @@ actor Engine {
             promptDisplayWidth: shell.promptDisplayWidth,
             input: currentInput,
             cursorPosition: cursorPosition,
-            terminalColumns: Int(terminalSize.columns)
+            terminalColumns: Int(terminalSize.columns),
         )
         renderedHiddenLineCount = hiddenLineCount(of: renderedInputState, printedFrom: 0)
         renderedInputRevision &+= 1
@@ -576,18 +576,18 @@ actor Engine {
             promptDisplayWidth: shell.promptDisplayWidth,
             input: currentInput,
             cursorPosition: cursorPosition,
-            terminalColumns: Int(terminalSize.columns)
+            terminalColumns: Int(terminalSize.columns),
         )
         let renderedEndState = terminalRenderedInputState(
             promptDisplayWidth: shell.promptDisplayWidth,
             input: currentInput,
             cursorPosition: currentInput.count,
-            terminalColumns: Int(terminalSize.columns)
+            terminalColumns: Int(terminalSize.columns),
         )
 
         shellDebugLog(
             .actions,
-            "shell redraw promptWidth=\(shell.promptDisplayWidth) input=\(shellDebugDescribe(currentInput)) cursorPosition=\(cursorPosition) previousLines=\(renderedInputState.totalLineCount) nextLines=\(nextState.totalLineCount)"
+            "shell redraw promptWidth=\(shell.promptDisplayWidth) input=\(shellDebugDescribe(currentInput)) cursorPosition=\(cursorPosition) previousLines=\(renderedInputState.totalLineCount) nextLines=\(nextState.totalLineCount)",
         )
 
         moveCursorToRenderedInputStart(renderedInputState)
@@ -602,13 +602,13 @@ actor Engine {
             let offset = currentInput.terminalCharacterOffset(
                 startingLine: firstLine,
                 after: shell.promptDisplayWidth,
-                terminalColumns: Int(terminalSize.columns)
+                terminalColumns: Int(terminalSize.columns),
             )
             send(String(currentInput.dropFirst(offset)))
         }
         moveCursor(
             from: renderedEndState,
-            to: nextState
+            to: nextState,
         )
         renderedInputState = nextState
         renderedHiddenLineCount = hiddenLineCount(of: nextState, printedFrom: firstLine)
@@ -631,28 +631,28 @@ actor Engine {
     /// outgrows the screen it scrolls until its last row is the bottom one.
     private func hiddenLineCount(
         of state: TerminalRenderedInputState,
-        printedFrom firstLine: Int
+        printedFrom firstLine: Int,
     ) -> Int {
         max(firstLine, state.totalLineCount - max(Int(terminalSize.rows), 1))
     }
 
     private func redrawInputLineIfViewportStable(
         _ expectedViewport: InMemoryTerminalViewport,
-        expectedRevision: UInt64
+        expectedRevision: UInt64,
     ) {
         guard hasStarted, !isTerminated else { return }
         guard terminalSize == expectedViewport else { return }
         guard renderedInputRevision == expectedRevision else {
             shellDebugLog(
                 .actions,
-                "shell redraw settle skipped: revision changed expected=\(expectedRevision) actual=\(renderedInputRevision)"
+                "shell redraw settle skipped: revision changed expected=\(expectedRevision) actual=\(renderedInputRevision)",
             )
             return
         }
 
         shellDebugLog(
             .actions,
-            "shell redraw settle viewport=\(expectedViewport.columns)x\(expectedViewport.rows) pixels=\(expectedViewport.widthPixels)x\(expectedViewport.heightPixels)"
+            "shell redraw settle viewport=\(expectedViewport.columns)x\(expectedViewport.rows) pixels=\(expectedViewport.widthPixels)x\(expectedViewport.heightPixels)",
         )
         redrawInputLine()
     }
@@ -660,12 +660,12 @@ actor Engine {
     private func applyIncrementalAppendIfPossible(
         insertedText: String,
         previousInput: String,
-        previousCursorPosition: Int
+        previousCursorPosition: Int,
     ) -> Bool {
         guard canIncrementallyAppendInput(
             previousInput: previousInput,
             previousCursorPosition: previousCursorPosition,
-            insertedText: insertedText
+            insertedText: insertedText,
         ) else {
             return false
         }
@@ -674,18 +674,18 @@ actor Engine {
             promptDisplayWidth: shell.promptDisplayWidth,
             input: currentInput,
             cursorPosition: cursorPosition,
-            terminalColumns: Int(terminalSize.columns)
+            terminalColumns: Int(terminalSize.columns),
         )
 
         shellDebugLog(
             .actions,
-            "shell incremental append text=\(shellDebugDescribe(insertedText)) input=\(shellDebugDescribe(currentInput)) cursorPosition=\(cursorPosition)"
+            "shell incremental append text=\(shellDebugDescribe(insertedText)) input=\(shellDebugDescribe(currentInput)) cursorPosition=\(cursorPosition)",
         )
         send(insertedText)
         renderedInputState = nextState
         renderedHiddenLineCount = hiddenLineCount(
             of: nextState,
-            printedFrom: renderedHiddenLineCount
+            printedFrom: renderedHiddenLineCount,
         )
         renderedInputRevision &+= 1
         return true
@@ -698,13 +698,13 @@ actor Engine {
                 promptDisplayWidth: shell.promptDisplayWidth,
                 input: currentInput,
                 cursorPosition: currentInput.count,
-                terminalColumns: Int(terminalSize.columns)
-            )
+                terminalColumns: Int(terminalSize.columns),
+            ),
         )
     }
 
     private func moveCursorToRenderedInputStart(
-        _ state: TerminalRenderedInputState
+        _ state: TerminalRenderedInputState,
     ) {
         send("\r")
         let rows = state.cursorLineOffset - renderedHiddenLineCount
@@ -718,7 +718,7 @@ actor Engine {
 
     private func moveCursor(
         from current: TerminalRenderedInputState,
-        to target: TerminalRenderedInputState
+        to target: TerminalRenderedInputState,
     ) {
         let rowDelta = current.cursorLineOffset - target.cursorLineOffset
         if rowDelta > 0 {
@@ -760,7 +760,7 @@ actor Engine {
 
 private func shellDebugLog(
     _ category: TerminalDebugCategory,
-    _ message: @autoclosure () -> String
+    _ message: @autoclosure () -> String,
 ) {
     guard TerminalDebugLog.isEnabled else { return }
     guard TerminalDebugLog.categories.contains(category) else { return }

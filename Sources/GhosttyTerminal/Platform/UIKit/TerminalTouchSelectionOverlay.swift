@@ -68,7 +68,7 @@
         func update(grid: TerminalSelectionGrid, range: ClosedRange<Int>, offset: Int) {
             let next = Presentation(
                 grid: grid, range: range, offset: offset, bounds: bounds,
-                tint: tintColor.resolvedColor(with: traitCollection)
+                tint: tintColor.resolvedColor(with: traitCollection),
             )
             guard next != presentation else { return }
             presentation = next

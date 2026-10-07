@@ -22,7 +22,7 @@ struct TerminalSelectionGrid: Equatable {
         rows = Int(metrics.rows)
         cellSize = CGSize(
             width: CGFloat(metrics.cellWidthPixels) / scale,
-            height: CGFloat(metrics.cellHeightPixels) / scale
+            height: CGFloat(metrics.cellHeightPixels) / scale,
         )
         // Both values include top padding. Their difference is an integer
         // number of rows plus the font's baseline offset from the cell bottom.
@@ -42,7 +42,7 @@ struct TerminalSelectionGrid: Equatable {
         CGRect(
             x: origin.x + CGFloat(cell % columns) * cellSize.width,
             y: origin.y + CGFloat(cell / columns - viewportOffset) * cellSize.height,
-            width: cellSize.width, height: cellSize.height
+            width: cellSize.width, height: cellSize.height,
         )
     }
 

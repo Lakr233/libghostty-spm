@@ -6,7 +6,7 @@ public let defaultSandboxShell = ShellDefinition(
     welcomeMessage: SandboxShellStyle.welcomeMessage,
     fallback: { command in
         "\(SandboxShellStyle.error)\(command)\(SandboxShellStyle.reset): command not found"
-    }
+    },
 ) {
     ShellCommand("echo", summary: "Echo text back") { context in
         .output(context.arguments + "\r\n")
@@ -36,7 +36,7 @@ public let defaultSandboxShell = ShellDefinition(
         let size = context.terminalSize
         return .output(
             "columns: \(size.columns), rows: \(size.rows), " +
-                "pixels: \(size.widthPixels)x\(size.heightPixels)\r\n"
+                "pixels: \(size.widthPixels)x\(size.heightPixels)\r\n",
         )
     }
     ShellCommand("clear", summary: "Clear the screen") { _ in

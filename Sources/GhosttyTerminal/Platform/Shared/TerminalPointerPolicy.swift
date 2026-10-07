@@ -18,7 +18,7 @@ enum TerminalPointerPolicy {
     static func ghosttyButton(
         secondary: Bool,
         middle: Bool,
-        extraButtonNumber: Int? = nil
+        extraButtonNumber: Int? = nil,
     ) -> ghostty_input_mouse_button_e {
         if secondary {
             return GHOSTTY_MOUSE_RIGHT
@@ -44,7 +44,7 @@ struct TerminalPointerButtonSession: Equatable {
     private(set) var reported: ghostty_input_mouse_button_e?
 
     mutating func press(
-        _ button: ghostty_input_mouse_button_e
+        _ button: ghostty_input_mouse_button_e,
     ) -> ghostty_input_mouse_button_e? {
         guard reported == nil else { return nil }
         reported = button
@@ -52,7 +52,7 @@ struct TerminalPointerButtonSession: Equatable {
     }
 
     mutating func release(
-        _ button: ghostty_input_mouse_button_e
+        _ button: ghostty_input_mouse_button_e,
     ) -> ghostty_input_mouse_button_e? {
         guard reported == button else { return nil }
         reported = nil

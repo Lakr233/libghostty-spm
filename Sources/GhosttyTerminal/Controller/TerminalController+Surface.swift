@@ -15,7 +15,7 @@ extension TerminalController {
     func createSurface(
         bridge: TerminalCallbackBridge,
         configuration: TerminalSurfaceOptions,
-        platformSetup: (inout ghostty_surface_config_s) -> Void
+        platformSetup: (inout ghostty_surface_config_s) -> Void,
     ) -> ghostty_surface_t? {
         guard let app else { return nil }
 
@@ -44,7 +44,7 @@ extension TerminalController {
                 config: &surfaceConfig,
                 workingDirectory: configuration.workingDirectory,
                 command: configuration.command,
-                platformSetup: platformSetup
+                platformSetup: platformSetup,
             )
         }
     }
@@ -53,7 +53,7 @@ extension TerminalController {
     /// entries) that stays valid for the duration of the call.
     private func withEnvVarEntries<T>(
         _ envVars: [String: String],
-        _ body: (UnsafeMutablePointer<ghostty_env_var_s>?, Int) -> T
+        _ body: (UnsafeMutablePointer<ghostty_env_var_s>?, Int) -> T,
     ) -> T {
         guard !envVars.isEmpty else { return body(nil, 0) }
         let strings: [(key: UnsafeMutablePointer<CChar>, value: UnsafeMutablePointer<CChar>)] =
@@ -84,7 +84,7 @@ extension TerminalController {
 
     private func configureBackend(
         _ config: inout ghostty_surface_config_s,
-        from options: TerminalSurfaceOptions
+        from options: TerminalSurfaceOptions,
     ) {
         guard case let .inMemory(session) = options.backend else {
             config.backend = GHOSTTY_SURFACE_IO_BACKEND_EXEC
@@ -104,7 +104,7 @@ extension TerminalController {
         config: inout ghostty_surface_config_s,
         workingDirectory: String?,
         command: String?,
-        platformSetup: (inout ghostty_surface_config_s) -> Void
+        platformSetup: (inout ghostty_surface_config_s) -> Void,
     ) -> ghostty_surface_t? {
         guard let workingDirectory else {
             return finalizeCommand(
@@ -113,7 +113,7 @@ extension TerminalController {
                 configuration: configuration,
                 config: &config,
                 command: command,
-                platformSetup: platformSetup
+                platformSetup: platformSetup,
             )
         }
 
@@ -125,7 +125,7 @@ extension TerminalController {
                 configuration: configuration,
                 config: &config,
                 command: command,
-                platformSetup: platformSetup
+                platformSetup: platformSetup,
             )
         }
     }
@@ -136,7 +136,7 @@ extension TerminalController {
         configuration: TerminalSurfaceOptions,
         config: inout ghostty_surface_config_s,
         command: String?,
-        platformSetup: (inout ghostty_surface_config_s) -> Void
+        platformSetup: (inout ghostty_surface_config_s) -> Void,
     ) -> ghostty_surface_t? {
         guard let command else {
             return buildSurface(
@@ -144,7 +144,7 @@ extension TerminalController {
                 bridge: bridge,
                 configuration: configuration,
                 config: &config,
-                platformSetup: platformSetup
+                platformSetup: platformSetup,
             )
         }
 
@@ -155,7 +155,7 @@ extension TerminalController {
                 bridge: bridge,
                 configuration: configuration,
                 config: &config,
-                platformSetup: platformSetup
+                platformSetup: platformSetup,
             )
         }
     }
@@ -165,7 +165,7 @@ extension TerminalController {
         bridge: TerminalCallbackBridge,
         configuration: TerminalSurfaceOptions,
         config: inout ghostty_surface_config_s,
-        platformSetup: (inout ghostty_surface_config_s) -> Void
+        platformSetup: (inout ghostty_surface_config_s) -> Void,
     ) -> ghostty_surface_t? {
         platformSetup(&config)
         guard let surface = ghostty_surface_new(app, &config) else {

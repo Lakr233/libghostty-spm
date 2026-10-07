@@ -8,8 +8,8 @@
         import UIKit
 
         extension UITerminalView {
-            // Direct-touch grammar: single tap for selection dismissal/keyboard,
-            // double tap for a word, triple tap for a row, long press for the menu.
+            /// Direct-touch grammar: single tap for selection dismissal/keyboard,
+            /// double tap for a word, triple tap for a row, long press for the menu.
             func setupTouchSelectionGestures() {
                 for count in 1 ... 3 {
                     let tap = UITapGestureRecognizer(target: self, action: #selector(handleSelectionTap(_:)))
@@ -79,13 +79,12 @@
                         abs(cell % grid.columns - endpoint % grid.columns) < 3
                             && abs(cell / grid.columns - endpoint / grid.columns) < 2
                     }
-                    let fixed: Int
-                    if near(range.lowerBound) {
-                        fixed = range.upperBound
+                    let fixed: Int = if near(range.lowerBound) {
+                        range.upperBound
                     } else if near(range.upperBound) {
-                        fixed = range.lowerBound
+                        range.lowerBound
                     } else {
-                        fixed = touchSelection.pivot?.lowerBound ?? range.lowerBound
+                        touchSelection.pivot?.lowerBound ?? range.lowerBound
                     }
                     touchSelection.pivot = surface?.glyphCells(at: fixed, columns: grid.columns)
                     touchSelection.endpoint = .end

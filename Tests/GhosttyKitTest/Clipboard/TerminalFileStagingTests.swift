@@ -79,7 +79,7 @@ struct TerminalFileStagingTests {
         try Data().write(to: fresh)
         try FileManager.default.setAttributes(
             [.modificationDate: Date().addingTimeInterval(-2 * 60 * 60)],
-            ofItemAtPath: stale.path
+            ofItemAtPath: stale.path,
         )
         #expect(TerminalFileStaging.prepareDirectory(directory, staleAge: 60 * 60))
         #expect(!FileManager.default.fileExists(atPath: stale.path))
@@ -97,7 +97,7 @@ struct TerminalFileStagingTests {
         try Data("old".utf8).write(to: source)
         try FileManager.default.setAttributes(
             [.modificationDate: Date().addingTimeInterval(-40 * 24 * 60 * 60)],
-            ofItemAtPath: source.path
+            ofItemAtPath: source.path,
         )
         let staged = directory.appendingPathComponent("staged", isDirectory: true)
         try FileManager.default.createDirectory(at: staged, withIntermediateDirectories: true)

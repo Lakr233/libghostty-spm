@@ -211,8 +211,8 @@
                 config.platform_tag = GHOSTTY_PLATFORM_IOS
                 config.platform = ghostty_platform_u(
                     ios: ghostty_platform_ios_s(
-                        uiview: Unmanaged.passUnretained(self).toOpaque()
-                    )
+                        uiview: Unmanaged.passUnretained(self).toOpaque(),
+                    ),
                 )
             }
             core.onMetricsUpdate = { [weak self] in
@@ -249,27 +249,27 @@
         open func selectionMenuPoint(at point: CGPoint) -> CGPoint? {
             logPointerSelectionDiagnostics(
                 context: "selectionMenuPoint",
-                point: point
+                point: point,
             )
             if let rect = pointer.lastSelectionRect {
                 let pointIsInsidePointerSelection = rect.insetBy(dx: -4, dy: -4).contains(point)
                 guard pointIsInsidePointerSelection else {
                     TerminalDebugLog.log(
                         .input,
-                        "selection menu miss point=\(NSCoder.string(for: point)) outside pointer selection"
+                        "selection menu miss point=\(NSCoder.string(for: point)) outside pointer selection",
                     )
                     return nil
                 }
                 guard surface?.hasSelection() == true else {
                     TerminalDebugLog.log(
                         .input,
-                        "selection menu miss point=\(NSCoder.string(for: point)) inside pointer selection without active selection"
+                        "selection menu miss point=\(NSCoder.string(for: point)) inside pointer selection without active selection",
                     )
                     return nil
                 }
                 TerminalDebugLog.log(
                     .input,
-                    "selection menu hit point=\(NSCoder.string(for: point)) inside pointer selection"
+                    "selection menu hit point=\(NSCoder.string(for: point)) inside pointer selection",
                 )
                 return point
             }
@@ -277,7 +277,7 @@
             guard surface?.hasSelection() == true else {
                 TerminalDebugLog.log(
                     .input,
-                    "selection menu miss point=\(NSCoder.string(for: point))"
+                    "selection menu miss point=\(NSCoder.string(for: point))",
                 )
                 return nil
             }
@@ -285,14 +285,14 @@
             guard surface?.selectionContainsQuicklookWord() == true else {
                 TerminalDebugLog.log(
                     .input,
-                    "selection menu miss point=\(NSCoder.string(for: point)) outside quicklook word"
+                    "selection menu miss point=\(NSCoder.string(for: point)) outside quicklook word",
                 )
                 return nil
             }
 
             TerminalDebugLog.log(
                 .input,
-                "selection menu hit point=\(NSCoder.string(for: point))"
+                "selection menu hit point=\(NSCoder.string(for: point))",
             )
             return point
         }
@@ -306,14 +306,14 @@
                 // the responder chain (canPerformAction), so Copy shows
                 // exactly when a selection exists.
                 selectionEditMenuInteraction.presentEditMenu(
-                    with: UIEditMenuConfiguration(identifier: nil, sourcePoint: point)
+                    with: UIEditMenuConfiguration(identifier: nil, sourcePoint: point),
                 )
             } else {
                 let menu = UIMenuController.shared
                 menu.menuItems = nil
                 menu.showMenu(
                     from: self,
-                    rect: CGRect(x: point.x, y: point.y, width: 1, height: 1)
+                    rect: CGRect(x: point.x, y: point.y, width: 1, height: 1),
                 )
                 menu.update()
             }
@@ -340,13 +340,13 @@
             #endif
             TerminalDebugLog.log(
                 .input,
-                "selection copied bytes=\(text.utf8.count) lines=\(TerminalInputText.lineCount(in: text))"
+                "selection copied bytes=\(text.utf8.count) lines=\(TerminalInputText.lineCount(in: text))",
             )
             return true
         }
 
         open func selectionContextMenuConfiguration(
-            at _: CGPoint
+            at _: CGPoint,
         ) -> UIContextMenuConfiguration {
             UIContextMenuConfiguration(identifier: nil, previewProvider: nil) { [weak self] _ in
                 UIMenu(children: self?.selectionContextMenuElements() ?? [])
@@ -356,7 +356,7 @@
         open func selectionContextMenuElements() -> [UIMenuElement] {
             let copy = UIAction(
                 title: String(localized: "Copy", bundle: .module),
-                image: UIImage(systemName: "doc.on.doc")
+                image: UIImage(systemName: "doc.on.doc"),
             ) { [weak self] _ in
                 self?.copySelectedTextToPasteboard()
             }
@@ -373,13 +373,13 @@
                     self,
                     selector: #selector(keyboardDidShow),
                     name: UIResponder.keyboardDidShowNotification,
-                    object: nil
+                    object: nil,
                 )
                 NotificationCenter.default.addObserver(
                     self,
                     selector: #selector(keyboardDidHide),
                     name: UIResponder.keyboardDidHideNotification,
-                    object: nil
+                    object: nil,
                 )
             }
 

@@ -96,8 +96,8 @@
                 config.platform_tag = GHOSTTY_PLATFORM_MACOS
                 config.platform = ghostty_platform_u(
                     macos: ghostty_platform_macos_s(
-                        nsview: Unmanaged.passUnretained(self).toOpaque()
-                    )
+                        nsview: Unmanaged.passUnretained(self).toOpaque(),
+                    ),
                 )
             }
             core.onMetricsUpdate = { [weak self] in
@@ -108,21 +108,21 @@
             }
         }
 
-        // Upstream's rule: Copy is offered whenever ghostty has a selection.
-        // A cached drag rect went stale on scroll and select_all, and the
-        // quicklook-word test misses whitespace inside a selection.
+        /// Upstream's rule: Copy is offered whenever ghostty has a selection.
+        /// A cached drag rect went stale on scroll and select_all, and the
+        /// quicklook-word test misses whitespace inside a selection.
         open func selectionMenuPoint(at point: CGPoint) -> CGPoint? {
             guard surface?.hasSelection() == true else {
                 TerminalDebugLog.log(
                     .input,
-                    "selection menu miss point=\(selectionPointDescription(point))"
+                    "selection menu miss point=\(selectionPointDescription(point))",
                 )
                 return nil
             }
 
             TerminalDebugLog.log(
                 .input,
-                "selection menu hit point=\(selectionPointDescription(point))"
+                "selection menu hit point=\(selectionPointDescription(point))",
             )
             return point
         }
@@ -132,7 +132,7 @@
             let copyItem = NSMenuItem(
                 title: String(localized: "Copy", bundle: .module),
                 action: #selector(copy(_:)),
-                keyEquivalent: ""
+                keyEquivalent: "",
             )
             copyItem.target = self
             menu.addItem(copyItem)
@@ -149,7 +149,7 @@
             }
             TerminalDebugLog.log(
                 .input,
-                "selection copied to clipboard"
+                "selection copied to clipboard",
             )
             return true
         }

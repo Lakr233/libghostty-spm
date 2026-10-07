@@ -39,7 +39,7 @@
 
             func attach(
                 to view: TerminalView,
-                focusBinding: TerminalFocusBinding?
+                focusBinding: TerminalFocusBinding?,
             ) {
                 self.view = view
                 self.focusBinding = focusBinding
@@ -53,7 +53,7 @@
                     guard let self, let view = self.view else { return }
                     TerminalViewRepresentable.synchronizeFocus(
                         view,
-                        with: focusBinding
+                        with: focusBinding,
                     )
                 }
             }

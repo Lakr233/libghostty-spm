@@ -91,13 +91,13 @@ public enum TerminalDebugLog {
 
     static func log(
         _ category: TerminalDebugCategory,
-        _ message: @autoclosure () -> String
+        _ message: @autoclosure () -> String,
     ) {
         let snapshot = snapshot()
         guard snapshot.isEnabled else { return }
         guard snapshot.categories.contains(category) else { return }
         snapshot.sink(
-            "[GhosttyTerminal][\(timestamp())][\(label(for: category))] \(message())"
+            "[GhosttyTerminal][\(timestamp())][\(label(for: category))] \(message())",
         )
     }
 
@@ -164,7 +164,7 @@ public enum TerminalDebugLog {
     }
 
     private static func withSnapshot<T>(
-        _ body: (Snapshot) -> T
+        _ body: (Snapshot) -> T,
     ) -> T {
         body(snapshot())
     }
@@ -175,12 +175,12 @@ public enum TerminalDebugLog {
         return Snapshot(
             isEnabled: store.isEnabled,
             categories: store.categories,
-            sink: store.sink
+            sink: store.sink,
         )
     }
 
     private static func updateStore(
-        _ body: (Store) -> Void
+        _ body: (Store) -> Void,
     ) {
         store.lock.lock()
         defer { store.lock.unlock() }
@@ -188,7 +188,7 @@ public enum TerminalDebugLog {
     }
 
     private static func label(
-        for category: TerminalDebugCategory
+        for category: TerminalDebugCategory,
     ) -> String {
         switch category {
         case .lifecycle:
@@ -216,7 +216,7 @@ public enum TerminalDebugLog {
 
     private static func escaped(
         _ string: String,
-        limit: Int
+        limit: Int,
     ) -> String {
         var result = ""
         var emitted = 0

@@ -33,7 +33,7 @@ private enum TerminalCallbacks {
     static func action(
         appPtr: ghostty_app_t?,
         target: ghostty_target_s,
-        action: ghostty_action_s
+        action: ghostty_action_s,
     ) -> Bool {
         guard let appPtr else { return false }
         guard ghostty_app_userdata(appPtr) != nil else { return false }
@@ -60,7 +60,7 @@ private enum TerminalCallbacks {
 
     static func closeSurface(
         userdata: UnsafeMutableRawPointer?,
-        processAlive: Bool
+        processAlive: Bool,
     ) {
         guard let userdata else { return }
         let bridge = Unmanaged<TerminalCallbackBridge>
@@ -90,7 +90,7 @@ private enum TerminalCallbacks {
         clipboard: ghostty_clipboard_e,
         contents: UnsafePointer<ghostty_clipboard_content_s>?,
         contentsLen: Int,
-        confirm: Bool
+        confirm: Bool,
     ) {
         // The selection clipboard is advertised (`supports_selection_clipboard`)
         // so that `copy-on-select` writes there and not to the one pasteboard
@@ -104,7 +104,7 @@ private enum TerminalCallbacks {
 
         TerminalDebugLog.log(
             .input,
-            "clipboard write count=\(payloads.count) mimes=\(payloads.map(\.mime).joined(separator: ",")) confirm=\(confirm)"
+            "clipboard write count=\(payloads.count) mimes=\(payloads.map(\.mime).joined(separator: ",")) confirm=\(confirm)",
         )
 
         guard confirm else {
@@ -120,7 +120,7 @@ private enum TerminalCallbacks {
             bridge.handleClipboardConfirmation(contents: text, kind: .osc52Write) { allowed in
                 TerminalDebugLog.log(
                     .input,
-                    allowed ? "clipboard write allowed" : "clipboard write denied"
+                    allowed ? "clipboard write allowed" : "clipboard write denied",
                 )
                 guard allowed else { return }
                 setPasteboardString(payloads)
@@ -162,7 +162,7 @@ private enum TerminalCallbacks {
         statePtr: UnsafeMutableRawPointer?,
         mimes: UnsafePointer<UnsafePointer<CChar>?>?,
         mimesLen: Int,
-        listAvailable: Bool
+        listAvailable: Bool,
     ) -> ghostty_clipboard_read_result_e {
         guard let userdata, let statePtr else { return GHOSTTY_CLIPBOARD_READ_UNSUPPORTED }
 
@@ -210,7 +210,7 @@ private enum TerminalCallbacks {
 
         TerminalDebugLog.log(
             .input,
-            "clipboard paste read bytes=\(string.utf8.count) lines=\(TerminalInputText.lineCount(in: string))"
+            "clipboard paste read bytes=\(string.utf8.count) lines=\(TerminalInputText.lineCount(in: string))",
         )
         let content = TerminalClipboardContent(mime: "text/plain", data: Data(string.utf8))
         bridge.completeClipboardRead(statePtr: statePtr, contents: [content], available: available)
@@ -227,7 +227,7 @@ private enum TerminalCallbacks {
         userdata: UnsafeMutableRawPointer?,
         confirm: UnsafePointer<ghostty_clipboard_confirm_s>?,
         statePtr: UnsafeMutableRawPointer?,
-        request: ghostty_clipboard_request_e
+        request: ghostty_clipboard_request_e,
     ) {
         guard let userdata, let confirm, let statePtr else { return }
 
@@ -248,7 +248,7 @@ private enum TerminalCallbacks {
         guard let kind = TerminalClipboardRequestKind(request) else {
             TerminalDebugLog.log(
                 .input,
-                "clipboard confirm denied: unrecognized request kind=\(request.rawValue)"
+                "clipboard confirm denied: unrecognized request kind=\(request.rawValue)",
             )
             // Round-tripped through a bit pattern, not captured directly:
             // a raw pointer captured as-is by this main-actor-crossing
@@ -265,7 +265,7 @@ private enum TerminalCallbacks {
 
         TerminalDebugLog.log(
             .input,
-            "clipboard paste confirm request=\(request.rawValue) bytes=\(text.utf8.count) lines=\(TerminalInputText.lineCount(in: text))"
+            "clipboard paste confirm request=\(request.rawValue) bytes=\(text.utf8.count) lines=\(TerminalInputText.lineCount(in: text))",
         )
 
         // Registered synchronously, before the hop to main: a surface
@@ -296,7 +296,7 @@ private func firstTextRepresentation(in contents: [TerminalClipboardContent]) ->
 
 private func copyClipboardContents(
     _ ptr: UnsafePointer<ghostty_clipboard_content_s>?,
-    count: Int
+    count: Int,
 ) -> [TerminalClipboardContent] {
     guard let ptr, count > 0 else { return [] }
     let buffer = UnsafeBufferPointer(start: ptr, count: count)
@@ -313,7 +313,7 @@ private func copyClipboardContents(
 
 private func copyMimeList(
     _ ptr: UnsafePointer<UnsafePointer<CChar>?>?,
-    count: Int
+    count: Int,
 ) -> [String] {
     guard let ptr, count > 0 else { return [] }
     let buffer = UnsafeBufferPointer(start: ptr, count: count)
@@ -330,15 +330,23 @@ func withClipboardCompletePayload<R>(
     available: [String],
     confirmed: Bool,
     remember: Bool,
-    _ body: (UnsafePointer<ghostty_clipboard_complete_s>) -> R
+    _ body: (UnsafePointer<ghostty_clipboard_complete_s>) -> R,
 ) -> R {
     var mimeCStrings: [UnsafeMutablePointer<CChar>?] = []
     var dataBuffers: [UnsafeMutableRawPointer] = []
     var availableCStrings: [UnsafeMutablePointer<CChar>?] = []
     defer {
-        mimeCStrings.forEach { if let p = $0 { free(p) } }
+        for mimeCString in mimeCStrings {
+            if let p = mimeCString {
+                free(p)
+            }
+        }
         dataBuffers.forEach { free($0) }
-        availableCStrings.forEach { if let p = $0 { free(p) } }
+        for availableCString in availableCStrings {
+            if let p = availableCString {
+                free(p)
+            }
+        }
     }
 
     let cContents: [ghostty_clipboard_content_s] = contents.map { content in
@@ -347,7 +355,7 @@ func withClipboardCompletePayload<R>(
         let byteCount = content.data.count
         let dataPtr = UnsafeMutableRawPointer.allocate(
             byteCount: max(byteCount, 1),
-            alignment: MemoryLayout<UInt8>.alignment
+            alignment: MemoryLayout<UInt8>.alignment,
         )
         if byteCount > 0 {
             content.data.withUnsafeBytes { raw in
@@ -360,7 +368,7 @@ func withClipboardCompletePayload<R>(
         return ghostty_clipboard_content_s(
             mime: mimePtr.map { UnsafePointer($0) },
             data: dataPtr.assumingMemoryBound(to: CChar.self),
-            len: byteCount
+            len: byteCount,
         )
     }
 
@@ -375,29 +383,29 @@ func withClipboardCompletePayload<R>(
                 available: availableBuf.baseAddress,
                 available_len: availableBuf.count,
                 confirmed: confirmed,
-                remember: remember
+                remember: remember,
             )
             return withUnsafePointer(to: &complete) { body($0) }
         }
     }
 }
 
-extension TerminalCallbackBridge {
+private extension TerminalCallbackBridge {
     /// Completes a clipboard read from `readClipboard` itself — always
     /// `confirmed: false`, since this callback is never told whether the
     /// request's type requires confirmation. libghostty diverts into
     /// `confirmReadClipboard` on its own when it does.
-    nonisolated fileprivate func completeClipboardRead(
+    nonisolated func completeClipboardRead(
         statePtr: UnsafeMutableRawPointer,
         contents: [TerminalClipboardContent],
-        available: [String]
+        available: [String],
     ) {
         guard let surface = rawSurface else { return }
         withClipboardCompletePayload(
             contents: contents,
             available: available,
             confirmed: false,
-            remember: false
+            remember: false,
         ) { complete in
             ghostty_surface_complete_clipboard_request(surface, complete, statePtr)
         }
@@ -411,14 +419,14 @@ func terminalControllerWakeupCallback(userdata: UnsafeMutableRawPointer?) {
 func terminalControllerActionCallback(
     appPtr: ghostty_app_t?,
     target: ghostty_target_s,
-    action: ghostty_action_s
+    action: ghostty_action_s,
 ) -> Bool {
     TerminalCallbacks.action(appPtr: appPtr, target: target, action: action)
 }
 
 func terminalControllerCloseSurfaceCallback(
     userdata: UnsafeMutableRawPointer?,
-    processAlive: Bool
+    processAlive: Bool,
 ) {
     TerminalCallbacks.closeSurface(userdata: userdata, processAlive: processAlive)
 }
@@ -428,14 +436,14 @@ func terminalControllerWriteClipboardCallback(
     clipboard: ghostty_clipboard_e,
     contents: UnsafePointer<ghostty_clipboard_content_s>?,
     contentsLen: Int,
-    confirm: Bool
+    confirm: Bool,
 ) {
     TerminalCallbacks.writeClipboard(
         userdata: userdata,
         clipboard: clipboard,
         contents: contents,
         contentsLen: contentsLen,
-        confirm: confirm
+        confirm: confirm,
     )
 }
 
@@ -445,7 +453,7 @@ func terminalControllerReadClipboardCallback(
     statePtr: UnsafeMutableRawPointer?,
     mimes: UnsafePointer<UnsafePointer<CChar>?>?,
     mimesLen: Int,
-    listAvailable: Bool
+    listAvailable: Bool,
 ) -> ghostty_clipboard_read_result_e {
     TerminalCallbacks.readClipboard(
         userdata: userdata,
@@ -453,7 +461,7 @@ func terminalControllerReadClipboardCallback(
         statePtr: statePtr,
         mimes: mimes,
         mimesLen: mimesLen,
-        listAvailable: listAvailable
+        listAvailable: listAvailable,
     )
 }
 
@@ -461,12 +469,12 @@ func terminalControllerConfirmReadClipboardCallback(
     userdata: UnsafeMutableRawPointer?,
     confirm: UnsafePointer<ghostty_clipboard_confirm_s>?,
     statePtr: UnsafeMutableRawPointer?,
-    request: ghostty_clipboard_request_e
+    request: ghostty_clipboard_request_e,
 ) {
     TerminalCallbacks.confirmReadClipboard(
         userdata: userdata,
         confirm: confirm,
         statePtr: statePtr,
-        request: request
+        request: request,
     )
 }

@@ -74,7 +74,7 @@
 
         override open func canPerformAction(
             _ action: Selector,
-            withSender sender: Any?
+            withSender sender: Any?,
         ) -> Bool {
             if usesInlineTextSelection, action == #selector(select(_:)) || action == #selector(selectAll(_:)) {
                 return surface != nil && touchSelection.menuPoint != nil
@@ -93,7 +93,7 @@
     extension UITerminalView: UIContextMenuInteractionDelegate {
         open func contextMenuInteraction(
             _: UIContextMenuInteraction,
-            configurationForMenuAtLocation location: CGPoint
+            configurationForMenuAtLocation location: CGPoint,
         ) -> UIContextMenuConfiguration? {
             #if !targetEnvironment(macCatalyst)
                 if usesInlineTextSelection, touchSelection.lastInputWasDirect, pointer.session.reported == nil {
@@ -102,7 +102,7 @@
             #endif
             sendPointerPosition(at: location)
             guard TerminalPointerPolicy.shouldPresentHostSecondaryMenu(
-                mouseCaptured: surface?.isMouseCaptured == true
+                mouseCaptured: surface?.isMouseCaptured == true,
             ) else { return nil }
             guard selectionMenuPoint(at: location) != nil else { return nil }
 

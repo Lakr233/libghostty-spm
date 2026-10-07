@@ -2,7 +2,7 @@ import Foundation
 
 @inline(__always)
 func terminalRunOnMain(
-    _ operation: @escaping @MainActor () -> Void
+    _ operation: @escaping @MainActor () -> Void,
 ) {
     if Thread.isMainThread {
         MainActor.assumeIsolated {
@@ -35,7 +35,7 @@ func terminalRunOnMain(
 /// turn of latency for it.
 @inline(__always)
 func terminalRunOnMainNextTurn(
-    _ operation: @escaping @MainActor () -> Void
+    _ operation: @escaping @MainActor () -> Void,
 ) {
     DispatchQueue.main.async {
         MainActor.assumeIsolated {

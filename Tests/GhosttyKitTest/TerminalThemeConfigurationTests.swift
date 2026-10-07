@@ -1,5 +1,5 @@
-@testable import GhosttyTerminal
 import Combine
+@testable import GhosttyTerminal
 import SwiftUI
 import Testing
 
@@ -21,7 +21,7 @@ struct TerminalThemeConfigurationTests {
                 cursor-style = bar
                 cursor-style-blink = false
                 background = #101010
-                """
+                """,
         )
     }
 
@@ -45,7 +45,7 @@ struct TerminalThemeConfigurationTests {
                 cursor-opacity = 0.75
                 minimum-contrast = 1.1
                 background-opacity = 0.82
-                """
+                """,
         )
     }
 
@@ -56,7 +56,7 @@ struct TerminalThemeConfigurationTests {
                 """
                 font-size = 14
                 cursor-style = block
-                """
+                """,
             ),
             theme: .init(
                 light: TerminalConfiguration()
@@ -64,10 +64,10 @@ struct TerminalThemeConfigurationTests {
                     .background("#111111"),
                 dark: TerminalConfiguration()
                     .backgroundOpacity(0.62)
-                    .background("#000000")
+                    .background("#000000"),
             ),
             terminalConfiguration: TerminalConfiguration()
-                .cursorStyleBlink(true)
+                .cursorStyleBlink(true),
         )
 
         #expect(state.renderedConfig.contains("font-size = 14"))
@@ -81,14 +81,14 @@ struct TerminalThemeConfigurationTests {
     func `valid configuration update preserves controller identity`() {
         let state = TerminalViewState(
             terminalConfiguration: TerminalConfiguration()
-                .fontSize(14)
+                .fontSize(14),
         )
         let controller = state.controller
 
         let didApply = state.setTerminalConfiguration(
             TerminalConfiguration()
                 .fontSize(16)
-                .cursorStyle(.underline)
+                .cursorStyle(.underline),
         )
 
         #expect(didApply)
@@ -111,8 +111,8 @@ struct TerminalThemeConfigurationTests {
                 light: TerminalConfiguration()
                     .backgroundOpacity(0.91),
                 dark: TerminalConfiguration()
-                    .backgroundOpacity(0.47)
-            )
+                    .backgroundOpacity(0.47),
+            ),
         )
         var notificationCount = 0
         var colorSchemeAtNotification: TerminalColorScheme?
@@ -143,8 +143,8 @@ struct TerminalThemeConfigurationTests {
                 light: TerminalConfiguration()
                     .backgroundOpacity(0.91),
                 dark: TerminalConfiguration()
-                    .custom("not-a-real-ghostty-option", "true")
-            )
+                    .custom("not-a-real-ghostty-option", "true"),
+            ),
         )
         var notificationCount = 0
         let cancellable = state.objectWillChange.sink {
@@ -188,8 +188,8 @@ struct TerminalThemeConfigurationTests {
         let didSetTheme = state.setTheme(
             .init(
                 light: TerminalConfiguration()
-                    .backgroundOpacity(0.5)
-            )
+                    .backgroundOpacity(0.5),
+            ),
         )
 
         #expect(didSetTheme)
@@ -201,7 +201,7 @@ struct TerminalThemeConfigurationTests {
     func `no op theme update returns false`() {
         let theme = TerminalTheme(
             light: TerminalConfiguration()
-                .backgroundOpacity(0.7)
+                .backgroundOpacity(0.7),
         )
         let state = TerminalViewState(theme: theme)
         var notificationCount = 0
@@ -222,7 +222,7 @@ struct TerminalThemeConfigurationTests {
     func `invalid configuration does not replace rendered config`() {
         let state = TerminalViewState(
             terminalConfiguration: TerminalConfiguration()
-                .fontSize(14)
+                .fontSize(14),
         )
         var notificationCount = 0
         let cancellable = state.objectWillChange.sink {
@@ -233,7 +233,7 @@ struct TerminalThemeConfigurationTests {
 
         let didApply = state.setTerminalConfiguration(
             TerminalConfiguration()
-                .custom("not-a-real-ghostty-option", "true")
+                .custom("not-a-real-ghostty-option", "true"),
         )
 
         #expect(!didApply)

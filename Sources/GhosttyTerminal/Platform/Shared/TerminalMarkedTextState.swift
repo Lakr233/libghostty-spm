@@ -85,7 +85,7 @@ struct TerminalMarkedTextState {
 
     private func clampedSelectedRange(
         _ range: NSRange,
-        in text: String?
+        in text: String?,
     ) -> NSRange {
         let length = text?.utf16.count ?? 0
         let location = min(max(range.location, 0), length)

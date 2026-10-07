@@ -92,7 +92,7 @@ import XCTest
                 capture("foreground-\(cycle)")
                 XCTAssertTrue(
                     Self.outputLines(of: viewportText()).contains("before-background"),
-                    "Earlier output was lost after background cycle \(cycle)"
+                    "Earlier output was lost after background cycle \(cycle)",
                 )
                 typeTerminalText("echo after-foreground-\(cycle)\n", in: terminal)
                 waitForOutputLine("after-foreground-\(cycle)")
@@ -265,7 +265,7 @@ import XCTest
         private func waitForViewport(
             _ description: String,
             timeout: TimeInterval = 8,
-            until condition: (String) -> Bool
+            until condition: (String) -> Bool,
         ) -> String? {
             let deadline = Date().addingTimeInterval(timeout)
             repeat {
@@ -301,7 +301,7 @@ import XCTest
         private func waitForGridSize(
             in terminal: XCUIElement,
             timeout: TimeInterval = 10,
-            until condition: (GridSize) -> Bool
+            until condition: (GridSize) -> Bool,
         ) -> GridSize? {
             let deadline = Date().addingTimeInterval(timeout)
             var last: GridSize?
@@ -335,7 +335,7 @@ import XCTest
                     app.typeKey("h", modifierFlags: .command)
                     let hidden = XCTNSPredicateExpectation(
                         predicate: NSPredicate(format: "isHittable == false"),
-                        object: app.windows.firstMatch
+                        object: app.windows.firstMatch,
                     )
                     result = XCTWaiter.wait(for: [hidden], timeout: 5)
                 }
@@ -348,7 +348,7 @@ import XCTest
                     XCUIDevice.shared.press(.home)
                     let backgrounded = XCTNSPredicateExpectation(
                         predicate: NSPredicate(format: "state != %d", XCUIApplication.State.runningForeground.rawValue),
-                        object: app
+                        object: app,
                     )
                     result = XCTWaiter.wait(for: [backgrounded], timeout: 5)
                 }
@@ -373,14 +373,18 @@ import XCTest
                     let edge = window.coordinate(withNormalizedOffset: CGVector(dx: 0, dy: 0.5))
                         .withOffset(CGVector(dx: 1, dy: 0))
                     edge.press(forDuration: 0.3, thenDragTo: edge.withOffset(CGVector(dx: dx, dy: 0)))
-                    if abs(window.frame.width - originalWidth) > 20 { return }
+                    if abs(window.frame.width - originalWidth) > 20 {
+                        return
+                    }
                 }
             }
 
             private func waitForFrameWidth(of window: XCUIElement, _ condition: (CGFloat) -> Bool) {
                 let deadline = Date().addingTimeInterval(5)
                 while Date() < deadline {
-                    if condition(window.frame.width) { return }
+                    if condition(window.frame.width) {
+                        return
+                    }
                     RunLoop.current.run(until: Date().addingTimeInterval(0.1))
                 }
                 XCTFail("Window width never changed as expected; now \(window.frame.width)")
@@ -424,7 +428,9 @@ import XCTest
                 for sticky in [false, true] {
                     app.terminate()
                     app.launchArguments = ["--ui-testing", "--ui-testing-copy-fixture", "--ui-testing-public-copy"]
-                    if sticky { app.launchArguments.append("--ui-testing-sticky-copy") }
+                    if sticky {
+                        app.launchArguments.append("--ui-testing-sticky-copy")
+                    }
                     launchApp()
                     let terminal = try requireTerminalInteractionTarget()
                     waitForOutputLine("touch-copy-ready")
@@ -554,14 +560,14 @@ import XCTest
                 // Select ends at the text, so its handle can trim within the row.
                 pointerCell(in: terminal, column: 16, fraction: 0).press(
                     forDuration: 0.1,
-                    thenDragTo: pointerCell(in: terminal, column: 10, fraction: 0)
+                    thenDragTo: pointerCell(in: terminal, column: 10, fraction: 0),
                 )
                 XCTAssertTrue(app.menuItems["Copy"].waitForExistence(timeout: 4))
                 // Grab inside the handle's hit target, away from the screen edge
                 // where XCTest clamps touch coordinates, and move six columns.
                 pointerCell(in: terminal, column: 2, fraction: 0).press(
                     forDuration: 0.1,
-                    thenDragTo: pointerCell(in: terminal, column: 8, fraction: 0)
+                    thenDragTo: pointerCell(in: terminal, column: 8, fraction: 0),
                 )
                 XCTAssertTrue(app.menuItems["Copy"].waitForExistence(timeout: 4))
                 capture("inline-select-row-trimmed")
@@ -715,7 +721,7 @@ import XCTest
                 let viewport = try XCTUnwrap(output.value as? String)
                 let nearestLine = try XCTUnwrap(
                     viewport.components(separatedBy: .newlines)
-                        .last { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
+                        .last { !$0.trimmingCharacters(in: .whitespaces).isEmpty },
                 )
                 // Select from empty space below the prompt, then copy the nearest text row.
                 terminal.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.8)).press(forDuration: Self.longPressDuration)
@@ -726,7 +732,7 @@ import XCTest
                 let copiedLine = try XCTUnwrap(copiedSelectionText(in: terminal, timeout: 2))
                 XCTAssertEqual(
                     copiedLine.trimmingCharacters(in: .whitespacesAndNewlines),
-                    nearestLine.trimmingCharacters(in: .whitespacesAndNewlines)
+                    nearestLine.trimmingCharacters(in: .whitespacesAndNewlines),
                 )
             }
 
@@ -775,7 +781,7 @@ import XCTest
                     XCTAssertTrue(revealNativeMenuItem("AutoFill").waitForExistence(timeout: 4), app.debugDescription)
                 } else {
                     let attachment = XCTAttachment(
-                        string: "UIKit supplied no concrete AutoFill actions: \(status.label)"
+                        string: "UIKit supplied no concrete AutoFill actions: \(status.label)",
                     )
                     attachment.lifetime = .keepAlways
                     add(attachment)
@@ -788,7 +794,9 @@ import XCTest
                 for direction in [["Next Page", "Forward"], ["Back"]] {
                     for _ in 0 ..< 4 {
                         let item = nativeMenuItem(title)
-                        if item.exists && item.isHittable { return item }
+                        if item.exists, item.isHittable {
+                            return item
+                        }
                         guard let next = direction.map({ app.buttons[$0] })
                             .first(where: { $0.exists && $0.isHittable && $0.isEnabled })
                         else { break }
@@ -870,7 +878,6 @@ import XCTest
                 return compact.exists ? compact : app.buttons[title]
             }
 
-
         #endif
 
         func testTerminalUserOperations() throws {
@@ -883,11 +890,11 @@ import XCTest
             let expectedReturnOutput = "Darwin ghostty-sandbox host-managed"
             let outputExpectation = XCTNSPredicateExpectation(
                 predicate: NSPredicate(format: "value CONTAINS %@", expectedReturnOutput),
-                object: output
+                object: output,
             )
             XCTAssertEqual(
                 XCTWaiter.wait(for: [outputExpectation], timeout: 4),
-                .completed
+                .completed,
             )
             let viewport = try XCTUnwrap(output.value as? String)
             XCTAssertEqual(viewport.nonOverlappingCount(of: expectedReturnOutput), 1)
@@ -966,7 +973,7 @@ import XCTest
                     openCopyMenuAndCopySelection(
                         in: terminal,
                         screenshotName: "18-ipad-pointer-copy-menu",
-                        rightClickCoordinate: rightClick
+                        rightClickCoordinate: rightClick,
                     )
                 } else {
                     longPressTerminal(in: terminal, offset: CGVector(dx: 0.35, dy: 0.18))
@@ -1081,10 +1088,12 @@ import XCTest
 
             private func waitForKeyboardFocus(
                 in element: XCUIElement,
-                timeout: TimeInterval
+                timeout: TimeInterval,
             ) -> Bool {
                 let predicate = NSPredicate(format: "hasKeyboardFocus == true")
-                if predicate.evaluate(with: element) { return true }
+                if predicate.evaluate(with: element) {
+                    return true
+                }
                 let expectation = XCTNSPredicateExpectation(predicate: predicate, object: element)
                 return XCTWaiter.wait(for: [expectation], timeout: timeout) == .completed
             }
@@ -1137,7 +1146,9 @@ import XCTest
                 let hittable = NSPredicate(format: "isHittable == true")
                 for attempt in 0 ..< 3 {
                     let shown = XCTNSPredicateExpectation(predicate: hittable, object: app.keys["c"])
-                    if XCTWaiter.wait(for: [shown], timeout: 4) == .completed { return }
+                    if XCTWaiter.wait(for: [shown], timeout: 4) == .completed {
+                        return
+                    }
                     guard attempt < 2 else { break }
                     if app.buttons["Command"].isHittable {
                         terminal.typeText(" " + XCUIKeyboardKey.delete.rawValue)
@@ -1179,14 +1190,14 @@ import XCTest
             }
             let offset = CGVector(
                 dx: numbers[2] + (CGFloat(column) + fraction) * numbers[0],
-                dy: numbers[2] + 1.5 * numbers[1]
+                dy: numbers[2] + 1.5 * numbers[1],
             )
             #if targetEnvironment(macCatalyst)
                 return element.coordinate(withNormalizedOffset: .zero).withOffset(offset)
             #else
                 let frame = element.frame
                 return app.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(
-                    dx: frame.minX + offset.dx, dy: frame.minY + offset.dy
+                    dx: frame.minX + offset.dx, dy: frame.minY + offset.dy,
                 ))
             #endif
         }
@@ -1194,7 +1205,7 @@ import XCTest
         private func openCopyMenuAndCopySelection(
             in element: XCUIElement,
             screenshotName: String,
-            rightClickCoordinate: XCUICoordinate? = nil
+            rightClickCoordinate: XCUICoordinate? = nil,
         ) {
             UIPasteboard.general.string = nil
             let coordinate: XCUICoordinate
@@ -1213,7 +1224,7 @@ import XCTest
             if !copy.waitForExistence(timeout: 3) {
                 capture("\(screenshotName)-missing")
                 XCTFail(
-                    "Copy menu item not found after pointer selection right click. Hierarchy: \(app.debugDescription)"
+                    "Copy menu item not found after pointer selection right click. Hierarchy: \(app.debugDescription)",
                 )
                 return
             }

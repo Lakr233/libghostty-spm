@@ -91,8 +91,8 @@ private final class ViewportHarness {
             config.platform_tag = GHOSTTY_PLATFORM_MACOS
             config.platform = ghostty_platform_u(
                 macos: ghostty_platform_macos_s(
-                    nsview: Unmanaged.passUnretained(platformView).toOpaque()
-                )
+                    nsview: Unmanaged.passUnretained(platformView).toOpaque(),
+                ),
             )
         }
         coordinator.configuration = TerminalSurfaceOptions(backend: .inMemory(session))
@@ -100,7 +100,9 @@ private final class ViewportHarness {
         precondition(coordinator.surface != nil, "surface must build for the harness")
     }
 
-    var surface: TerminalSurface { coordinator.surface! }
+    var surface: TerminalSurface {
+        coordinator.surface!
+    }
 
     func tearDown() {
         coordinator.freeSurface()

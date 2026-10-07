@@ -3,10 +3,10 @@ import Foundation
 @testable import GhosttyTerminal
 import Testing
 
-// A program can retitle its window tens of thousands of times a second. One
-// main-queue block per title outran SwiftUI's flush, and the backlog kept a
-// host's main thread busy for minutes after the output stopped. These tests
-// pin the bound: one flush per turn, newest value per property.
+/// A program can retitle its window tens of thousands of times a second. One
+/// main-queue block per title outran SwiftUI's flush, and the backlog kept a
+/// host's main thread busy for minutes after the output stopped. These tests
+/// pin the bound: one flush per turn, newest value per property.
 @MainActor
 @Suite(.serialized)
 struct TerminalPublishCoalescingTests {
@@ -91,11 +91,11 @@ struct TerminalPublishCoalescingTests {
     /// the last one soon after the bytes are parsed, and the main queue must
     /// not be left holding a block per title.
     @Test
-    func `an OSC 2 flood through a real surface settles on the last title`() async {
+    func `an OSC 2 flood through a real surface settles on the last title`() async throws {
         let harness = await GhosttySurfaceHarness.make()
         defer { harness.tearDown() }
         guard harness.surface != nil else { return }
-        let state = TerminalViewState(controller: harness.coordinator.controller!)
+        let state = try TerminalViewState(controller: #require(harness.coordinator.controller))
         harness.coordinator.delegate = state
         var changes = 0
         let observation = state.objectWillChange.sink { changes += 1 }
@@ -140,7 +140,9 @@ struct TerminalWakeupGateTests {
         let gate = TerminalWakeupGate()
         let claims = LockedCounter()
         DispatchQueue.concurrentPerform(iterations: 10000) { _ in
-            if gate.claim() { claims.increment() }
+            if gate.claim() {
+                claims.increment()
+            }
         }
         #expect(claims.value == 1)
     }

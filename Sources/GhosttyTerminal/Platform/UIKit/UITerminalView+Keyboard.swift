@@ -96,7 +96,7 @@
     extension UITerminalView {
         override open func pressesBegan(
             _ presses: Set<UIPress>,
-            with event: UIPressesEvent?
+            with event: UIPressesEvent?,
         ) {
             #if targetEnvironment(macCatalyst)
                 for press in presses {
@@ -117,7 +117,7 @@
                     if shouldDeferKeyToInputMethod(key) {
                         TerminalDebugLog.log(
                             .input,
-                            "uikit key deferred to input method code=\(key.keyCode.rawValue) marked=\(inputHandler.hasMarkedText) lang=\(textInputMode?.primaryLanguage ?? "nil") forwarding=\(HardwareKeyboardState.inputMethodNeedsPressForwarding)"
+                            "uikit key deferred to input method code=\(key.keyCode.rawValue) marked=\(inputHandler.hasMarkedText) lang=\(textInputMode?.primaryLanguage ?? "nil") forwarding=\(HardwareKeyboardState.inputMethodNeedsPressForwarding)",
                         )
                         deferKeyToInputMethod(key, press: press, action: GHOSTTY_ACTION_PRESS)
                         hardwareKeyboard.pressesLoanedToInputMethod.insert(press)
@@ -132,7 +132,7 @@
                     guard handleKeyPress(key, action: GHOSTTY_ACTION_PRESS) else {
                         TerminalDebugLog.log(
                             .input,
-                            "uikit key ignored by surface, forwarded to super code=\(key.keyCode.rawValue)"
+                            "uikit key ignored by surface, forwarded to super code=\(key.keyCode.rawValue)",
                         )
                         hardwareKeyboard.pressesForwardedToInputMethod.insert(press)
                         forwardedToInputMethod.insert(press)
@@ -151,7 +151,7 @@
 
         override open func pressesEnded(
             _ presses: Set<UIPress>,
-            with event: UIPressesEvent?
+            with event: UIPressesEvent?,
         ) {
             #if targetEnvironment(macCatalyst)
                 for press in presses {
@@ -186,7 +186,7 @@
 
         override open func pressesCancelled(
             _ presses: Set<UIPress>,
-            with event: UIPressesEvent?
+            with event: UIPressesEvent?,
         ) {
             hardwareKeyboard.keyHandled = false
             #if !targetEnvironment(macCatalyst)
@@ -211,7 +211,7 @@
                     characters: key.characters,
                     hasMarkedText: inputHandler.hasMarkedText,
                     inputModeUsesComposition: TerminalIMEComposition
-                        .languageUsesComposition(textInputMode?.primaryLanguage)
+                        .languageUsesComposition(textInputMode?.primaryLanguage),
                 )
             }
         #endif
@@ -219,7 +219,7 @@
         @discardableResult
         func handleKeyPress(
             _ key: UIKey,
-            action: ghostty_input_action_e
+            action: ghostty_input_action_e,
         ) -> Bool {
             notePointerModifierFlags(key.modifierFlags)
             guard surface != nil else {
@@ -233,7 +233,7 @@
             let keyboardZoomDirection = commandZoomDirection(
                 for: key,
                 action: action,
-                filteredModifierFlags: filteredModifierFlags
+                filteredModifierFlags: filteredModifierFlags,
             )
 
             if action == GHOSTTY_ACTION_PRESS,
@@ -244,7 +244,7 @@
 
             TerminalDebugLog.log(
                 .input,
-                "uikit key action=\(TerminalDebugLog.describe(action)) code=\(key.keyCode.rawValue) chars=\(TerminalDebugLog.describe(key.characters)) ignoring=\(TerminalDebugLog.describe(key.charactersIgnoringModifiers)) mods=0x\(String(filteredModifierFlags.rawValue, radix: 16)) marked=\(inputHandler.hasMarkedText)"
+                "uikit key action=\(TerminalDebugLog.describe(action)) code=\(key.keyCode.rawValue) chars=\(TerminalDebugLog.describe(key.characters)) ignoring=\(TerminalDebugLog.describe(key.charactersIgnoringModifiers)) mods=0x\(String(filteredModifierFlags.rawValue, radix: 16)) marked=\(inputHandler.hasMarkedText)",
             )
 
             var keyEvent = ghostty_input_key_s()
@@ -256,7 +256,7 @@
             // translate the documented HID usage value from UIKey into the
             // corresponding AppKit keycode here.
             keyEvent.keycode = TerminalHardwareKeyRouter.appKitKeyCodeForUIKit(
-                usage: UInt16(key.keyCode.rawValue)
+                usage: UInt16(key.keyCode.rawValue),
             )
             keyEvent.composing = inputHandler.hasMarkedText
 
@@ -270,7 +270,7 @@
             }
 
             let filteredIgnoringModifiers = TerminalInputText.filteredFunctionKeyText(
-                key.charactersIgnoringModifiers
+                key.charactersIgnoringModifiers,
             )
 
             if let codepoint = filteredIgnoringModifiers?.unicodeScalars.first {
@@ -285,7 +285,7 @@
                let input = keyCommandInput(for: key, filteredModifierFlags: filteredModifierFlags),
                !claimKeyCommandDelivery(
                    input: input,
-                   modifierFlags: filteredModifierFlags
+                   modifierFlags: filteredModifierFlags,
                )
             {
                 return true
@@ -327,7 +327,7 @@
 
         func shouldSuppressUIKeyInput(
             for key: UIKey,
-            isCommandModified: Bool
+            isCommandModified: Bool,
         ) -> Bool {
             guard !isCommandModified else { return false }
             // Ctrl and Alt combos travel the key path above, which already
@@ -348,7 +348,7 @@
         /// both paths claim with. Nil for every other key.
         private func keyCommandInput(
             for key: UIKey,
-            filteredModifierFlags: UIKeyModifierFlags
+            filteredModifierFlags: UIKeyModifierFlags,
         ) -> String? {
             if key.keyCode == .keyboardEscape,
                !filteredModifierFlags.contains(.command)
@@ -383,7 +383,7 @@
         private func commandZoomDirection(
             for key: UIKey,
             action: ghostty_input_action_e,
-            filteredModifierFlags: UIKeyModifierFlags
+            filteredModifierFlags: UIKeyModifierFlags,
         ) -> KeyboardZoomDirection? {
             guard action == GHOSTTY_ACTION_PRESS || action == GHOSTTY_ACTION_REPEAT else {
                 return nil
@@ -404,11 +404,11 @@
         }
 
         private func scheduleViewportRefreshAfterKeyboardZoom(
-            _ direction: KeyboardZoomDirection
+            _ direction: KeyboardZoomDirection,
         ) {
             TerminalDebugLog.log(
                 .actions,
-                "keyboard zoom shortcut direction=\(direction.rawValue)"
+                "keyboard zoom shortcut direction=\(direction.rawValue)",
             )
             #if !targetEnvironment(macCatalyst)
                 switch direction {
@@ -423,7 +423,7 @@
                 guard let self else { return }
                 core.synchronizeMetrics()
                 refreshTextInputGeometry(
-                    reason: "keyboard-zoom-\(direction.rawValue)"
+                    reason: "keyboard-zoom-\(direction.rawValue)",
                 )
             }
         }
@@ -439,7 +439,7 @@
             func deferKeyToInputMethod(
                 _ key: UIKey,
                 press: UIPress?,
-                action: ghostty_input_action_e
+                action: ghostty_input_action_e,
             ) {
                 let mods = TerminalInputModifiers(from: filteredModifierFlags(for: key))
                 var consumedFlags = key.modifierFlags
@@ -447,13 +447,13 @@
                 consumedFlags.remove(.command)
 
                 let unshifted = TerminalInputText.filteredFunctionKeyText(
-                    key.charactersIgnoringModifiers
+                    key.charactersIgnoringModifiers,
                 )?.unicodeScalars.first?.value ?? 0
 
                 hardwareKeyboard.pendingInputMethodKeys.append(DeferredInputMethodKey(
                     action: action,
                     keycode: TerminalHardwareKeyRouter.appKitKeyCodeForUIKit(
-                        usage: UInt16(key.keyCode.rawValue)
+                        usage: UInt16(key.keyCode.rawValue),
                     ),
                     mods: mods.ghosttyMods,
                     consumedMods: TerminalInputModifiers(from: consumedFlags).ghosttyMods,
@@ -462,7 +462,7 @@
                     press: press,
                     // Forwarded at press time whenever calibration already
                     // happened; only then may an unclaimed flush replay raw.
-                    forwardAttempted: HardwareKeyboardState.inputMethodNeedsPressForwarding
+                    forwardAttempted: HardwareKeyboardState.inputMethodNeedsPressForwarding,
                 ))
                 scheduleInputMethodKeyFlush()
             }
@@ -474,7 +474,7 @@
                 HardwareKeyboardState.inputMethodProvenResponsive = true
                 TerminalDebugLog.log(
                     .input,
-                    "input method claimed \(hardwareKeyboard.pendingInputMethodKeys.count) deferred key(s)"
+                    "input method claimed \(hardwareKeyboard.pendingInputMethodKeys.count) deferred key(s)",
                 )
                 hardwareKeyboard.pendingInputMethodKeys.removeAll()
             }
@@ -511,7 +511,7 @@
                         HardwareKeyboardState.inputMethodNeedsPressForwarding = true
                         TerminalDebugLog.log(
                             .input,
-                            "text input system ignored the loan; forwarding deferred presses to super from now on"
+                            "text input system ignored the loan; forwarding deferred presses to super from now on",
                         )
                     }
                     hardwareKeyboard.pendingInputMethodKeys = keys.map { key in
@@ -552,7 +552,7 @@
                 else {
                     TerminalDebugLog.log(
                         .input,
-                        "dropping \(keys.count) unclaimed key(s): input method owns them (proven=\(HardwareKeyboardState.inputMethodProvenResponsive) marked=\(inputHandler.hasMarkedText))"
+                        "dropping \(keys.count) unclaimed key(s): input method owns them (proven=\(HardwareKeyboardState.inputMethodProvenResponsive) marked=\(inputHandler.hasMarkedText))",
                     )
                     return
                 }
@@ -560,7 +560,7 @@
                 guard surface != nil else { return }
                 TerminalDebugLog.log(
                     .input,
-                    "input method left \(keys.count) key(s) unclaimed, replaying"
+                    "input method left \(keys.count) key(s) unclaimed, replaying",
                 )
                 for key in keys {
                     var keyEvent = ghostty_input_key_s()
@@ -612,14 +612,14 @@
                 guard TerminalKeyRepeat.repeats(
                     usage: UInt16(key.keyCode.rawValue),
                     isCommandModified: modifierFlags.contains(.command),
-                    isKeyCommand: keyCommandInput(for: key, filteredModifierFlags: modifierFlags) != nil
+                    isKeyCommand: keyCommandInput(for: key, filteredModifierFlags: modifierFlags) != nil,
                 ) else { return }
 
                 stopKeyRepeat()
                 let timer = Timer(
                     fire: Date(timeIntervalSinceNow: TerminalKeyRepeat.initialDelay),
                     interval: TerminalKeyRepeat.interval,
-                    repeats: true
+                    repeats: true,
                 ) { [weak self] timer in
                     guard let self else { return timer.invalidate() }
                     MainActor.assumeIsolated {

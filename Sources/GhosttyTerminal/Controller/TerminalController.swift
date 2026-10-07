@@ -69,7 +69,7 @@ public final class TerminalController {
     func addWakeupObserver(
         _ key: ObjectIdentifier,
         shouldProcess: @escaping () -> Bool,
-        onWakeup: @escaping () -> Void
+        onWakeup: @escaping () -> Void,
     ) {
         wakeupObservers[key] = WakeupObserver(shouldProcess: shouldProcess, onWakeup: onWakeup)
     }
@@ -117,11 +117,11 @@ public final class TerminalController {
     /// Creates a controller with a fully custom configuration.
     public convenience init(
         configuration: TerminalConfiguration,
-        theme: TerminalTheme = .default
+        theme: TerminalTheme = .default,
     ) {
         self.init(
             configSource: .generated(configuration.rendered),
-            theme: theme
+            theme: theme,
         )
     }
 
@@ -134,21 +134,21 @@ public final class TerminalController {
     ///     }
     public convenience init(
         theme: TerminalTheme = .default,
-        configure: (inout TerminalConfiguration.Builder) -> Void
+        configure: (inout TerminalConfiguration.Builder) -> Void,
     ) {
         self.init(
             configuration: TerminalConfiguration(
                 startingFrom: .default,
-                configure: configure
+                configure: configure,
             ),
-            theme: theme
+            theme: theme,
         )
     }
 
     /// Creates a controller that loads its configuration from a file.
     public convenience init(
         configFilePath: String?,
-        theme: TerminalTheme = .default
+        theme: TerminalTheme = .default,
     ) {
         guard let configFilePath else {
             self.init(configSource: .none, theme: theme)
@@ -161,7 +161,7 @@ public final class TerminalController {
     public init(
         configSource: ConfigSource = .none,
         theme: TerminalTheme = .default,
-        terminalConfiguration: TerminalConfiguration = .init()
+        terminalConfiguration: TerminalConfiguration = .init(),
     ) {
         Self.initializeRuntimeIfNeeded()
 
@@ -179,7 +179,9 @@ public final class TerminalController {
         reconfigure()
         // The theme pass loading does not make a rejected base config
         // load; the fallback is what a host reads here after init.
-        if let baseIssue { lastConfigurationIssue = baseIssue }
+        if let baseIssue {
+            lastConfigurationIssue = baseIssue
+        }
         createApp()
     }
 
@@ -197,7 +199,7 @@ public final class TerminalController {
     @discardableResult
     func setColorScheme(
         _ scheme: TerminalColorScheme,
-        willChange: (() -> Void)?
+        willChange: (() -> Void)?,
     ) -> Bool {
         let previous = effectiveColorScheme
         guard scheme != previous else {
@@ -211,7 +213,7 @@ public final class TerminalController {
         guard applyResolvedConfig(
             resolved,
             willChange: willChange,
-            applyState: { effectiveColorScheme = scheme }
+            applyState: { effectiveColorScheme = scheme },
         ) else {
             return false
         }
@@ -234,14 +236,14 @@ public final class TerminalController {
     @discardableResult
     func setTheme(
         _ theme: TerminalTheme,
-        willChange: (() -> Void)?
+        willChange: (() -> Void)?,
     ) -> Bool {
         guard theme != self.theme else { return false }
         let resolved = resolveEffectiveConfig(theme: theme)
         return applyResolvedConfig(
             resolved,
             willChange: willChange,
-            applyState: { self.theme = theme }
+            applyState: { self.theme = theme },
         )
     }
 
@@ -250,7 +252,7 @@ public final class TerminalController {
     /// Updates per-session configuration overrides and reconfigures.
     @discardableResult
     public func setTerminalConfiguration(
-        _ terminalConfiguration: TerminalConfiguration
+        _ terminalConfiguration: TerminalConfiguration,
     ) -> Bool {
         setTerminalConfiguration(terminalConfiguration, willChange: nil)
     }
@@ -258,14 +260,14 @@ public final class TerminalController {
     @discardableResult
     func setTerminalConfiguration(
         _ terminalConfiguration: TerminalConfiguration,
-        willChange: (() -> Void)?
+        willChange: (() -> Void)?,
     ) -> Bool {
         guard terminalConfiguration != self.terminalConfiguration else { return false }
         let resolved = resolveEffectiveConfig(terminalConfiguration: terminalConfiguration)
         return applyResolvedConfig(
             resolved,
             willChange: willChange,
-            applyState: { self.terminalConfiguration = terminalConfiguration }
+            applyState: { self.terminalConfiguration = terminalConfiguration },
         )
     }
 
@@ -277,19 +279,19 @@ public final class TerminalController {
     }
 
     private func resolveEffectiveConfig() -> (
-        source: ConfigSource, contents: String
+        source: ConfigSource, contents: String,
     ) {
         resolveEffectiveConfig(
             theme: theme,
             terminalConfiguration: terminalConfiguration,
-            colorScheme: effectiveColorScheme
+            colorScheme: effectiveColorScheme,
         )
     }
 
     private func resolveEffectiveConfig(
         theme: TerminalTheme? = nil,
         terminalConfiguration: TerminalConfiguration? = nil,
-        colorScheme: TerminalColorScheme? = nil
+        colorScheme: TerminalColorScheme? = nil,
     ) -> (source: ConfigSource, contents: String) {
         let nextTheme = theme ?? self.theme
         let nextTerminalConfiguration = terminalConfiguration ?? self.terminalConfiguration
@@ -302,7 +304,7 @@ public final class TerminalController {
         let contents = GhosttyConfigRenderer.render(
             baseContents: baseConfigTemplate,
             configuration: nextTerminalConfiguration,
-            theme: themeConfig
+            theme: themeConfig,
         )
         return (.generated(contents), contents)
     }
@@ -323,7 +325,9 @@ public final class TerminalController {
         }
 
         tick()
-        for observer in observers { observer.onWakeup() }
+        for observer in observers {
+            observer.onWakeup()
+        }
     }
 
     private static func initializeRuntimeIfNeeded() {
@@ -334,8 +338,12 @@ public final class TerminalController {
     }
 
     deinit {
-        if let app { ghostty_app_free(app) }
-        if let config { ghostty_config_free(config) }
+        if let app {
+            ghostty_app_free(app)
+        }
+        if let config {
+            ghostty_config_free(config)
+        }
         if let managedConfigURL {
             try? FileManager.default.removeItem(at: managedConfigURL)
         }

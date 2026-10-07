@@ -249,7 +249,7 @@ func settleGrid(_ harness: GhosttySurfaceHarness) async {
         guard let size = harness.surface?.size() else { break }
         harness.receive("")
         harness.session.receive("\u{1B}7\u{1B}[999;999H\u{1B}[6n\u{1B}8")
-        reported = String(decoding: await harness.drain(), as: UTF8.self)
+        reported = await String(decoding: harness.drain(), as: UTF8.self)
         if reported.hasSuffix("\u{1B}[\(size.rows);\(size.columns)R") {
             return
         }

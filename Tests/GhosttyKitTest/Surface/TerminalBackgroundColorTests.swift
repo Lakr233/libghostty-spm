@@ -6,7 +6,7 @@ import Testing
 struct TerminalBackgroundColorTests {
     private static let theme = TerminalTheme(
         light: TerminalConfiguration().background("#112233"),
-        dark: TerminalConfiguration().background("#445566")
+        dark: TerminalConfiguration().background("#445566"),
     )
 
     @Test
@@ -30,7 +30,7 @@ struct TerminalBackgroundColorTests {
 
         let expected = TerminalColorChange(
             kind: .background,
-            color: TerminalColor(red: 0x12, green: 0x34, blue: 0x56)
+            color: TerminalColor(red: 0x12, green: 0x34, blue: 0x56),
         )
         let clock = ContinuousClock()
         let deadline = clock.now + .seconds(2)

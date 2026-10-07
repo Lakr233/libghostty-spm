@@ -31,7 +31,7 @@
                 let command = UIKeyCommand(
                     input: input,
                     modifierFlags: .control,
-                    action: #selector(handleControlKeyCommand(_:))
+                    action: #selector(handleControlKeyCommand(_:)),
                 )
                 command.wantsPriorityOverSystemBehavior = true
                 return command
@@ -61,24 +61,24 @@
                 let command = UIKeyCommand(
                     input: UIKeyCommand.inputEscape,
                     modifierFlags: flags,
-                    action: #selector(handleEscapeKeyCommand(_:))
+                    action: #selector(handleEscapeKeyCommand(_:)),
                 )
                 command.wantsPriorityOverSystemBehavior = true
                 return command
             }
         }()
 
-        // Catalyst included: its text-input system also swallows Ctrl+letter
-        // before `pressesBegan` (the Control press itself arrives, the letter
-        // never does), and the key command is the only route left. The
-        // per-runloop claim below dedupes against a press on systems that
-        // deliver both.
-        //
-        // UIKit asks for this list on every key event, so it can change with
-        // the view's state: while a composition is on screen every key is the
-        // input method's (Escape cancels it — see `TerminalIMEComposition`),
-        // and the Escape commands step aside so the press takes the deferral
-        // path in `pressesBegan` as it always did.
+        /// Catalyst included: its text-input system also swallows Ctrl+letter
+        /// before `pressesBegan` (the Control press itself arrives, the letter
+        /// never does), and the key command is the only route left. The
+        /// per-runloop claim below dedupes against a press on systems that
+        /// deliver both.
+        ///
+        /// UIKit asks for this list on every key event, so it can change with
+        /// the view's state: while a composition is on screen every key is the
+        /// input method's (Escape cancels it — see `TerminalIMEComposition`),
+        /// and the Escape commands step aside so the press takes the deferral
+        /// path in `pressesBegan` as it always did.
         override open var keyCommands: [UIKeyCommand]? {
             var commands = super.keyCommands ?? []
             commands.append(contentsOf: Self.controlKeyCommands)
@@ -93,16 +93,16 @@
                   let character = input.first,
                   let press = TerminalKeyPress(
                       typing: character,
-                      modifiers: TerminalInputModifiers(from: command.modifierFlags)
+                      modifiers: TerminalInputModifiers(from: command.modifierFlags),
                   )
             else { return }
             guard claimKeyCommandDelivery(
                 input: input,
-                modifierFlags: command.modifierFlags
+                modifierFlags: command.modifierFlags,
             ) else { return }
             TerminalDebugLog.log(
                 .input,
-                "uikit key command input=\(TerminalDebugLog.describe(input)) mods=0x\(String(command.modifierFlags.rawValue, radix: 16))"
+                "uikit key command input=\(TerminalDebugLog.describe(input)) mods=0x\(String(command.modifierFlags.rawValue, radix: 16))",
             )
             // A chord, not typing: it closes an open composition the way a
             // hardware press would, and takes the shared key path.
@@ -116,15 +116,15 @@
         @objc private func handleEscapeKeyCommand(_ command: UIKeyCommand) {
             guard claimKeyCommandDelivery(
                 input: UIKeyCommand.inputEscape,
-                modifierFlags: command.modifierFlags
+                modifierFlags: command.modifierFlags,
             ) else { return }
             TerminalDebugLog.log(
                 .input,
-                "uikit key command input=escape mods=0x\(String(command.modifierFlags.rawValue, radix: 16))"
+                "uikit key command input=escape mods=0x\(String(command.modifierFlags.rawValue, radix: 16))",
             )
             _ = sendInputKey(TerminalKeyPress(
                 .escape,
-                modifiers: TerminalInputModifiers(from: command.modifierFlags)
+                modifiers: TerminalInputModifiers(from: command.modifierFlags),
             ))
         }
 
@@ -135,16 +135,16 @@
         /// physically repeat.
         func claimKeyCommandDelivery(
             input: String,
-            modifierFlags: UIKeyModifierFlags
+            modifierFlags: UIKeyModifierFlags,
         ) -> Bool {
             let relevant = modifierFlags.intersection(
-                [.control, .shift, .alternate, .command]
+                [.control, .shift, .alternate, .command],
             )
             let signature = "\(input.lowercased())|\(relevant.rawValue)"
             guard !hardwareKeyboard.recentKeyCommandDeliveries.contains(signature) else {
                 TerminalDebugLog.log(
                     .input,
-                    "uikit key delivery deduped signature=\(signature)"
+                    "uikit key delivery deduped signature=\(signature)",
                 )
                 return false
             }

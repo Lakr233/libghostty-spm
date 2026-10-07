@@ -34,7 +34,7 @@ public final class InMemoryTerminalSession: @unchecked Sendable {
     public init(
         write: @escaping @Sendable (Data) -> Void,
         resize: @escaping @Sendable (InMemoryTerminalViewport) -> Void,
-        suppressesPixelOnlyResizes: Bool = false
+        suppressesPixelOnlyResizes: Bool = false,
     ) {
         writeHandler = write
         resizeHandler = resize
@@ -42,7 +42,7 @@ public final class InMemoryTerminalSession: @unchecked Sendable {
         surfaceAccess = InMemoryTerminalSurfaceAccess(
             write: Self.writeToSurface,
             processExit: Self.reportProcessExit,
-            tick: Self.tickApp
+            tick: Self.tickApp,
         )
     }
 
@@ -55,7 +55,7 @@ public final class InMemoryTerminalSession: @unchecked Sendable {
         surfaceWrite: @escaping InMemoryTerminalSurfaceAccess.Write,
         processExit: @escaping InMemoryTerminalSurfaceAccess.ProcessExit =
             InMemoryTerminalSession.reportProcessExit,
-        tick: @escaping InMemoryTerminalSurfaceAccess.Tick = { _ in }
+        tick: @escaping InMemoryTerminalSurfaceAccess.Tick = { _ in },
     ) {
         writeHandler = write
         resizeHandler = resize
@@ -63,7 +63,7 @@ public final class InMemoryTerminalSession: @unchecked Sendable {
         surfaceAccess = InMemoryTerminalSurfaceAccess(
             write: surfaceWrite,
             processExit: processExit,
-            tick: tick
+            tick: tick,
         )
     }
 
@@ -73,7 +73,7 @@ public final class InMemoryTerminalSession: @unchecked Sendable {
         surfaceAccess.setSurface(surface)
         TerminalDebugLog.log(
             .lifecycle,
-            "in-memory session surface=\(surface == nil ? "nil" : "set")"
+            "in-memory session surface=\(surface == nil ? "nil" : "set")",
         )
     }
 
@@ -81,7 +81,7 @@ public final class InMemoryTerminalSession: @unchecked Sendable {
         guard surfaceAccess.clearSurface(ifMatches: expectedSurface) else {
             TerminalDebugLog.log(
                 .lifecycle,
-                "in-memory session clear skipped expected=\(expectedSurface == nil ? "nil" : "set") current=\(surfaceAccess.currentSurface == nil ? "nil" : "set")"
+                "in-memory session clear skipped expected=\(expectedSurface == nil ? "nil" : "set") current=\(surfaceAccess.currentSurface == nil ? "nil" : "set")",
             )
             return
         }
@@ -115,21 +115,21 @@ public final class InMemoryTerminalSession: @unchecked Sendable {
             let size = ghostty_surface_size(surface)
             guard size.columns > 0 else { return "" }
             var lines: [String] = []
-            for row in 0..<UInt32(size.rows) {
+            for row in 0 ..< UInt32(size.rows) {
                 let selection = ghostty_selection_s(
                     top_left: ghostty_point_s(
                         tag: GHOSTTY_POINT_VIEWPORT,
                         coord: GHOSTTY_POINT_COORD_EXACT,
                         x: 0,
-                        y: row
+                        y: row,
                     ),
                     bottom_right: ghostty_point_s(
                         tag: GHOSTTY_POINT_VIEWPORT,
                         coord: GHOSTTY_POINT_COORD_EXACT,
                         x: UInt32(size.columns) - 1,
-                        y: row
+                        y: row,
                     ),
-                    rectangle: false
+                    rectangle: false,
                 )
 
                 var out = ghostty_text_s()
@@ -158,7 +158,7 @@ public final class InMemoryTerminalSession: @unchecked Sendable {
             widthPixels: size.widthPixels,
             heightPixels: size.heightPixels,
             cellWidthPixels: size.cellWidthPixels,
-            cellHeightPixels: size.cellHeightPixels
+            cellHeightPixels: size.cellHeightPixels,
         ))
     }
 
@@ -176,7 +176,7 @@ public final class InMemoryTerminalSession: @unchecked Sendable {
         surfaceAccess.enqueueWrite(data)
         TerminalDebugLog.log(
             .output,
-            "terminal <- host \(TerminalDebugLog.describe(data))"
+            "terminal <- host \(TerminalDebugLog.describe(data))",
         )
     }
 
@@ -202,7 +202,7 @@ public final class InMemoryTerminalSession: @unchecked Sendable {
     public func setOutputBacklogHandler(
         highWater: Int,
         lowWater: Int,
-        _ handler: (@Sendable (_ isBacklogged: Bool) -> Void)?
+        _ handler: (@Sendable (_ isBacklogged: Bool) -> Void)?,
     ) {
         precondition(lowWater < highWater, "lowWater must be below highWater")
         surfaceAccess.setBacklogObserver(handler.map {
@@ -223,7 +223,7 @@ public final class InMemoryTerminalSession: @unchecked Sendable {
     public func sendInput(_ data: Data) {
         TerminalDebugLog.log(
             .input,
-            "host <- direct input \(TerminalDebugLog.describe(data))"
+            "host <- direct input \(TerminalDebugLog.describe(data))",
         )
         writeHandler(data)
     }
@@ -236,11 +236,11 @@ public final class InMemoryTerminalSession: @unchecked Sendable {
     public func finish(exitCode: UInt32, runtimeMilliseconds: UInt64) {
         surfaceAccess.enqueueProcessExit(
             exitCode: exitCode,
-            runtimeMilliseconds: runtimeMilliseconds
+            runtimeMilliseconds: runtimeMilliseconds,
         )
         TerminalDebugLog.log(
             .lifecycle,
-            "process exit exitCode=\(exitCode) runtimeMs=\(runtimeMilliseconds)"
+            "process exit exitCode=\(exitCode) runtimeMs=\(runtimeMilliseconds)",
         )
     }
 
@@ -254,7 +254,7 @@ public final class InMemoryTerminalSession: @unchecked Sendable {
         let data = Data(bytes: ptr, count: len)
         TerminalDebugLog.log(
             .input,
-            "host <- terminal \(TerminalDebugLog.describe(data))"
+            "host <- terminal \(TerminalDebugLog.describe(data))",
         )
         session.writeHandler(data)
     }
@@ -266,13 +266,13 @@ public final class InMemoryTerminalSession: @unchecked Sendable {
             .takeUnretainedValue()
         TerminalDebugLog.log(
             .metrics,
-            "receive resize cols=\(cols) rows=\(rows) pixels=\(widthPx)x\(heightPx)"
+            "receive resize cols=\(cols) rows=\(rows) pixels=\(widthPx)x\(heightPx)",
         )
         session.dispatchResize(InMemoryTerminalViewport(
             columns: cols,
             rows: rows,
             widthPixels: widthPx,
-            heightPixels: heightPx
+            heightPixels: heightPx,
         ))
     }
 
@@ -283,7 +283,7 @@ public final class InMemoryTerminalSession: @unchecked Sendable {
             resizeLock.unlock()
             TerminalDebugLog.log(
                 .metrics,
-                "resize unchanged cols=\(mergedResize.columns) rows=\(mergedResize.rows) pixels=\(mergedResize.widthPixels)x\(mergedResize.heightPixels) cell=\(mergedResize.cellWidthPixels)x\(mergedResize.cellHeightPixels)"
+                "resize unchanged cols=\(mergedResize.columns) rows=\(mergedResize.rows) pixels=\(mergedResize.widthPixels)x\(mergedResize.heightPixels) cell=\(mergedResize.cellWidthPixels)x\(mergedResize.cellHeightPixels)",
             )
             return
         }
@@ -301,7 +301,7 @@ public final class InMemoryTerminalSession: @unchecked Sendable {
             resizeLock.unlock()
             TerminalDebugLog.log(
                 .metrics,
-                "resize sub-cell skipped cols=\(mergedResize.columns) rows=\(mergedResize.rows) pixels=\(mergedResize.widthPixels)x\(mergedResize.heightPixels)"
+                "resize sub-cell skipped cols=\(mergedResize.columns) rows=\(mergedResize.rows) pixels=\(mergedResize.widthPixels)x\(mergedResize.heightPixels)",
             )
 
             return
@@ -311,7 +311,7 @@ public final class InMemoryTerminalSession: @unchecked Sendable {
 
         TerminalDebugLog.log(
             .metrics,
-            "resize dispatched cols=\(mergedResize.columns) rows=\(mergedResize.rows) pixels=\(mergedResize.widthPixels)x\(mergedResize.heightPixels) cell=\(mergedResize.cellWidthPixels)x\(mergedResize.cellHeightPixels)"
+            "resize dispatched cols=\(mergedResize.columns) rows=\(mergedResize.rows) pixels=\(mergedResize.widthPixels)x\(mergedResize.heightPixels) cell=\(mergedResize.cellWidthPixels)x\(mergedResize.cellHeightPixels)",
         )
         resizeHandler(mergedResize)
     }
@@ -325,7 +325,7 @@ public final class InMemoryTerminalSession: @unchecked Sendable {
             widthPixels: resize.widthPixels == 0 ? lastResize.widthPixels : resize.widthPixels,
             heightPixels: resize.heightPixels == 0 ? lastResize.heightPixels : resize.heightPixels,
             cellWidthPixels: resize.cellWidthPixels == 0 ? lastResize.cellWidthPixels : resize.cellWidthPixels,
-            cellHeightPixels: resize.cellHeightPixels == 0 ? lastResize.cellHeightPixels : resize.cellHeightPixels
+            cellHeightPixels: resize.cellHeightPixels == 0 ? lastResize.cellHeightPixels : resize.cellHeightPixels,
         )
     }
 
@@ -358,7 +358,7 @@ public final class InMemoryTerminalSession: @unchecked Sendable {
             if duration >= slowSurfaceWriteThreshold {
                 TerminalDebugLog.log(
                     .output,
-                    "surface write slow bytes=\(data.count) duration=\(String(format: "%.3f", duration))s"
+                    "surface write slow bytes=\(data.count) duration=\(String(format: "%.3f", duration))s",
                 )
             }
         }
@@ -374,7 +374,7 @@ public final class InMemoryTerminalSession: @unchecked Sendable {
     private static func reportProcessExit(
         _ surface: ghostty_surface_t,
         _ exitCode: UInt32,
-        _ runtimeMilliseconds: UInt64
+        _ runtimeMilliseconds: UInt64,
     ) {
         ghostty_surface_process_exit(surface, exitCode, runtimeMilliseconds)
     }

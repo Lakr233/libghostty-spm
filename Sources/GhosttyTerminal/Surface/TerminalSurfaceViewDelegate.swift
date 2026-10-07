@@ -75,7 +75,7 @@ public final class TerminalClipboardConfirmationRequest {
     init(
         contents: String,
         kind: TerminalClipboardRequestKind,
-        completion: @escaping (Bool) -> Void
+        completion: @escaping (Bool) -> Void,
     ) {
         self.contents = contents
         self.kind = kind
@@ -101,7 +101,7 @@ public final class TerminalClipboardConfirmationRequest {
 @MainActor
 public protocol TerminalSurfaceClipboardConfirmationDelegate: TerminalSurfaceViewDelegate {
     func terminalDidRequestClipboardConfirmation(
-        _ request: TerminalClipboardConfirmationRequest
+        _ request: TerminalClipboardConfirmationRequest,
     )
 }
 

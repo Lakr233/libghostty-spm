@@ -22,8 +22,8 @@
                 selectionEditMenuInteraction.presentEditMenu(
                     with: UIEditMenuConfiguration(
                         identifier: "terminal.touchMenu" as NSString,
-                        sourcePoint: point
-                    )
+                        sourcePoint: point,
+                    ),
                 )
             } else {
                 presentLegacyTouchMenu(at: point)
@@ -32,16 +32,15 @@
 
         func touchSelectionMenu(at point: CGPoint, suggestedActions: [UIMenuElement]) -> UIMenu {
             let systemMenuItems = systemAutoFillMenus(in: suggestedActions)
-            let items: [UIMenuElement]
-            if let text = touchSelection.text {
-                items = touchSelectionMenuItems(
+            let items: [UIMenuElement] = if let text = touchSelection.text {
+                touchSelectionMenuItems(
                     for: TerminalTouchSelectionMenuContext(
-                        sourcePoint: point, selectedText: text, systemMenuItems: systemMenuItems
-                    )
+                        sourcePoint: point, selectedText: text, systemMenuItems: systemMenuItems,
+                    ),
                 )
             } else {
-                items = touchMenuItems(
-                    for: TerminalTouchMenuContext(sourcePoint: point, systemMenuItems: systemMenuItems)
+                touchMenuItems(
+                    for: TerminalTouchMenuContext(sourcePoint: point, systemMenuItems: systemMenuItems),
                 )
             }
             // UIKit owns compact presentation, overflow arrows and expansion.
@@ -67,9 +66,9 @@
                         identifier: "terminal.touchSelection" as NSString,
                         sourcePoint: CGPoint(
                             x: min(bounds.maxX, max(0, point.x)),
-                            y: min(bounds.maxY, max(0, point.y))
-                        )
-                    )
+                            y: min(bounds.maxY, max(0, point.y)),
+                        ),
+                    ),
                 )
             } else {
                 presentLegacyTouchMenu(at: point)
@@ -105,7 +104,9 @@
     }
 
     private final class TerminalTouchMenuResponder: UIView {
-        override var canBecomeFirstResponder: Bool { true }
+        override var canBecomeFirstResponder: Bool {
+            true
+        }
     }
 
     @available(iOS 16.0, *)
@@ -113,7 +114,7 @@
         public func editMenuInteraction(
             _: UIEditMenuInteraction,
             willPresentMenuFor _: UIEditMenuConfiguration,
-            animator _: any UIEditMenuInteractionAnimating
+            animator _: any UIEditMenuInteractionAnimating,
         ) {
             touchSelection.menuVisible = true
         }
@@ -121,7 +122,7 @@
         public func editMenuInteraction(
             _: UIEditMenuInteraction,
             willDismissMenuFor _: UIEditMenuConfiguration,
-            animator: any UIEditMenuInteractionAnimating
+            animator: any UIEditMenuInteractionAnimating,
         ) {
             touchSelection.menuVisible = false
             guard let action = touchSelection.pendingAction else { return }
@@ -131,7 +132,7 @@
 
         public func editMenuInteraction(
             _: UIEditMenuInteraction,
-            targetRectFor configuration: UIEditMenuConfiguration
+            targetRectFor configuration: UIEditMenuConfiguration,
         ) -> CGRect {
             touchMenuTargetRect(at: configuration.sourcePoint)
         }
@@ -139,7 +140,7 @@
         public func editMenuInteraction(
             _: UIEditMenuInteraction,
             menuFor configuration: UIEditMenuConfiguration,
-            suggestedActions: [UIMenuElement]
+            suggestedActions: [UIMenuElement],
         ) -> UIMenu? {
             if configuration.identifier as? String == "terminal.touchMenu"
                 || configuration.identifier as? String == "terminal.touchSelection"

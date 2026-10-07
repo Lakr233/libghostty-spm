@@ -15,7 +15,7 @@
                 red: Double(color.red) / 255,
                 green: Double(color.green) / 255,
                 blue: Double(color.blue) / 255,
-                opacity: 1
+                opacity: 1,
             )
         }
     }

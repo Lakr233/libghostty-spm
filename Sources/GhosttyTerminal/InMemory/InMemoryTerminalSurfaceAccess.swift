@@ -10,7 +10,7 @@ final class InMemoryTerminalSurfaceAccess: @unchecked Sendable {
     private let condition = NSCondition()
     private let outputQueue = DispatchQueue(
         label: "com.lakr233.libghostty-spm.in-memory-output",
-        qos: .userInitiated
+        qos: .userInitiated,
     )
     private let write: Write
     private let processExit: ProcessExit
@@ -63,7 +63,7 @@ final class InMemoryTerminalSurfaceAccess: @unchecked Sendable {
     init(
         write: @escaping Write,
         processExit: @escaping ProcessExit,
-        tick: @escaping Tick
+        tick: @escaping Tick,
     ) {
         self.write = write
         self.processExit = processExit
@@ -147,13 +147,13 @@ final class InMemoryTerminalSurfaceAccess: @unchecked Sendable {
 
     func enqueueProcessExit(
         exitCode: UInt32,
-        runtimeMilliseconds: UInt64
+        runtimeMilliseconds: UInt64,
     ) {
         condition.lock()
         defer { condition.unlock() }
         operations.append(.processExit(
             exitCode: exitCode,
-            runtimeMilliseconds: runtimeMilliseconds
+            runtimeMilliseconds: runtimeMilliseconds,
         ))
         if surface != nil {
             scheduleDrain()
@@ -161,7 +161,7 @@ final class InMemoryTerminalSurfaceAccess: @unchecked Sendable {
     }
 
     func withCurrentSurface<Result>(
-        _ operation: (ghostty_surface_t) -> Result
+        _ operation: (ghostty_surface_t) -> Result,
     ) -> Result? {
         condition.lock()
         guard let surface else {
@@ -195,8 +195,12 @@ final class InMemoryTerminalSurfaceAccess: @unchecked Sendable {
             let done = operations.retiredSequence >= target
             let empty = operations.isEmpty
             condition.unlock()
-            if !attached { return empty }
-            if done { return true }
+            if !attached {
+                return empty
+            }
+            if done {
+                return true
+            }
         }
     }
 
@@ -272,11 +276,10 @@ final class InMemoryTerminalSurfaceAccess: @unchecked Sendable {
     private func takeBacklogChange() -> (() -> Void)? {
         guard let backlogObserver else { return nil }
         let bytes = operations.writeByteCount
-        let backlogged: Bool
-        if isBacklogged {
-            backlogged = bytes > backlogObserver.lowWater
+        let backlogged: Bool = if isBacklogged {
+            bytes > backlogObserver.lowWater
         } else {
-            backlogged = bytes >= backlogObserver.highWater
+            bytes >= backlogObserver.highWater
         }
         guard backlogged != isBacklogged else { return nil }
         isBacklogged = backlogged

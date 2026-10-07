@@ -37,13 +37,13 @@ struct ShellCraftGhosttyWidthTests {
         defer { harness.tearDown() }
         guard harness.surface != nil else { return }
 
-        #expect(sample.terminalDisplayWidth == (await drawnWidth(of: sample, in: harness)))
+        #expect(await sample.terminalDisplayWidth == drawnWidth(of: sample, in: harness))
     }
 
     private func drawnWidth(of text: String, in harness: GhosttySurfaceHarness) async -> Int? {
         harness.receive("\u{1B}[H\u{1B}[2J")
         harness.session.receive(Data("\(text)\u{1B}[6n".utf8))
-        let reply = String(decoding: await harness.drain(), as: UTF8.self)
+        let reply = await String(decoding: harness.drain(), as: UTF8.self)
         guard let semicolon = reply.lastIndex(of: ";"),
               let end = reply[semicolon...].firstIndex(of: "R"),
               let column = Int(reply[reply.index(after: semicolon) ..< end])

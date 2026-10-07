@@ -7,7 +7,7 @@ public extension TerminalTheme {
     /// Afterglow (dark) + Alabaster (light) default theme.
     static let `default` = TerminalTheme(
         light: .alabaster,
-        dark: .afterglow
+        dark: .afterglow,
     )
 }
 

@@ -47,7 +47,9 @@ public final class TerminalViewState: ObservableObject {
     /// needs the real view — a rendered ``TerminalView/snapshotImage()``,
     /// coordinate math. `nil` while no view presents this state; weak like
     /// `attachedView`, because the state outlives detached views.
-    public var attachedPlatformView: TerminalView? { attachedView }
+    public var attachedPlatformView: TerminalView? {
+        attachedView
+    }
 
     /// Factory for the platform view the SwiftUI representable creates.
     /// Hosts that need their own view behavior — an interaction lock,
@@ -177,7 +179,7 @@ public final class TerminalViewState: ObservableObject {
     public func sendMousePos(
         x: Double,
         y: Double,
-        modifiers: TerminalInputModifiers = []
+        modifiers: TerminalInputModifiers = [],
     ) {
         surface?.sendMousePos(x: x, y: y, modifiers: modifiers)
     }
@@ -186,19 +188,19 @@ public final class TerminalViewState: ObservableObject {
     public func sendMouseButton(
         state: ghostty_input_mouse_state_e,
         button: ghostty_input_mouse_button_e,
-        modifiers: TerminalInputModifiers = []
+        modifiers: TerminalInputModifiers = [],
     ) -> Bool {
         surface?.sendMouseButton(
             state: state,
             button: button,
-            modifiers: modifiers
+            modifiers: modifiers,
         ) ?? false
     }
 
     public func sendMouseScroll(
         x: Double,
         y: Double,
-        mods: TerminalScrollModifiers = TerminalScrollModifiers(precision: true)
+        mods: TerminalScrollModifiers = TerminalScrollModifiers(precision: true),
     ) {
         surface?.sendMouseScroll(x: x, y: y, mods: mods)
     }
@@ -218,12 +220,12 @@ public final class TerminalViewState: ObservableObject {
     public init(
         configSource: TerminalController.ConfigSource = .none,
         theme: TerminalTheme = .default,
-        terminalConfiguration: TerminalConfiguration = .init()
+        terminalConfiguration: TerminalConfiguration = .init(),
     ) {
         let controller = TerminalController(
             configSource: configSource,
             theme: theme,
-            terminalConfiguration: terminalConfiguration
+            terminalConfiguration: terminalConfiguration,
         )
         self.controller = controller
         backgroundColor = controller.backgroundColor

@@ -45,8 +45,8 @@ struct TerminalLifecycleTests {
             configSource: .generated("cursor-style = block"),
             theme: .init(
                 light: TerminalConfiguration().backgroundOpacity(0.91),
-                dark: TerminalConfiguration().backgroundOpacity(0.47)
-            )
+                dark: TerminalConfiguration().backgroundOpacity(0.47),
+            ),
         )
 
         #expect(controller.updateConfigSource(.generated("font-size = 14")))
@@ -71,7 +71,7 @@ struct TerminalLifecycleTests {
         try "font-size = 14\n".write(
             to: directory.appendingPathComponent("ghostty.conf"),
             atomically: true,
-            encoding: .utf8
+            encoding: .utf8,
         )
         let previousDirectory = FileManager.default.currentDirectoryPath
         defer { FileManager.default.changeCurrentDirectoryPath(previousDirectory) }
@@ -85,10 +85,10 @@ struct TerminalLifecycleTests {
     }
 
     @Test
-    func `detaching a freed surface keeps a live replacement`() {
+    func `detaching a freed surface keeps a live replacement`() throws {
         let state = TerminalViewState()
         // Never freed or ticked: the only thing read off it is that it is live.
-        let replacement = TerminalSurface(UnsafeMutableRawPointer(bitPattern: 0x1)!)
+        let replacement = try TerminalSurface(#require(UnsafeMutableRawPointer(bitPattern: 0x1)))
         state.terminalDidAttachSurface(replacement)
 
         state.terminalDidDetachSurface()
@@ -103,7 +103,7 @@ struct TerminalLifecycleTests {
 
         let surface = controller.createSurface(
             bridge: bridge,
-            configuration: .init()
+            configuration: .init(),
         ) { _ in }
 
         #expect(surface == nil)
@@ -157,7 +157,7 @@ struct TerminalLifecycleTests {
         controller.addWakeupObserver(
             ObjectIdentifier(token),
             shouldProcess: { false },
-            onWakeup: { wakeups += 1 }
+            onWakeup: { wakeups += 1 },
         )
 
         controller.handleWakeup()
@@ -176,12 +176,12 @@ struct TerminalLifecycleTests {
         controller.addWakeupObserver(
             ObjectIdentifier(first),
             shouldProcess: { true },
-            onWakeup: { firstWakeups += 1 }
+            onWakeup: { firstWakeups += 1 },
         )
         controller.addWakeupObserver(
             ObjectIdentifier(second),
             shouldProcess: { true },
-            onWakeup: { secondWakeups += 1 }
+            onWakeup: { secondWakeups += 1 },
         )
 
         controller.handleWakeup()
@@ -201,12 +201,12 @@ struct TerminalLifecycleTests {
         controller.addWakeupObserver(
             ObjectIdentifier(first),
             shouldProcess: { true },
-            onWakeup: { firstWakeups += 1 }
+            onWakeup: { firstWakeups += 1 },
         )
         controller.addWakeupObserver(
             ObjectIdentifier(second),
             shouldProcess: { false },
-            onWakeup: { secondWakeups += 1 }
+            onWakeup: { secondWakeups += 1 },
         )
 
         controller.removeWakeupObserver(ObjectIdentifier(second))

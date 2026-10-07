@@ -44,7 +44,7 @@ struct TerminalInputDocumentTests {
     ])
     func `marked range keeps only the part over the marked text`(
         documentRange: NSRange,
-        markedRange: NSRange
+        markedRange: NSRange,
     ) {
         let document = TerminalInputDocument(anchorLength: 1, markedLength: 4)
 
