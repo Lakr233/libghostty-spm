@@ -88,6 +88,12 @@ public final class TerminalViewState: ObservableObject {
     /// Presents OSC 52 reads/writes and flagged pastes; nil denies a
     /// program's request silently and allows a user paste.
     public var onClipboardConfirmationRequest: ((TerminalClipboardConfirmationRequest) -&gt; Void)?
+    /// The URL of the highlighted link under the pointer, nil as it leaves;
+    /// called before the sendMousePos that found it returns.
+    public var onHoverLink: ((String?) -&gt; Void)?
+    /// A link the user activated (Cmd-click); while set, Ghostty's own
+    /// opener does not run.
+    public var onOpenURL: ((String, TerminalOpenURLKind) -&gt; Void)?
 
     public var renderedConfig: String { get }
     public var effectiveColorScheme: TerminalColorScheme { get }

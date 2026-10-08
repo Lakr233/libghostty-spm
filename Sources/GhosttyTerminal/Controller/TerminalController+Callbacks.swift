@@ -53,8 +53,7 @@ private enum TerminalCallbacks {
             // Core spawns /usr/bin/open for an open_url reported unhandled,
             // so a host delegate that took the URL is reported as handling
             // it. Both open_url emitters run on the main thread.
-            return action.tag == GHOSTTY_ACTION_OPEN_URL
-                && bridge.delegate is any TerminalSurfaceOpenURLDelegate
+            return action.tag == GHOSTTY_ACTION_OPEN_URL && bridge.handlesOpenURL
         }
     }
 

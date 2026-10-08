@@ -100,6 +100,22 @@ public final class TerminalViewState: ObservableObject {
     /// read the clipboard, or wants a say on unsafe pastes, sets it.
     public var onClipboardConfirmationRequest: ((TerminalClipboardConfirmationRequest) -> Void)?
 
+    /// Host hook for the link under the pointer: the URL Ghostty reports as
+    /// a pointer comes to rest on a highlighted link (with the link
+    /// modifier held, Cmd by default), and nil as it leaves. An OSC 8
+    /// hyperlink reports its URI, whatever text it shows. Called as Ghostty
+    /// reports it, so a host that moves the pointer with
+    /// ``sendMousePos(x:y:modifiers:)`` on the main thread hears about the
+    /// link there before the call returns. Ghostty reports a matched URL
+    /// only while `link-previews` allows it, which by default it does.
+    public var onHoverLink: ((String?) -> Void)?
+
+    /// Host hook for a link the user activated, a Cmd-click by default.
+    /// While this is set the host opens the URL and Ghostty's own opener
+    /// does not run; while it is `nil`, Ghostty opens the URL itself, which
+    /// on macOS spawns `/usr/bin/open` and elsewhere does nothing.
+    public var onOpenURL: ((String, TerminalOpenURLKind) -> Void)?
+
     /// Hands keyboard focus to the attached terminal view, imperatively.
     ///
     /// The SwiftUI `terminalFocused` bridge is best-effort: with no native

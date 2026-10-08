@@ -160,6 +160,15 @@ write is denied silently and a paste the user started is allowed. A drop goes
 through paste protection too, and `pasteWithProtection(text:)` gives a host's
 own untrusted text the same check; `paste(text:)` sends without asking.
 
+Links reach the host through two more hooks on `TerminalViewState`.
+`onHoverLink` hears the URL of the highlighted link under the pointer (Cmd
+held, by default), an OSC 8 hyperlink's URI whatever text it shows, and `nil`
+as the pointer leaves it; it is called before the `sendMousePos` that found
+the link returns, so a host can ask which link is under a point.
+`onOpenURL` hears a link the user activated, a Cmd-click by default, and
+while it is set Ghostty's own opener (`/usr/bin/open` on macOS, nothing
+elsewhere) does not run.
+
 Dropping onto the terminal works the same way on iOS and Mac Catalyst: files
 and images are copied into the staging directory and their escaped paths are
 pasted; a dropped folder, link, or text pastes as text. Everything a drop

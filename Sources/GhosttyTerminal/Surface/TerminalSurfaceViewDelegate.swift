@@ -213,6 +213,17 @@ public enum TerminalOpenURLKind: Sendable {
 @MainActor
 public protocol TerminalSurfaceOpenURLDelegate: TerminalSurfaceViewDelegate {
     func terminalDidRequestOpenURL(_ url: String, kind: TerminalOpenURLKind)
+
+    /// Whether this delegate opens the URL itself. While false, Ghostty
+    /// opens it with its own opener (`/usr/bin/open` on macOS) after the
+    /// delegate is told. Defaults to true.
+    var handlesOpenURL: Bool { get }
+}
+
+public extension TerminalSurfaceOpenURLDelegate {
+    var handlesOpenURL: Bool {
+        true
+    }
 }
 
 /// Mouse hovered over a recognized hyperlink. nil = hover ended / link lost.

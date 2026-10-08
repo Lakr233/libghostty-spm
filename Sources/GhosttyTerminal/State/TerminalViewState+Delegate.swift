@@ -21,7 +21,9 @@ extension TerminalViewState:
     TerminalSurfaceLifecycleDelegate,
     TerminalSurfaceClipboardConfirmationDelegate,
     TerminalSurfaceColorChangeDelegate,
-    TerminalSurfaceFontSizeDelegate
+    TerminalSurfaceFontSizeDelegate,
+    TerminalSurfaceHoverLinkDelegate,
+    TerminalSurfaceOpenURLDelegate
 {
     /// Applies a change to this state on the main queue's next turn.
     ///
@@ -49,8 +51,10 @@ extension TerminalViewState:
     ///
     /// The closures further down are deliberately *not* routed through this.
     /// They are requests with an answer expected, not state: a clipboard
-    /// confirmation must reach its host while the request is still live, and a
-    /// close must act before the surface goes.
+    /// confirmation must reach its host while the request is still live, a
+    /// close must act before the surface goes, a host asking which link is
+    /// under a point needs the answer before its `sendMousePos` returns, and
+    /// whether Ghostty opens a URL itself is decided before the turn ends.
     func publishSoon(
         _ key: TerminalPendingPublishes.Key,
         _ apply: @escaping TerminalPendingPublishes.Apply,
@@ -176,6 +180,18 @@ extension TerminalViewState:
             return
         }
         onClipboardConfirmationRequest(request)
+    }
+
+    public func terminalDidUpdateHoverLink(_ url: String?) {
+        onHoverLink?(url)
+    }
+
+    public var handlesOpenURL: Bool {
+        onOpenURL != nil
+    }
+
+    public func terminalDidRequestOpenURL(_ url: String, kind: TerminalOpenURLKind) {
+        onOpenURL?(url, kind)
     }
 
     public func terminalDidAttachSurface(_ surface: TerminalSurface) {
