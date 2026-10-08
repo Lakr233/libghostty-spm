@@ -100,9 +100,7 @@
         private func suspendForBackground() {
             stopMomentumScrolling(sendTerminalEndEvent: false)
             dismissTouchSelection()
-            #if !targetEnvironment(macCatalyst)
-                stopKeyRepeat()
-            #endif
+            stopKeyRepeat()
             core.setApplicationActive(false)
         }
 
@@ -332,8 +330,8 @@
                 // `keyboardDidHide` never fires for this view; the flag means
                 // "this view owns the visible keyboard" and must drop here.
                 softwareKeyboard.isVisible = false
-                stopKeyRepeat()
             #endif
+            stopKeyRepeat()
             core.setFocus(false)
             focusBridge.onFocusChange?(false)
             return result

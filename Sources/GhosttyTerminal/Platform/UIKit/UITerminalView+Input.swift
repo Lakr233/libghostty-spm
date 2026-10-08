@@ -13,6 +13,10 @@
         @discardableResult
         func sendInputKey(_ press: TerminalKeyPress) -> Bool {
             guard press.key.hasPlatformKeycode else { return false }
+            // A key command (Ctrl+C, Escape) is a key going down that
+            // `pressesBegan` never saw; like any other, it ends the repeat
+            // of a key still held.
+            stopKeyRepeat()
             let handled = press.withKeyEvent(action: GHOSTTY_ACTION_PRESS) {
                 sendInputKeyEvent($0, committingMarkedText: true)
             }

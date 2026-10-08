@@ -63,7 +63,14 @@
         // MARK: - UIKeyInput
 
         open func insertText(_ text: String) {
-            #if !targetEnvironment(macCatalyst)
+            #if targetEnvironment(macCatalyst)
+                // The text input system may hand over a key's text with no
+                // press reported for it — on macOS 26 a letter or Delete
+                // arrives here that way, as Ctrl combos do everywhere (see
+                // `keyCommands`). A key went down all the same, and it ends
+                // the repeat of one still held, as a press would.
+                stopKeyRepeat()
+            #else
                 claimPendingInputMethodKeys()
             #endif
             // A lone, unmarked "\n"/"\r" is the software keyboard's Return —
@@ -147,7 +154,10 @@
         #endif
 
         open func deleteBackward() {
-            #if !targetEnvironment(macCatalyst)
+            #if targetEnvironment(macCatalyst)
+                // A key went down, pressed or not; see `insertText`.
+                stopKeyRepeat()
+            #else
                 claimPendingInputMethodKeys()
             #endif
             if inputHandler.deleteBackwardInMarkedText() {

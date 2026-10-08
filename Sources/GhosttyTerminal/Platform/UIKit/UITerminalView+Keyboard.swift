@@ -101,7 +101,11 @@
             #if targetEnvironment(macCatalyst)
                 for press in presses {
                     guard let key = press.key else { continue }
-                    handleKeyPress(key, action: GHOSTTY_ACTION_PRESS)
+                    if !TerminalKeyRepeat.isModifier(usage: UInt16(key.keyCode.rawValue)) {
+                        stopKeyRepeat()
+                    }
+                    guard handleKeyPress(key, action: GHOSTTY_ACTION_PRESS) else { continue }
+                    startKeyRepeat(for: press)
                 }
             #else
                 var forwardedToInputMethod: Set<UIPress> = []
@@ -155,6 +159,9 @@
         ) {
             #if targetEnvironment(macCatalyst)
                 for press in presses {
+                    if press === hardwareKeyboard.keyRepeat?.press {
+                        stopKeyRepeat()
+                    }
                     guard let key = press.key else { continue }
                     handleKeyPress(key, action: GHOSTTY_ACTION_RELEASE)
                 }
@@ -189,11 +196,11 @@
             with event: UIPressesEvent?,
         ) {
             hardwareKeyboard.keyHandled = false
+            if presses.contains(where: { $0 === hardwareKeyboard.keyRepeat?.press }) {
+                stopKeyRepeat()
+            }
             #if !targetEnvironment(macCatalyst)
                 for press in presses {
-                    if press === hardwareKeyboard.keyRepeat?.press {
-                        stopKeyRepeat()
-                    }
                     hardwareKeyboard.pressesLoanedToInputMethod.remove(press)
                     hardwareKeyboard.pressesForwardedToInputMethod.remove(press)
                 }
@@ -569,66 +576,106 @@
                 }
             }
         }
-
-        // MARK: - Key repeat
-
-        /// UIKit sends one `pressesBegan` for a held key and nothing more
-        /// until it goes up: on iOS the repeat is the text input system's,
-        /// and it only produces one for a key that reached it. The terminal
-        /// keeps every key off that path (it would echo each one back as
-        /// `insertText` / `deleteBackward`), so a held key — Delete, an
-        /// arrow, a letter — typed exactly once. The repeat is generated
-        /// here instead, as `GHOSTTY_ACTION_REPEAT` events, which both of
-        /// ghostty's key encoders write like a press (and the Kitty one
-        /// reports as a repeat when the program asked for event types).
-        ///
-        /// Catalyst is left out: it has not shown the problem, and a repeat
-        /// generated on top of one the system already delivers would type
-        /// every held key twice.
-        extension UITerminalView {
-            /// Starts repeating the key `press` just sent, when
-            /// `TerminalKeyRepeat` says it repeats.
-            func startKeyRepeat(for press: UIPress) {
-                guard let key = press.key else { return }
-                let modifierFlags = filteredModifierFlags(for: key)
-                guard TerminalKeyRepeat.repeats(
-                    usage: UInt16(key.keyCode.rawValue),
-                    isCommandModified: modifierFlags.contains(.command),
-                    isKeyCommand: keyCommandInput(for: key, filteredModifierFlags: modifierFlags) != nil,
-                ) else { return }
-
-                stopKeyRepeat()
-                let timer = Timer(
-                    fire: Date(timeIntervalSinceNow: TerminalKeyRepeat.initialDelay),
-                    interval: TerminalKeyRepeat.interval,
-                    repeats: true,
-                ) { [weak self] timer in
-                    guard let self else { return timer.invalidate() }
-                    MainActor.assumeIsolated {
-                        self.sendKeyRepeat()
-                    }
-                }
-                // `.common`, so a repeat keeps going while a scroll is
-                // tracking.
-                RunLoop.main.add(timer, forMode: .common)
-                hardwareKeyboard.keyRepeat = .init(press: press, timer: timer)
-            }
-
-            func stopKeyRepeat() {
-                hardwareKeyboard.keyRepeat?.timer.invalidate()
-                hardwareKeyboard.keyRepeat = nil
-            }
-
-            private func sendKeyRepeat() {
-                // The release normally ends the repeat. Should it never
-                // arrive, losing focus or the surface still does, instead of
-                // a key that types forever.
-                guard let key = hardwareKeyboard.keyRepeat?.press.key,
-                      isFirstResponder,
-                      surface != nil
-                else { return stopKeyRepeat() }
-                handleKeyPress(key, action: GHOSTTY_ACTION_REPEAT)
-            }
-        }
     #endif
+
+    // MARK: - Key repeat
+
+    /// UIKit sends one `pressesBegan` for a held key and nothing more until
+    /// it goes up; the repeat is the text input system's, and it does not
+    /// reach the terminal for every key. On iOS it only produces one for a
+    /// key that reached it, and the terminal keeps every key off that path
+    /// (it would echo each one back as `insertText` / `deleteBackward`), so
+    /// a held key — Delete, an arrow, a letter — typed exactly once. On Mac
+    /// Catalyst it repeats every key that types text, but a held arrow,
+    /// Home or F5 typed once all the same: the text input system spends
+    /// those repeats on moves through the UITextInput document. The repeat
+    /// is generated here instead, as `GHOSTTY_ACTION_REPEAT` events, which
+    /// both of ghostty's key encoders write like a press (and the Kitty one
+    /// reports as a repeat when the program asked for event types) — on
+    /// Catalyst only for a key that types no text, since a repeat generated
+    /// on top of the system's would type every held character twice.
+    extension UITerminalView {
+        /// Starts repeating the key `press` just sent, when
+        /// `TerminalKeyRepeat` says it repeats.
+        func startKeyRepeat(for press: UIPress) {
+            guard let key = press.key else { return }
+            let modifierFlags = filteredModifierFlags(for: key)
+            #if targetEnvironment(macCatalyst)
+                let isRepeatedBySystem = TerminalKeyRepeat.typesText(
+                    charactersIgnoringModifiers: key.charactersIgnoringModifiers,
+                )
+            #else
+                let isRepeatedBySystem = false
+            #endif
+            guard TerminalKeyRepeat.repeats(
+                usage: UInt16(key.keyCode.rawValue),
+                isCommandModified: modifierFlags.contains(.command),
+                isKeyCommand: keyCommandInput(for: key, filteredModifierFlags: modifierFlags) != nil,
+                isRepeatedBySystem: isRepeatedBySystem,
+            ) else { return }
+
+            stopKeyRepeat()
+            let timing = keyRepeatTiming
+            let timer = Timer(
+                fire: Date(timeIntervalSinceNow: timing.initialDelay),
+                interval: timing.interval,
+                repeats: true,
+            ) { [weak self] timer in
+                guard let self else { return timer.invalidate() }
+                MainActor.assumeIsolated {
+                    self.sendKeyRepeat()
+                }
+            }
+            // `.common`, so a repeat keeps going while a scroll is
+            // tracking.
+            RunLoop.main.add(timer, forMode: .common)
+            hardwareKeyboard.keyRepeat = .init(press: press, timer: timer)
+        }
+
+        func stopKeyRepeat() {
+            hardwareKeyboard.keyRepeat?.timer.invalidate()
+            hardwareKeyboard.keyRepeat = nil
+        }
+
+        private func sendKeyRepeat() {
+            // The release normally ends the repeat. Should it never
+            // arrive, losing focus or the surface still does, instead of
+            // a key that types forever — and so do keys going to another
+            // window: on the Mac the view stays its own window's first
+            // responder while another window or app has the keyboard, and
+            // the release goes there.
+            guard let key = hardwareKeyboard.keyRepeat?.press.key,
+                  isFirstResponder,
+                  isTakingHardwareKeys,
+                  surface != nil
+            else { return stopKeyRepeat() }
+            handleKeyPress(key, action: GHOSTTY_ACTION_REPEAT)
+        }
+
+        /// Whether hardware keys come to this view's window: the key window
+        /// of a scene the user is in.
+        private var isTakingHardwareKeys: Bool {
+            guard let window, window.isKeyWindow else { return false }
+            return (window.windowScene?.activationState ?? .foregroundActive) == .foregroundActive
+        }
+
+        /// On the Mac, the user's Key Repeat setting, read off AppKit's
+        /// `NSEvent` — loaded in every Catalyst process, though not
+        /// importable from one. iOS exposes the setting to no app.
+        private var keyRepeatTiming: (initialDelay: TimeInterval, interval: TimeInterval) {
+            #if targetEnvironment(macCatalyst)
+                let event: AnyObject? = NSClassFromString("NSEvent")
+                func read(_ name: String) -> TimeInterval? {
+                    guard let event, event.responds(to: NSSelectorFromString(name)) else { return nil }
+                    return event.value(forKey: name) as? TimeInterval
+                }
+                return TerminalKeyRepeat.timing(
+                    systemDelay: read("keyRepeatDelay"),
+                    systemInterval: read("keyRepeatInterval"),
+                )
+            #else
+                return (TerminalKeyRepeat.initialDelay, TerminalKeyRepeat.interval)
+            #endif
+        }
+    }
 #endif
