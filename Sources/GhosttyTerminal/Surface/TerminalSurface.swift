@@ -273,6 +273,10 @@ public final class TerminalSurface {
         let text: String
         let offsetStart: UInt32
         let offsetLength: UInt32
+        /// The selection's top-left cell in view points: the viewport's
+        /// top-left when the selection starts above it, negative when none
+        /// of it is on screen.
+        var topLeftX: Double = -1
     }
 
     public func hasSelection() -> Bool {
@@ -321,6 +325,7 @@ public final class TerminalSurface {
             text: text,
             offsetStart: out.offset_start,
             offsetLength: out.offset_len,
+            topLeftX: out.tl_px_x,
         )
     }
 

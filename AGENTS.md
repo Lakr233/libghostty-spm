@@ -520,6 +520,17 @@ One-finger pans extend an active selection around a fixed endpoint; two-finger
 pans scroll local history using `scrollToRow`, without reporting mouse events.
 `TouchSelectionState` owns this state. Selection reads exact screen cells and
 paints an overlay; it never synthesizes mouse drags. Copy clears the selection.
+Every UIKit copy — the touch selection, the menu's Copy over Ghostty's own
+(pointer) selection, and ⌘C over either, which is taken before Ghostty's
+binding sees it — goes through `TerminalCopyText.clean`: trailing blanks off
+every line, and at most the selection's start column of leading spaces off
+every line after the first. A TUI that lays out its own lines (Claude Code)
+pads each row to paint its background, starts the next with a gutter, and
+moves between rows with the cursor, so no soft-wrap mark exists to join them
+by; read verbatim, every copied line carried that padding. The overlay draws
+each row only over its occupied cells (`textCells(inRow:)`, cached per row in
+`TouchSelectionState.rowTextCells` and dropped at each re-validation), so
+what is highlighted is what a copy keeps.
 UIKit owns menu folding, overflow and expansion. Preserve its supplied AutoFill
 menu; override the independent `touchMenuItems(for:)` and
 `touchSelectionMenuItems(for:)` methods before/after selection. Like the AppKit

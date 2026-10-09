@@ -42,14 +42,22 @@
                 return true
             }
 
-            if usesInlineTextSelection,
-               event.action == GHOSTTY_ACTION_PRESS || event.action == GHOSTTY_ACTION_REPEAT
-            {
-                let modifiers = TerminalInputModifiers(rawValue: event.mods.rawValue)
-                let command = !modifiers.isDisjoint(with: [.super_, .superRight])
-                let copy = command
-                    && modifiers.isDisjoint(with: [.ctrl, .ctrlRight, .alt, .altRight, .shift, .shiftRight])
-                    && (event.unshifted_codepoint == 99 || event.unshifted_codepoint == 67)
+            let isPress = event.action == GHOSTTY_ACTION_PRESS || event.action == GHOSTTY_ACTION_REPEAT
+            let modifiers = TerminalInputModifiers(rawValue: event.mods.rawValue)
+            let copy = isPress
+                && !modifiers.isDisjoint(with: [.super_, .superRight])
+                && modifiers.isDisjoint(with: [.ctrl, .ctrlRight, .alt, .altRight, .shift, .shiftRight])
+                && (event.unshifted_codepoint == 99 || event.unshifted_codepoint == 67)
+            // ⌘C over Ghostty's own selection (a pointer drag) copies the way
+            // every other copy does (`TerminalCopyText`) rather than through
+            // Ghostty's binding, which trims only trailing spaces.
+            if copy, touchSelection.range == nil, surface.hasSelection() {
+                _ = copySelectedTextToPasteboard()
+                hardwareKeyboard.touchCopyKeycodes.insert(event.keycode)
+                return true
+            }
+
+            if usesInlineTextSelection, isPress {
                 if touchSelection.range != nil, copy {
                     _ = copyTouchSelection()
                     hardwareKeyboard.touchCopyKeycodes.insert(event.keycode)

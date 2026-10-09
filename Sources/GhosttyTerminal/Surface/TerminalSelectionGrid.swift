@@ -46,13 +46,27 @@ struct TerminalSelectionGrid: Equatable {
         )
     }
 
-    func rects(for range: ClosedRange<Int>, viewportOffset: Int) -> [CGRect] {
+    /// One rect per visible row of `range`. With `textCells` (a row's
+    /// occupied cells, nil for a blank row) each rect covers only the text
+    /// in it, so the padding a TUI paints around its lines, which a copy
+    /// leaves out (`TerminalCopyText`), is not shown as selected either.
+    func rects(
+        for range: ClosedRange<Int>,
+        viewportOffset: Int,
+        textCells: ((Int) -> ClosedRange<Int>?)? = nil,
+    ) -> [CGRect] {
         let first = max(range.lowerBound, viewportOffset * columns)
         let last = min(range.upperBound, (viewportOffset + rows) * columns - 1)
         guard first <= last else { return [] }
-        return (first / columns ... last / columns).map { row in
-            let start = max(first, row * columns)
-            let end = min(last, (row + 1) * columns - 1)
+        return (first / columns ... last / columns).compactMap { row in
+            var start = max(first, row * columns)
+            var end = min(last, (row + 1) * columns - 1)
+            if let textCells {
+                guard let text = textCells(row) else { return nil }
+                start = max(start, text.lowerBound)
+                end = min(end, text.upperBound)
+                guard start <= end else { return nil }
+            }
             return rect(for: start, viewportOffset: viewportOffset)
                 .union(rect(for: end, viewportOffset: viewportOffset))
         }

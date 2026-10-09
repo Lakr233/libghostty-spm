@@ -320,9 +320,10 @@
                     accessibilityValue = nil
                 }
             #endif
-            guard let text = surface?.readSelection(), !text.isEmpty else {
+            guard let selection = surface?.readSelectionResult(), !selection.text.isEmpty else {
                 return false
             }
+            let text = TerminalCopyText.clean(selection.text, startColumn: selectionStartColumn(selection))
             UIPasteboard.general.string = text
             #if DEBUG
                 if ProcessInfo.processInfo.arguments.contains("--ui-testing") {

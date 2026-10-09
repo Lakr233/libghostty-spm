@@ -65,7 +65,12 @@
                 }
         }
 
-        func update(grid: TerminalSelectionGrid, range: ClosedRange<Int>, offset: Int) {
+        func update(
+            grid: TerminalSelectionGrid,
+            range: ClosedRange<Int>,
+            offset: Int,
+            textCells: ((Int) -> ClosedRange<Int>?)? = nil,
+        ) {
             let next = Presentation(
                 grid: grid, range: range, offset: offset, bounds: bounds,
                 tint: tintColor.resolvedColor(with: traitCollection),
@@ -75,7 +80,7 @@
             CATransaction.begin()
             CATransaction.setDisableActions(true)
             let path = UIBezierPath()
-            for rect in grid.rects(for: range, viewportOffset: offset) {
+            for rect in grid.rects(for: range, viewportOffset: offset, textCells: textCells) {
                 path.append(UIBezierPath(rect: rect))
             }
             highlight.path = path.cgPath

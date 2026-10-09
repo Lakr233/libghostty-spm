@@ -59,7 +59,9 @@
             guard let text = surface.readCells(updated, columns: grid.columns)?.text else { return }
             touchSelection.range = updated
             touchSelection.text = text
-            touchSelection.overlay?.update(grid: grid, range: updated, offset: touchViewportOffset)
+            touchSelection.overlay?.update(
+                grid: grid, range: updated, offset: touchViewportOffset, textCells: touchSelectionTextCells,
+            )
         }
 
         func startTouchSelectionScrolling() {

@@ -37,6 +37,9 @@
         var loupe: TerminalTouchSelectionLoupe?
         var loupeEnabled = true
         var lastValidation: TimeInterval = 0
+        /// Each row's occupied cells, read once for the highlight; dropped
+        /// whenever the selection is re-checked against the screen.
+        var rowTextCells: [Int: ClosedRange<Int>?] = [:]
     }
 
     extension UITerminalView {
@@ -98,7 +101,7 @@
             overlay.onDrag = { [weak self] endpoint, gesture in self?.dragTouchSelection(endpoint, gesture: gesture) }
             touchSelection.overlay = overlay
             addSubview(overlay)
-            overlay.update(grid: grid, range: range, offset: touchViewportOffset)
+            overlay.update(grid: grid, range: range, offset: touchViewportOffset, textCells: touchSelectionTextCells)
             presentTouchSelectionMenu(at: point)
         }
 
@@ -115,6 +118,7 @@
             touchSelection.range = nil
             touchSelection.grid = nil
             touchSelection.text = nil
+            touchSelection.rowTextCells = [:]
             touchSelection.surface = nil
             touchSelection.dragPoint = nil
             touchSelection.dragOrigin = nil
@@ -154,13 +158,34 @@
             let now = Date.timeIntervalSinceReferenceDate
             if now - touchSelection.lastValidation > 0.25, touchSelection.dragPoint == nil {
                 touchSelection.lastValidation = now
+                touchSelection.rowTextCells = [:]
                 guard surface?.readCells(range, columns: grid.columns)?.text == touchSelection.text else {
                     dismissTouchSelection()
                     return
                 }
             }
             touchSelection.overlay?.frame = bounds
-            touchSelection.overlay?.update(grid: grid, range: range, offset: touchViewportOffset)
+            touchSelection.overlay?.update(
+                grid: grid, range: range, offset: touchViewportOffset, textCells: touchSelectionTextCells,
+            )
+        }
+
+        func touchSelectionTextCells(inRow row: Int) -> ClosedRange<Int>? {
+            if let cached = touchSelection.rowTextCells[row] {
+                return cached
+            }
+            guard let grid = touchSelection.grid else { return nil }
+            let cells = surface?.textCells(inRow: row, columns: grid.columns)
+            touchSelection.rowTextCells[row] = .some(cells)
+            return cells
+        }
+
+        /// The column Ghostty's own selection starts at, for
+        /// `TerminalCopyText`; 0 when that is not on screen.
+        func selectionStartColumn(_ selection: TerminalSurface.SelectionResult) -> Int {
+            guard selection.topLeftX >= 0, let grid = touchSelectionGrid() else { return 0 }
+            let column = ((CGFloat(selection.topLeftX) - grid.origin.x) / grid.cellSize.width).rounded()
+            return min(grid.columns - 1, max(0, Int(column)))
         }
 
         func copyTouchSelection() -> Bool {
@@ -168,10 +193,11 @@
                   let text = surface?.readCells(range, columns: grid.columns)?.text,
                   text == touchSelection.text, !text.isEmpty
             else { return false }
-            UIPasteboard.general.string = text
+            let copied = TerminalCopyText.clean(text, startColumn: range.lowerBound % grid.columns)
+            UIPasteboard.general.string = copied
             #if DEBUG
                 if ProcessInfo.processInfo.arguments.contains("--ui-testing") {
-                    accessibilityValue = text
+                    accessibilityValue = copied
                 }
             #endif
             dismissTouchSelection()
