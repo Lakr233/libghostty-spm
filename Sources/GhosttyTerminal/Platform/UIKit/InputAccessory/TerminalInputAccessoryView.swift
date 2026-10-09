@@ -197,7 +197,7 @@
                     return makeTrackedKeyButton(title: title, systemImage: item.systemImage, key: .arrowRight)
 
                 case let .symbol(symbol):
-                    return makeTrackedKeyButton(title: title, key: .symbol(symbol))
+                    return makeTrackedKeyButton(title: title, buttonTitle: item.buttonTitle, key: .symbol(symbol))
 
                 case .paste:
                     return makeTrackedKeyButton(title: title, systemImage: item.systemImage, key: .paste)
@@ -223,10 +223,11 @@
 
             private func makeTrackedKeyButton(
                 title: String,
+                buttonTitle: String? = nil,
                 systemImage: String? = nil,
                 key: TerminalInputBarKey,
             ) -> AccessoryButton {
-                let button = makeKeyButton(title: title, systemImage: systemImage, key: key)
+                let button = makeKeyButton(title: title, buttonTitle: buttonTitle, systemImage: systemImage, key: key)
                 keyButtons.append(button)
                 return button
             }
@@ -246,10 +247,13 @@
 
             private func makeKeyButton(
                 title: String,
+                buttonTitle: String? = nil,
                 systemImage: String? = nil,
                 key: TerminalInputBarKey,
             ) -> AccessoryButton {
-                let button = AccessoryButton(size: buttonSize) { [weak terminalView] in
+                // A text key widens into a capsule for a label longer than
+                // the circle holds; a glyph key stays round.
+                let button = AccessoryButton(size: buttonSize, fitsTitle: systemImage == nil) { [weak terminalView] in
                     terminalView?.handleInputBarKey(key)
                 }
                 button.accessibilityLabel = title
@@ -257,12 +261,16 @@
                 if let systemImage {
                     button.setImage(UIImage(systemName: systemImage), for: .normal)
                 } else {
+                    let label = buttonTitle ?? title
                     var configuration = UIButton.Configuration.plain()
                     configuration.baseForegroundColor = .label
-                    configuration.title = title
-                    configuration.contentInsets = .zero
+                    configuration.title = label
+                    // One line, never wrapped: a wrapping title broke a
+                    // four-character label over three lines of the circle.
+                    configuration.titleLineBreakMode = .byClipping
+                    configuration.contentInsets = NSDirectionalEdgeInsets(top: 0, leading: 8, bottom: 0, trailing: 8)
                     configuration.attributedTitle = AttributedString(
-                        title,
+                        label,
                         attributes: AttributeContainer([
                             .font: UIFont.monospacedSystemFont(ofSize: 13, weight: .semibold),
                         ]),
@@ -338,7 +346,7 @@
             private let handler: () -> Void
             private let lockIndicator = UIView()
 
-            init(size: CGFloat, handler: @escaping () -> Void) {
+            init(size: CGFloat, fitsTitle: Bool = false, handler: @escaping () -> Void) {
                 self.size = size
                 self.handler = handler
                 super.init(frame: .zero)
@@ -355,9 +363,15 @@
                 imageView?.contentMode = .scaleAspectFit
 
                 NSLayoutConstraint.activate([
-                    widthAnchor.constraint(equalToConstant: size),
+                    fitsTitle
+                        ? widthAnchor.constraint(greaterThanOrEqualToConstant: size)
+                        : widthAnchor.constraint(equalToConstant: size),
                     heightAnchor.constraint(equalToConstant: size),
                 ])
+                if fitsTitle {
+                    setContentHuggingPriority(.required, for: .horizontal)
+                    setContentCompressionResistancePriority(.required, for: .horizontal)
+                }
 
                 lockIndicator.translatesAutoresizingMaskIntoConstraints = false
                 lockIndicator.backgroundColor = tintColor

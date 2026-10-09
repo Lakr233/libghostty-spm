@@ -40,6 +40,19 @@
                 }
             }
 
+            /// The text a `symbol` button shows: its first four characters,
+            /// on one line. A key may send any length of text, and a long one
+            /// wrapped over three lines of a round button read as noise; the
+            /// button's accessibility label keeps all of it (`title`). `nil`
+            /// for items drawn as glyphs or not drawn at all. Public so a
+            /// host's bar-configuration UI labels keys the way the bar does.
+            public var buttonTitle: String? {
+                switch self {
+                case let .symbol(symbol): String(symbol.prefix(4))
+                default: nil
+                }
+            }
+
             /// The SF Symbol the accessory bar renders for this item; nil for
             /// items drawn as text (`symbol`) or non-buttons (`divider`). Public
             /// so a host's bar-configuration UI shows the same glyphs as the bar.
