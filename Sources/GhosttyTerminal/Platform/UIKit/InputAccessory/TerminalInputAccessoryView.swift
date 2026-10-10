@@ -196,7 +196,7 @@
                 case .arrowRight:
                     return makeTrackedKeyButton(title: title, systemImage: item.systemImage, key: .arrowRight)
 
-                case let .symbol(symbol):
+                case let .symbol(symbol), let .nicknamedSymbol(symbol, _):
                     return makeTrackedKeyButton(title: title, buttonTitle: item.buttonTitle, key: .symbol(symbol))
 
                 case .paste:
@@ -265,8 +265,8 @@
                     var configuration = UIButton.Configuration.plain()
                     configuration.baseForegroundColor = .label
                     configuration.title = label
-                    // One line, never wrapped: a wrapping title broke a
-                    // four-character label over three lines of the circle.
+                    // One line, never wrapped: the capsule widens to the
+                    // whole label instead.
                     configuration.titleLineBreakMode = .byClipping
                     configuration.contentInsets = NSDirectionalEdgeInsets(top: 0, leading: 8, bottom: 0, trailing: 8)
                     configuration.attributedTitle = AttributedString(

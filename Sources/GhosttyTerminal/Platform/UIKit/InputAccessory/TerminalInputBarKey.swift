@@ -16,12 +16,22 @@
             case arrowDown
             case arrowRight
             case symbol(String)
+            /// A `symbol` key that shows `nickname` instead of the text it
+            /// sends — `"\u{1b}[A"` as "Up", a long command as a short name.
+            /// It sends exactly what `symbol` would.
+            case nicknamedSymbol(String, nickname: String)
             case paste
             case divider
 
+            /// A key that sends `text` and is labelled `nickname`; spelled
+            /// like `symbol` so a layout reads as one list.
+            public static func symbol(_ text: String, nickname: String) -> Self {
+                .nicknamedSymbol(text, nickname: nickname)
+            }
+
             /// The English name the accessory bar uses as the button's
-            /// accessibility label; `symbol` returns its literal text and
-            /// `divider` has none. Public so a host's bar-configuration UI can
+            /// accessibility label; `symbol` returns its literal text, a
+            /// nicknamed one its nickname, and `divider` has none. Public so a host's bar-configuration UI can
             /// describe items without duplicating this table.
             public var title: String? {
                 switch self {
@@ -35,20 +45,21 @@
                 case .arrowDown: "Down Arrow"
                 case .arrowRight: "Right Arrow"
                 case let .symbol(symbol): symbol
+                case .nicknamedSymbol: buttonTitle
                 case .paste: "Paste"
                 case .divider: nil
                 }
             }
 
-            /// The text a `symbol` button shows: its first four characters,
-            /// on one line. A key may send any length of text, and a long one
-            /// wrapped over three lines of a round button read as noise; the
-            /// button's accessibility label keeps all of it (`title`). `nil`
-            /// for items drawn as glyphs or not drawn at all. Public so a
-            /// host's bar-configuration UI labels keys the way the bar does.
+            /// The text a `symbol` button shows: all of it, or its nickname,
+            /// on one line; the button widens into a capsule to fit. An empty
+            /// nickname shows the text. `nil` for items drawn as glyphs or not
+            /// drawn at all. Public so a host's
+            /// bar-configuration UI labels keys the way the bar does.
             public var buttonTitle: String? {
                 switch self {
-                case let .symbol(symbol): String(symbol.prefix(4))
+                case let .symbol(symbol): symbol
+                case let .nicknamedSymbol(symbol, nickname): nickname.isEmpty ? symbol : nickname
                 default: nil
                 }
             }
@@ -68,7 +79,7 @@
                 case .arrowDown: "arrowtriangle.down.fill"
                 case .arrowRight: "arrowtriangle.right.fill"
                 case .paste: "doc.on.clipboard"
-                case .symbol, .divider: nil
+                case .symbol, .nicknamedSymbol, .divider: nil
                 }
             }
 
