@@ -82,6 +82,7 @@
                     let row = min(max(0, Int(bar.total) - grid.rows), max(0, touchViewportOffset + direction))
                     if direction != 0, row != touchViewportOffset {
                         _ = surface?.scrollToRow(UInt(row))
+                        touchSelection.autoscrolledOffset = row
                         core.requestImmediateTick()
                         // The next tick publishes the new viewport offset.
                     }

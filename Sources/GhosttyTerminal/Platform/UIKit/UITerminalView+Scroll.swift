@@ -43,7 +43,7 @@
             guard pointer.session.reported == nil else { return }
             switch gesture.state {
             case .began:
-                dismissTouchSelection()
+                dismissTouchSelection(restoringViewport: false)
                 stopMomentumScrolling()
             case .changed, .ended:
                 // `.ended` still carries whatever moved since the last
@@ -102,7 +102,7 @@
                     softwareKeyboard.tapCandidateArmed = false
                 #endif
                 if !usesInlineTextSelection {
-                    dismissTouchSelection()
+                    dismissTouchSelection(restoringViewport: false)
                 }
                 TerminalDebugLog.log(.input, "touch scroll began")
                 stopMomentumScrolling()

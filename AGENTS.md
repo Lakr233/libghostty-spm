@@ -520,6 +520,14 @@ One-finger pans extend an active selection around a fixed endpoint; two-finger
 pans scroll local history using `scrollToRow`, without reporting mouse events.
 `TouchSelectionState` owns this state. Selection reads exact screen cells and
 paints an overlay; it never synthesizes mouse drags. Copy clears the selection.
+A drag past the top or bottom edge scrolls the viewport a row per tick
+(`startTouchSelectionScrolling`); when the selection goes — copied, tapped
+away, invalidated by output — `dismissTouchSelection` puts the viewport back
+where the selection began (`viewportBeforeSelection`, the bottom when it began
+there), but only while it still sits on the row the drag left it
+(`autoscrolledOffset`): a viewport the user scrolled since stays put, and the
+scroll gestures dismiss with `restoringViewport: false`. Left in history, the
+terminal's live rows were off screen after every selection that dragged up.
 Every UIKit copy — the touch selection, the menu's Copy over Ghostty's own
 (pointer) selection, and ⌘C over either, which is taken before Ghostty's
 binding sees it — goes through `TerminalCopyText.clean`: trailing blanks off

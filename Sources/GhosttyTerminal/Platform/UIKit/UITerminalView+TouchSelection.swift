@@ -40,6 +40,15 @@
         /// Each row's occupied cells, read once for the highlight; dropped
         /// whenever the selection is re-checked against the screen.
         var rowTextCells: [Int: ClosedRange<Int>?] = [:]
+        /// Where the viewport was when the selection began, so a drag that
+        /// scrolled it into history can put it back when the selection
+        /// goes; `atBottom` follows output that arrived meanwhile.
+        var viewportBeforeSelection: (offset: Int, atBottom: Bool)?
+        /// The row a drag past the top or bottom edge last scrolled the
+        /// viewport to. Nil until a drag scrolls; a viewport found anywhere
+        /// else when the selection goes was moved by the user since, and
+        /// stays where they left it.
+        var autoscrolledOffset: Int?
     }
 
     extension UITerminalView {
@@ -86,7 +95,15 @@
                 }
             }
             guard let text = surface.readCells(range, columns: grid.columns)?.text, !text.isEmpty else { return }
-            dismissTouchSelection()
+            // A new selection over the old one's scrolled viewport still
+            // belongs to the place the first one started from.
+            let viewportBefore = touchSelection.autoscrolledOffset == nil
+                ? currentTouchViewport(rows: grid.rows)
+                : touchSelection.viewportBeforeSelection ?? currentTouchViewport(rows: grid.rows)
+            let autoscrolled = touchSelection.autoscrolledOffset
+            dismissTouchSelection(restoringViewport: false)
+            touchSelection.viewportBeforeSelection = viewportBefore
+            touchSelection.autoscrolledOffset = autoscrolled
             // Touch selection owns its highlight; never synthesize mouse events
             // (even Shift can be captured by a TUI).
             _ = surface.performBindingAction("clear_selection")
@@ -105,7 +122,19 @@
             presentTouchSelectionMenu(at: point)
         }
 
-        func dismissTouchSelection() {
+        /// Takes the selection down. With `restoringViewport`, a viewport a
+        /// drag scrolled into history goes back to where the selection
+        /// began — the bottom, when it began there — unless the user has
+        /// scrolled it since; a scroll gesture passes false, being the user
+        /// moving it.
+        func dismissTouchSelection(restoringViewport: Bool = true) {
+            let viewportBefore = touchSelection.viewportBeforeSelection
+            let autoscrolled = touchSelection.autoscrolledOffset
+            touchSelection.viewportBeforeSelection = nil
+            touchSelection.autoscrolledOffset = nil
+            if restoringViewport, let viewportBefore, let autoscrolled, autoscrolled == touchViewportOffset {
+                restoreTouchViewport(viewportBefore)
+            }
             guard touchSelection.range != nil || touchSelection.overlay != nil || isTouchMenuVisible else {
                 return
             }
@@ -130,6 +159,22 @@
             } else if touchSelection.enabled {
                 UIMenuController.shared.hideMenu()
             }
+        }
+
+        private func currentTouchViewport(rows: Int) -> (offset: Int, atBottom: Bool) {
+            let offset = touchViewportOffset
+            let total = Int(core.bridge.scrollbar?.total ?? UInt64(rows))
+            return (offset, offset + rows >= total)
+        }
+
+        private func restoreTouchViewport(_ viewport: (offset: Int, atBottom: Bool)) {
+            guard let surface else { return }
+            if viewport.atBottom {
+                _ = surface.performBindingAction("scroll_to_bottom")
+            } else {
+                _ = surface.scrollToRow(UInt(viewport.offset))
+            }
+            core.requestImmediateTick()
         }
 
         func refreshTouchSelection() {
