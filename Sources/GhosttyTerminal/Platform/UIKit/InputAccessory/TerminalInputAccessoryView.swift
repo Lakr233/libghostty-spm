@@ -196,8 +196,8 @@
                 case .arrowRight:
                     return makeTrackedKeyButton(title: title, systemImage: item.systemImage, key: .arrowRight)
 
-                case let .symbol(symbol), let .nicknamedSymbol(symbol, _):
-                    return makeTrackedKeyButton(title: title, buttonTitle: item.buttonTitle, key: .symbol(symbol))
+                case let .symbol(symbol), let .presentedSymbol(symbol, _):
+                    return makeTrackedKeyButton(title: title, presentation: item.presentation, key: .symbol(symbol))
 
                 case .paste:
                     return makeTrackedKeyButton(title: title, systemImage: item.systemImage, key: .paste)
@@ -223,11 +223,11 @@
 
             private func makeTrackedKeyButton(
                 title: String,
-                buttonTitle: String? = nil,
+                presentation: TerminalInputAccessoryItemPresentation? = nil,
                 systemImage: String? = nil,
                 key: TerminalInputBarKey,
             ) -> AccessoryButton {
-                let button = makeKeyButton(title: title, buttonTitle: buttonTitle, systemImage: systemImage, key: key)
+                let button = makeKeyButton(title: title, presentation: presentation, systemImage: systemImage, key: key)
                 keyButtons.append(button)
                 return button
             }
@@ -247,21 +247,33 @@
 
             private func makeKeyButton(
                 title: String,
-                buttonTitle: String? = nil,
+                presentation: TerminalInputAccessoryItemPresentation? = nil,
                 systemImage: String? = nil,
                 key: TerminalInputBarKey,
             ) -> AccessoryButton {
+                let image: UIImage? = if case let .image(image, _) = presentation { image } else { nil }
                 // A text key widens into a capsule for a label longer than
-                // the circle holds; a glyph key stays round.
-                let button = AccessoryButton(size: buttonSize, fitsTitle: systemImage == nil) { [weak terminalView] in
+                // the circle holds; a glyph or image key stays round.
+                let fitsTitle = systemImage == nil && image == nil
+                let button = AccessoryButton(size: buttonSize, fitsTitle: fitsTitle) { [weak terminalView] in
                     terminalView?.handleInputBarKey(key)
                 }
                 button.accessibilityLabel = title
 
                 if let systemImage {
                     button.setImage(UIImage(systemName: systemImage), for: .normal)
+                } else if let image, image.isSymbolImage {
+                    // An SF Symbol is a glyph, drawn like the built-in keys';
+                    // filled, it swelled into a blot of the tint color.
+                    button.setImage(image, for: .normal)
+                } else if let image {
+                    // The picture fills the circle, cropped by its corners.
+                    button.contentHorizontalAlignment = .fill
+                    button.contentVerticalAlignment = .fill
+                    button.imageView?.contentMode = .scaleAspectFill
+                    button.setImage(image, for: .normal)
                 } else {
-                    let label = buttonTitle ?? title
+                    let label = if case let .text(text) = presentation { text } else { title }
                     var configuration = UIButton.Configuration.plain()
                     configuration.baseForegroundColor = .label
                     configuration.title = label

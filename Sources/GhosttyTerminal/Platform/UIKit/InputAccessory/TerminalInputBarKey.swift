@@ -5,6 +5,8 @@
 
 #if canImport(UIKit)
     #if !targetEnvironment(macCatalyst)
+        import UIKit
+
         public enum TerminalInputAccessoryItem: Equatable, Sendable {
             case esc
             case ctrl
@@ -16,23 +18,28 @@
             case arrowDown
             case arrowRight
             case symbol(String)
-            /// A `symbol` key that shows `nickname` instead of the text it
-            /// sends — `"\u{1b}[A"` as "Up", a long command as a short name.
-            /// It sends exactly what `symbol` would.
-            case nicknamedSymbol(String, nickname: String)
+            /// A `symbol` key drawn as `presentation` instead of the text it
+            /// sends — `"\u{1b}[A"` as "Up", a long command as a short name
+            /// or an icon. It sends exactly what `symbol` would.
+            case presentedSymbol(String, presentation: TerminalInputAccessoryItemPresentation)
             case paste
             case divider
 
-            /// A key that sends `text` and is labelled `nickname`; spelled
+            /// A key that sends `text` and is drawn as `presentation`; spelled
             /// like `symbol` so a layout reads as one list.
-            public static func symbol(_ text: String, nickname: String) -> Self {
-                .nicknamedSymbol(text, nickname: nickname)
+            public static func symbol(
+                _ text: String,
+                presentation: TerminalInputAccessoryItemPresentation,
+            ) -> Self {
+                .presentedSymbol(text, presentation: presentation)
             }
 
             /// The English name the accessory bar uses as the button's
             /// accessibility label; `symbol` returns its literal text, a
-            /// nicknamed one its nickname, and `divider` has none. Public so a host's bar-configuration UI can
-            /// describe items without duplicating this table.
+            /// presented one its label or its image's `accessibilityLabel`
+            /// (else the text), and `divider` has none. Public so a host's
+            /// bar-configuration UI can describe items without duplicating
+            /// this table.
             public var title: String? {
                 switch self {
                 case .esc: "Escape"
@@ -45,23 +52,37 @@
                 case .arrowDown: "Down Arrow"
                 case .arrowRight: "Right Arrow"
                 case let .symbol(symbol): symbol
-                case .nicknamedSymbol: buttonTitle
+                case let .presentedSymbol(symbol, _):
+                    switch presentation {
+                    case let .text(label): label
+                    case let .image(_, accessibilityLabel): accessibilityLabel ?? symbol
+                    case nil: symbol
+                    }
                 case .paste: "Paste"
                 case .divider: nil
                 }
             }
 
-            /// The text a `symbol` button shows: all of it, or its nickname,
-            /// on one line; the button widens into a capsule to fit. An empty
-            /// nickname shows the text. `nil` for items drawn as glyphs or not
-            /// drawn at all. Public so a host's
-            /// bar-configuration UI labels keys the way the bar does.
-            public var buttonTitle: String? {
+            /// How the bar draws a text key: `symbol` as `.text` of all it
+            /// sends, a presented one as given — except an empty `.text`,
+            /// which shows the text it sends. `nil` for items drawn as glyphs
+            /// or not drawn at all. Public so a host's bar-configuration UI
+            /// draws keys the way the bar does.
+            public var presentation: TerminalInputAccessoryItemPresentation? {
                 switch self {
-                case let .symbol(symbol): symbol
-                case let .nicknamedSymbol(symbol, nickname): nickname.isEmpty ? symbol : nickname
+                case let .symbol(symbol): .text(symbol)
+                case let .presentedSymbol(symbol, .text(label)) where label.isEmpty: .text(symbol)
+                case let .presentedSymbol(_, presentation): presentation
                 default: nil
                 }
+            }
+
+            /// The label a text key shows (`presentation` when it is `.text`):
+            /// one line, in a capsule that widens to fit. `nil` for a key drawn
+            /// as an image or a glyph, and for items not drawn at all.
+            public var buttonTitle: String? {
+                guard case let .text(label) = presentation else { return nil }
+                return label
             }
 
             /// The SF Symbol the accessory bar renders for this item; nil for
@@ -79,7 +100,7 @@
                 case .arrowDown: "arrowtriangle.down.fill"
                 case .arrowRight: "arrowtriangle.right.fill"
                 case .paste: "doc.on.clipboard"
-                case .symbol, .nicknamedSymbol, .divider: nil
+                case .symbol, .presentedSymbol, .divider: nil
                 }
             }
 
