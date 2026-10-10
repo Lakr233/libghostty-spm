@@ -37,6 +37,18 @@ public protocol TerminalSurfaceBellDelegate: TerminalSurfaceViewDelegate {
     func terminalDidRingBell()
 }
 
+/// Scrollback search, driven by the `start_search`, `search:<needle>`, `navigate_search:next` /
+/// `:previous` and `end_search` binding actions. The core reports back here: a search to show
+/// (with the needle it starts from, such as the selection), its end, the number of matches and
+/// which one is selected. A count or index the core doesn't know yet arrives as nil.
+@MainActor
+public protocol TerminalSurfaceSearchDelegate: TerminalSurfaceViewDelegate {
+    func terminalDidStartSearch(needle: String?)
+    func terminalDidEndSearch()
+    func terminalDidUpdateSearchTotal(_ total: Int?)
+    func terminalDidUpdateSearchSelected(_ selected: Int?)
+}
+
 @MainActor
 public protocol TerminalSurfaceCloseDelegate: TerminalSurfaceViewDelegate {
     func terminalDidClose(processAlive: Bool)
