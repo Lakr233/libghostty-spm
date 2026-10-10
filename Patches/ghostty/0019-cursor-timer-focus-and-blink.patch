@@ -1,0 +1,61 @@
+diff --git a/src/renderer/Thread.zig b/src/renderer/Thread.zig
+index 95e7083..61e0afc 100644
+--- a/src/renderer/Thread.zig
++++ b/src/renderer/Thread.zig
+@@ -364,24 +364,28 @@ fn drainMailbox(self: *Thread) !void {
+                     }
+                 } else {
+                     // If we're focused, we immediately show the cursor again
+-                    // and then restart the timer.
+-                    if (self.cursor_c.state() != .active) {
+-                        self.flags.cursor_blink_visible = true;
+-                        self.cursor_h.run(
+-                            &self.loop,
+-                            &self.cursor_c,
+-                            cursorBlinkInterval(),
+-                            Thread,
+-                            self,
+-                            cursorTimerCallback,
+-                        );
+-                    }
++                    // and then restart the timer. A reset, not a run: an
++                    // unfocus earlier in this drain may still be cancelling
++                    // the timer, and the reset takes that cancel over.
++                    self.flags.cursor_blink_visible = true;
++                    self.cursor_h.reset(
++                        &self.loop,
++                        &self.cursor_c,
++                        &self.cursor_c_cancel,
++                        cursorBlinkInterval(),
++                        Thread,
++                        self,
++                        cursorTimerCallback,
++                    );
+                 }
+             },
+ 
+             .reset_cursor_blink => {
+                 self.flags.cursor_blink_visible = true;
+-                if (self.cursor_c.state() == .active) {
++                // Only a focused surface blinks. An unfocused one's timer may
++                // still be cancelling, and a reset would take that cancel
++                // over and re-arm it (see xev.Loop.timer_reset).
++                if (self.flags.focused and self.cursor_c.state() == .active) {
+                     self.cursor_h.reset(
+                         &self.loop,
+                         &self.cursor_c,
+@@ -673,8 +677,13 @@ fn cursorTimerCallback(
+         return .disarm;
+     };
+ 
++    // Only a focused surface blinks; stop if an unfocus raced this timer.
++    if (!t.flags.focused) return .disarm;
++
++    // A cursor that doesn't blink looks the same in both phases, so waking
++    // the renderer would only redraw an identical frame.
+     t.flags.cursor_blink_visible = !t.flags.cursor_blink_visible;
+-    t.wakeup.notify() catch {};
++    if (t.renderer.terminal_state.cursor.blinking) t.wakeup.notify() catch {};
+ 
+     t.cursor_h.run(
+         &t.loop,
