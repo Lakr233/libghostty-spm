@@ -30,9 +30,10 @@
         var inputMethodFlushScheduled = false
         /// Learned once per process — not per view, or every new tab would
         /// re-calibrate: the text input system ignored a loaned key
-        /// outright, so deferred presses must be forwarded to `super` — the
-        /// route that feeds them to the input method on the iPadOS versions
-        /// that do not process hardware keys on their own.
+        /// outright, so deferred presses must be forwarded to it at the
+        /// application — the route that feeds them to the input method on
+        /// the iPadOS versions that do not process hardware keys on their
+        /// own.
         @MainActor static var inputMethodNeedsPressForwarding = false
         /// Set on the first claim: the input method demonstrably hears our
         /// keys. From then on an unclaimed forwarded key is never replayed
@@ -43,8 +44,8 @@
         /// Presses currently loaned to the input method; their release must
         /// not reach the surface (a replay sends its own synthetic pair).
         var pressesLoanedToInputMethod: Set<UIPress> = []
-        /// Presses whose began was forwarded to `super`; their ended must
-        /// complete there too.
+        /// Presses whose began was forwarded to the text input system;
+        /// their ended must complete there too.
         var pressesForwardedToInputMethod: Set<UIPress> = []
         /// Last hardware modifier flags seen on a `UIKey`. Pointer events
         /// read this when the hover recognizer is not the live source.
@@ -85,11 +86,11 @@
         let unshiftedCodepoint: UInt32
         let text: String?
         /// The physical press, held for the turn so a calibration flush can
-        /// still hand it to `super` instead of leaking raw text.
+        /// still hand it to the text input system instead of leaking raw text.
         weak var press: UIPress?
-        /// The press has been given to `super` (at press time or by a
-        /// calibration flush); the next unclaimed flush replays it raw
-        /// rather than retrying forever.
+        /// The press has been given to the text input system (at press
+        /// time or by a calibration flush); the next unclaimed flush
+        /// replays it raw rather than retrying forever.
         var forwardAttempted: Bool
     }
 
@@ -136,7 +137,7 @@
                     guard handleKeyPress(key, action: GHOSTTY_ACTION_PRESS) else {
                         TerminalDebugLog.log(
                             .input,
-                            "uikit key ignored by surface, forwarded to super code=\(key.keyCode.rawValue)",
+                            "uikit key ignored by surface, forwarded to text input system code=\(key.keyCode.rawValue)",
                         )
                         hardwareKeyboard.pressesForwardedToInputMethod.insert(press)
                         forwardedToInputMethod.insert(press)
@@ -144,11 +145,11 @@
                     }
                     startKeyRepeat(for: press)
                 }
-                // `super` is how UIKit feeds an unhandled press to the text
-                // input system on the iPadOS versions that do not process
+                // The text input system takes an unhandled press at the
+                // application, on the iPadOS versions that do not process
                 // hardware keys before presses dispatch.
                 if !forwardedToInputMethod.isEmpty {
-                    super.pressesBegan(forwardedToInputMethod, with: event)
+                    forwardPressesToTextInputSystem(forwardedToInputMethod, phase: .began, with: event)
                 }
             #endif
         }
@@ -186,7 +187,7 @@
                 }
                 hardwareKeyboard.keyHandled = false
                 if !forwardedToInputMethod.isEmpty {
-                    super.pressesEnded(forwardedToInputMethod, with: event)
+                    forwardPressesToTextInputSystem(forwardedToInputMethod, phase: .ended, with: event)
                 }
             #endif
         }
@@ -205,7 +206,52 @@
                     hardwareKeyboard.pressesForwardedToInputMethod.remove(press)
                 }
             #endif
-            super.pressesCancelled(presses, with: event)
+            forwardPressesToTextInputSystem(presses, phase: .cancelled, with: event)
+        }
+
+        /// The surface has no use for a press changing — only its began and
+        /// ended carry a key — and the default implementation walks the
+        /// responder chain (see `forwardPressesToTextInputSystem`).
+        override open func pressesChanged(
+            _ presses: Set<UIPress>,
+            with event: UIPressesEvent?,
+        ) {
+            forwardPressesToTextInputSystem(presses, phase: .changed, with: event)
+        }
+
+        private enum ForwardedPressPhase {
+            case began
+            case changed
+            case ended
+            case cancelled
+        }
+
+        /// Hands presses the surface did not take to the text input system,
+        /// which reads them at `UIApplication` (`_handleKeyboardPressEvent:`,
+        /// behind its `pressesBegan`) — the end of the responder chain.
+        ///
+        /// Never `super`: that walks the chain, and inside a SwiftUI host the
+        /// walk passes SwiftUI's own key-press responder, whose forward on
+        /// iPadOS 26.0 lands back on the hosting view below it. The press
+        /// circled the terminal's container → hosting view → key-press
+        /// responder thousands of times and the main thread overflowed its stack
+        /// (`EXC_BAD_ACCESS`, "Thread stack size exceeded due to excessive
+        /// recursion") on a Caps Lock, a bare modifier, a language key — any
+        /// press the surface left alone. Nothing between the view and the
+        /// application has a use for these presses: the surface already
+        /// declined them, and they are the text input system's.
+        private func forwardPressesToTextInputSystem(
+            _ presses: Set<UIPress>,
+            phase: ForwardedPressPhase,
+            with event: UIPressesEvent?,
+        ) {
+            let application = UIApplication.shared
+            switch phase {
+            case .began: application.pressesBegan(presses, with: event)
+            case .changed: application.pressesChanged(presses, with: event)
+            case .ended: application.pressesEnded(presses, with: event)
+            case .cancelled: application.pressesCancelled(presses, with: event)
+            }
         }
 
         #if !targetEnvironment(macCatalyst)
@@ -490,17 +536,17 @@
 
                 // The system never handed these presses to the input method
                 // on its own — calibrate to forwarding, and give these very
-                // presses to `super` right now: the input method can still
-                // compose them, so nothing leaks into the shell. Only keys
-                // whose forward has already been tried fall through to the
-                // raw replay below.
+                // presses to the text input system right now: the input
+                // method can still compose them, so nothing leaks into the
+                // shell. Only keys whose forward has already been tried fall
+                // through to the raw replay below.
                 let retriable = keys.filter { !$0.forwardAttempted }
                 if !retriable.isEmpty {
                     if !HardwareKeyboardState.inputMethodNeedsPressForwarding {
                         HardwareKeyboardState.inputMethodNeedsPressForwarding = true
                         TerminalDebugLog.log(
                             .input,
-                            "text input system ignored the loan; forwarding deferred presses to super from now on",
+                            "text input system ignored the loan; forwarding deferred presses to the text input system from now on",
                         )
                     }
                     hardwareKeyboard.pendingInputMethodKeys = keys.map { key in
@@ -511,15 +557,16 @@
                     for key in retriable {
                         guard let press = key.press else { continue }
                         if hardwareKeyboard.pressesLoanedToInputMethod.contains(press) {
-                            // Still held down: its ended will complete at
-                            // `super` through the forwarded set.
+                            // Still held down: its ended will complete at the
+                            // text input system through the forwarded set.
                             hardwareKeyboard.pressesForwardedToInputMethod.insert(press)
-                            super.pressesBegan([press], with: nil)
+                            forwardPressesToTextInputSystem([press], phase: .began, with: nil)
                         } else {
-                            // Already released — hand `super` the whole
-                            // pair so the input method sees a full press.
-                            super.pressesBegan([press], with: nil)
-                            super.pressesEnded([press], with: nil)
+                            // Already released — hand the text input system
+                            // the whole pair so the input method sees a full
+                            // press.
+                            forwardPressesToTextInputSystem([press], phase: .began, with: nil)
+                            forwardPressesToTextInputSystem([press], phase: .ended, with: nil)
                         }
                     }
                     // The claim decides their fate — and it round-trips the
