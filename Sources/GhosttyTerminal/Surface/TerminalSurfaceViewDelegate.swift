@@ -263,6 +263,39 @@ public protocol TerminalSurfaceScrollbarDelegate: TerminalSurfaceViewDelegate {
     func terminalDidUpdateScrollbar(_ scrollbar: TerminalScrollbar)
 }
 
+/// Ghostty's search, driven by the `search:<text>`, `navigate_search:next` /
+/// `navigate_search:previous` and `end_search` binding actions, or by its
+/// `start_search` and `search_selection` keybinds.
+///
+/// Ghostty counts matches on a search thread of its own, so the total rises
+/// while it scans the scrollback, and changes again as output arrives. A
+/// search selects no match until the host navigates. Every method has an
+/// empty default, so a host implements only what its find UI shows.
+@MainActor
+public protocol TerminalSurfaceSearchDelegate: TerminalSurfaceViewDelegate {
+    /// A keybind asked the host to show its find UI: `start_search` with an
+    /// empty needle, `search_selection` with the selected text. Ghostty
+    /// starts searching only once the host sends `search:<text>`.
+    func terminalDidStartSearch(needle: String)
+    /// The search ended through `end_search`, from a keybind or the host.
+    /// A host hides its find UI.
+    func terminalDidEndSearch()
+    /// How many matches Ghostty has found so far, or `nil` once no search
+    /// is running.
+    func terminalDidUpdateSearchTotal(_ total: Int?)
+    /// The selected match's index, counting from 0 at the newest match, or
+    /// `nil` when none is selected. Ghostty drops the selection on its own
+    /// too, for example when the terminal resizes.
+    func terminalDidUpdateSearchSelected(_ selected: Int?)
+}
+
+public extension TerminalSurfaceSearchDelegate {
+    func terminalDidStartSearch(needle _: String) {}
+    func terminalDidEndSearch() {}
+    func terminalDidUpdateSearchTotal(_: Int?) {}
+    func terminalDidUpdateSearchSelected(_: Int?) {}
+}
+
 /// The surface's font size changed, in points: a pinch (iOS), Cmd+=, Cmd+-
 /// or Cmd+0 on a hardware keyboard, a font-size binding action from the host,
 /// a config reload that moved an unzoomed surface, or a new surface starting

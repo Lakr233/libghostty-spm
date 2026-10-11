@@ -140,6 +140,26 @@ automatic integration. A host-managed backend must preserve or emit
 equivalent OSC 133 prompt markers. Arbitrary Ghostty actions remain available
 through `performBindingAction(_:)`.
 
+### Search
+
+Ghostty searches the scrollback on a thread of its own. A host drives it with
+binding actions and hears back through a delegate that adopts
+`TerminalSurfaceSearchDelegate`:
+
+```swift
+surface.performBindingAction("search:needle")
+surface.performBindingAction("navigate_search:next")     // Toward older matches.
+surface.performBindingAction("navigate_search:previous") // Toward newer matches.
+surface.performBindingAction("end_search")
+```
+
+`terminalDidUpdateSearchTotal` reports how many matches Ghostty has found so
+far, and `terminalDidUpdateSearchSelected` the selected match's index,
+counting from 0 at the newest match; both send `nil` when there is none.
+`terminalDidStartSearch(needle:)` reports the `start_search` and
+`search_selection` keybinds, so a host can show its find UI, and
+`terminalDidEndSearch` reports `end_search`, so it can hide it.
+
 ### Pasting and Dropping Files
 
 A paste reads the pasteboard the way Ghostty's macOS app does: URLs first —
