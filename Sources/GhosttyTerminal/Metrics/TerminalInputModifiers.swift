@@ -80,6 +80,23 @@ public struct TerminalInputModifiers: OptionSet, Hashable, Sendable {
             if flags.contains(.numericPad) {
                 mods.insert(.num)
             }
+            // Which side is held, as upstream's `ghosttyMods` reads it:
+            // `macos-option-as-alt = left` makes only the left Option an Alt
+            // and leaves the right one composing (ą on Polish Pro). Without
+            // the bit every Option read as the left one.
+            let raw = flags.rawValue
+            if raw & UInt(NX_DEVICERSHIFTKEYMASK) != 0 {
+                mods.insert(.shiftRight)
+            }
+            if raw & UInt(NX_DEVICERCTLKEYMASK) != 0 {
+                mods.insert(.ctrlRight)
+            }
+            if raw & UInt(NX_DEVICERALTKEYMASK) != 0 {
+                mods.insert(.altRight)
+            }
+            if raw & UInt(NX_DEVICERCMDKEYMASK) != 0 {
+                mods.insert(.superRight)
+            }
             self = mods
         }
     #endif
