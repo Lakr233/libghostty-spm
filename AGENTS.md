@@ -518,6 +518,24 @@ when the delegate does not adopt the protocol. The C side is the
 write-clipboard callback for `.osc52Write`; tests in
 `Tests/GhosttyKitTest/Clipboard/TerminalClipboardConfirmationTests.swift`.
 
+### Selection Region
+
+`TerminalSurface.selectionRegion()` (re-exposed as `selectionRegion` on both
+views and `TerminalViewState`) says where Ghostty's own selection lies:
+`TerminalSelectionRegion`, its corners as `TerminalViewportCell`s, the
+terminal grid they count in, `isRectangle` and which edge was clipped by
+the viewport; nil with no selection or none in view. It reads
+`ghostty_surface_selection_viewport`, which `Patches/ghostty/0020` adds.
+Do not rebuild it from `ghostty_surface_read_selection`: that one's
+`offset_start` / `offset_len` are linear offsets counted in the terminal's
+own column count, which lags `ghostty_surface_size` while a resize is on
+its way (issue #75 measured 53 against 37), and it has no rectangle flag.
+`contains(_:)` is Ghostty's `Selection.contains`; the views'
+`viewportCell(at:)` / `selectionContains(_:)` map a point in their own
+coordinates through `TerminalSelectionGrid`, which an AppKit host asks in
+`mouseDown` before `super` to drag the selected text out. The iOS inline
+touch selection is an overlay, not Ghostty's selection, and is not reported.
+
 ### iOS Touch Text Selection
 
 Inline touch selection is the iOS default: `UITerminalView.usesInlineTextSelection`

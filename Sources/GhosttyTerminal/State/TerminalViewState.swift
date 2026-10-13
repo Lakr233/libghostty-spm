@@ -184,6 +184,13 @@ public final class TerminalViewState: ObservableObject {
         surface?.isMouseCaptured ?? false
     }
 
+    /// Where the selection lies on screen, nil when there is none or none
+    /// of it is in view. See ``TerminalSurface/selectionRegion()``; the
+    /// views add the point-to-cell test (`selectionContains(_:)`).
+    public var selectionRegion: TerminalSelectionRegion? {
+        surface?.selectionRegion()
+    }
+
     public func sendMousePos(
         x: Double,
         y: Double,
