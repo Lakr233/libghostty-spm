@@ -23,6 +23,7 @@
         var keyEcho: KeyEchoState = .init()
         var pointer: PointerSelectionState = .init()
         var focusBridge: FocusBridgeState = .init()
+        var drop: DropState = .init()
 
         open weak var delegate: (any TerminalSurfaceViewDelegate)? {
             get { core.delegate }
@@ -81,6 +82,7 @@
 
             inputHandler = TerminalKeyEventHandler(view: self)
             setupTrackingArea()
+            setupDropInput()
 
             core.isAttached = { [weak self] in self?.window != nil }
             core.displayLinkContext = .view(self)

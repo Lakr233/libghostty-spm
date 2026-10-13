@@ -104,7 +104,7 @@ GhosttyTerminal (Swift wrapper, ~70 files)
   ├─ Debug/            TerminalDebugLog — category-gated logging to a host-settable sink
   ├─ InMemory/         Sandbox-safe I/O backend (no PTY), TerminalSessionBackend, C callback bridge
   ├─ Metrics/          Grid size, viewport dimensions, input/scroll modifiers
-  ├─ Platform/AppKit/  macOS NSView: key events, NSTextInputClient IME, CAMetalLayer, public input
+  ├─ Platform/AppKit/  macOS NSView: key events, NSTextInputClient IME, drop, CAMetalLayer, public input
   ├─ Platform/Shared/  Pasteboard reading, file staging, shell escaping, key tables, IME state, foreground pid
   ├─ Platform/UIKit/   iOS UIView: UITextInput, keyboard, touch/gesture, drop, pinch zoom, IME, input accessory bar
   ├─ Resources/        Our MIT bash/zsh shell integration + Ghostty terminfo (exec backend; see "No GPL Files"), Localizable.xcstrings
@@ -357,6 +357,12 @@ the dropped URLs (a folder, a link — `text(string:urls:)` again, so a folder
 pastes as its escaped path) or strings are sent as text. A drop never
 becomes keystrokes, and paste protection is not consulted for it — a drop is
 the user's own act, like the accessory bar's Paste button.
+
+AppKit drops (`AppTerminalView+Drop.swift`, registered in `commonInit`) take
+the same road: file URLs paste as escaped paths, image data with no file
+(PNG, JPEG, GIF, WebP; TIFF is converted to PNG) is staged, links and text
+paste as text. `acceptsFileDrops = false` turns files off for a host whose
+shell runs on another machine; links and text still drop.
 
 `TerminalFileStaging` (`Platform/Shared`, no UIKit or AppKit dependency so
 `swift test` covers it on macOS in `TerminalFileStagingTests`) owns the
