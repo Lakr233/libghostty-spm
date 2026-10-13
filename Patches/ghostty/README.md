@@ -234,6 +234,15 @@ to move back.
 
 - `0018-screen-text-history.sh` — preserve the full scrollback row range for
   screen-relative text reads; viewport-relative reads retain grid bounds.
+- `0019-cursor-timer-focus-and-blink.patch` — `renderer/Thread.zig`: the
+  cursor timer wakes the renderer only while the cursor blinks, and only a
+  focused surface keeps it. Before, every 600 ms tick redrew a full frame
+  even with `cursor-style-blink = false`, which kept Metal's ~225 MB
+  per-process working memory resident. A `reset_cursor_blink` drained in
+  the same batch as an unfocus also took over the pending cancel
+  (`xev.Loop.timer_reset`) and left the timer running on the unfocused
+  surface. Focus now resets the timer instead of a guarded run, so a cancel
+  still in flight cannot leave a focused surface without one.
 
 Dropped once upstream carried them: `0014-free-text-signature.patch`
 (`ghostty_surface_free_text` taking the surface, upstream `4803d58b`). A
