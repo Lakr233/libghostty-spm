@@ -11,7 +11,7 @@ struct TerminalSelectionRegionSurfaceTests {
     /// The harness view is 800 × 500 points at scale 1.
     private static let scale: CGFloat = 1
 
-    private func grid(_ surface: TerminalSurface) -> TerminalSelectionGrid? {
+    private func selectionGrid(_ surface: TerminalSurface) -> TerminalSelectionGrid? {
         guard let metrics = surface.size(),
               let first = surface.readCells(0 ... 0, columns: Int(metrics.columns), viewport: true)
         else { return nil }
@@ -60,7 +60,7 @@ struct TerminalSelectionRegionSurfaceTests {
         defer { harness.tearDown() }
         guard let surface = harness.surface else { return }
         fill(harness, lines: 6)
-        let grid = try #require(grid(surface))
+        let grid = try #require(selectionGrid(surface))
 
         drag(surface, grid, from: (9, 1), to: (12, 3))
 
@@ -84,7 +84,7 @@ struct TerminalSelectionRegionSurfaceTests {
         defer { harness.tearDown() }
         guard let surface = harness.surface else { return }
         fill(harness, lines: 6)
-        let grid = try #require(grid(surface))
+        let grid = try #require(selectionGrid(surface))
 
         drag(surface, grid, from: (12, 1), to: (16, 4), modifiers: .alt)
 
@@ -103,7 +103,7 @@ struct TerminalSelectionRegionSurfaceTests {
         defer { harness.tearDown() }
         guard let surface = harness.surface else { return }
         fill(harness, lines: 6)
-        let grid = try #require(grid(surface))
+        let grid = try #require(selectionGrid(surface))
         drag(surface, grid, from: (9, 1), to: (12, 3))
 
         func center(_ column: Int, _ row: Int) -> CGPoint {
@@ -141,7 +141,7 @@ struct TerminalSelectionRegionSurfaceTests {
         defer { harness.tearDown() }
         guard let surface = harness.surface else { return }
         fill(harness, lines: 120)
-        let grid = try #require(grid(surface))
+        let grid = try #require(selectionGrid(surface))
         drag(surface, grid, from: (0, grid.rows - 2), to: (5, grid.rows - 2))
         #expect(surface.selectionRegion() != nil)
 
