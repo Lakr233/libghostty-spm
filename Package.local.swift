@@ -46,7 +46,7 @@ let package = Package(
             resources: [
                 .copy("Resources/Ghostty"),
                 .copy("Resources/terminfo"),
-                .process("Resources/Localizable.xcstrings"),
+                .process("Resources/Localization"),
             ],
             swiftSettings: swiftSettings,
         ),

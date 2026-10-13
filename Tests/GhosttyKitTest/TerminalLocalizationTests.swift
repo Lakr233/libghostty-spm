@@ -19,22 +19,16 @@ struct TerminalLocalizationTests {
         }
     }
 
-    /// Xcode and SwiftPM's swiftbuild compile the catalog into `.lproj`
-    /// tables; SwiftPM's native build system (the default before Swift
-    /// 6.4) copies `Localizable.xcstrings` into the bundle as is.
+    /// The package ships compiled `.lproj` tables (see
+    /// `Script/generate-localizations.sh`). SwiftPM's native build system
+    /// lowercases their names (`zh-hans.lproj`), which Foundation's own
+    /// language matching accepts, so the table is found the same way.
     static func translation(of key: String, in language: String) throws -> String? {
-        if let path = Bundle.module.path(forResource: language, ofType: "lproj") {
-            let bundle = try #require(Bundle(path: path))
-            let value = bundle.localizedString(forKey: key, value: "\u{0}", table: nil)
-            return value == "\u{0}" ? nil : value
-        }
-        let url = try #require(Bundle.module.url(forResource: "Localizable", withExtension: "xcstrings"))
-        let catalog = try JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any]
-        let strings = catalog?["strings"] as? [String: Any]
-        let entry = strings?[key] as? [String: Any]
-        let localization = (entry?["localizations"] as? [String: Any])?[language] as? [String: Any]
-        let unit = localization?["stringUnit"] as? [String: Any]
-        guard unit?["state"] as? String == "translated" else { return nil }
-        return unit?["value"] as? String
+        let match = Bundle.preferredLocalizations(from: Bundle.module.localizations, forPreferences: [language])
+        let localization = try #require(match.first { $0.caseInsensitiveCompare(language) == .orderedSame })
+        let path = try #require(Bundle.module.path(forResource: localization, ofType: "lproj"))
+        let bundle = try #require(Bundle(path: path))
+        let value = bundle.localizedString(forKey: key, value: "\u{0}", table: nil)
+        return value == "\u{0}" ? nil : value
     }
 }

@@ -244,6 +244,15 @@ to move back.
   surface. Focus now resets the timer instead of a guarded run, so a cancel
   still in flight cannot leave a focused surface without one.
 
+- `0020-selection-viewport.sh` — adds `ghostty_surface_selection_viewport`
+  (`include/ghostty.h`, `apprt/embedded.zig`): the user selection's corners
+  as viewport cells, with the terminal's column and row count, the rectangle
+  flag and which corner was clipped, read under the renderer lock.
+  `ghostty_surface_read_selection` gives only a linear offset counted in the
+  terminal's columns, which lag `ghostty_surface_size` during a resize, and
+  no rectangle flag, so a host could not tell whether a press landed on the
+  selection (issue #75). Purely additive.
+
 Dropped once upstream carried them: `0014-free-text-signature.patch`
 (`ghostty_surface_free_text` taking the surface, upstream `4803d58b`). A
 patch that only "already applies" is a liability — the day its context

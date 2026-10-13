@@ -848,32 +848,55 @@ import XCTest
                 func rows(in text: String) -> [Int] {
                     text.components(separatedBy: "history-").dropFirst().compactMap { Int($0.prefix(3)) }
                 }
-                for edge in [0.003, 0.997] {
-                    let before = try XCTUnwrap(output.value as? String)
-                    let firstBefore = try XCTUnwrap(rows(in: before).min())
-                    terminal.coordinate(withNormalizedOffset: CGVector(dx: 0.12, dy: 0.5)).doubleTap()
-                    XCTAssertTrue(app.menuItems["Copy"].waitForExistence(timeout: 4))
+                func viewport() -> String {
+                    output.value as? String ?? ""
+                }
+                func firstRow() throws -> Int {
+                    try XCTUnwrap(rows(in: viewport()).min())
+                }
+                func dragSelection(to edge: Double) {
                     let start = terminal.coordinate(withNormalizedOffset: CGVector(dx: 0.8, dy: 0.5))
                     let end = terminal.coordinate(withNormalizedOffset: CGVector(dx: 0.8, dy: edge))
                     start.press(forDuration: 0.1, thenDragTo: end, withVelocity: .slow, thenHoldForDuration: 2)
                     XCTAssertTrue(app.menuItems["Copy"].waitForExistence(timeout: 4))
-                    let after = try XCTUnwrap(output.value as? String)
-                    let firstAfter = try XCTUnwrap(rows(in: after).min())
-                    if edge < 0.5 {
-                        XCTAssertLessThan(firstAfter, firstBefore, after)
-                    } else {
-                        XCTAssertGreaterThan(firstAfter, firstBefore, after)
-                    }
-                    capture(edge < 0.5 ? "inline-scroll-top" : "inline-scroll-bottom")
-                    app.menuItems["Copy"].tap()
-                    let copied = try XCTUnwrap(copiedSelectionText(in: terminal, timeout: 2))
-                    let copiedRows = rows(in: copied)
-                    if edge < 0.5 {
-                        XCTAssertLessThan(try XCTUnwrap(copiedRows.min()), firstBefore, copied)
-                    } else {
-                        XCTAssertGreaterThan(try XCTUnwrap(copiedRows.max()), try XCTUnwrap(rows(in: before).max()), copied)
-                    }
                 }
+                let live = try XCTUnwrap(output.value as? String)
+                let liveFirst = try XCTUnwrap(rows(in: live).min())
+
+                // Past the top edge: the viewport scrolls into history, and the
+                // copy carries rows from above the live screen.
+                terminal.coordinate(withNormalizedOffset: CGVector(dx: 0.12, dy: 0.5)).doubleTap()
+                XCTAssertTrue(app.menuItems["Copy"].waitForExistence(timeout: 4))
+                dragSelection(to: 0.003)
+                XCTAssertLessThan(try firstRow(), liveFirst, viewport())
+                capture("inline-scroll-top")
+                app.menuItems["Copy"].tap()
+                let copiedTop = try XCTUnwrap(copiedSelectionText(in: terminal, timeout: 2))
+                XCTAssertLessThan(try XCTUnwrap(rows(in: copiedTop).min()), liveFirst, copiedTop)
+                // The selection that scrolled the viewport is gone, so the
+                // viewport is back where the selection began: the live rows.
+                waitForViewport("viewport back at the live rows", timeout: 4) {
+                    rows(in: $0).min() == liveFirst
+                }
+
+                // Past the bottom edge: scrolled into history again, the same
+                // selection dragged down scrolls back toward the live rows.
+                terminal.coordinate(withNormalizedOffset: CGVector(dx: 0.12, dy: 0.5)).doubleTap()
+                XCTAssertTrue(app.menuItems["Copy"].waitForExistence(timeout: 4))
+                dragSelection(to: 0.003)
+                let history = try XCTUnwrap(output.value as? String)
+                let historyFirst = try XCTUnwrap(rows(in: history).min())
+                XCTAssertLessThan(historyFirst, liveFirst, history)
+                dragSelection(to: 0.997)
+                XCTAssertGreaterThan(try firstRow(), historyFirst, viewport())
+                capture("inline-scroll-bottom")
+                app.menuItems["Copy"].tap()
+                let copiedBottom = try XCTUnwrap(copiedSelectionText(in: terminal, timeout: 2))
+                XCTAssertGreaterThan(
+                    try XCTUnwrap(rows(in: copiedBottom).max()),
+                    try XCTUnwrap(rows(in: history).max()),
+                    copiedBottom,
+                )
             }
 
             private func nativeMenuItem(_ title: String) -> XCUIElement {
