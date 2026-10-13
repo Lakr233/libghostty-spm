@@ -28,6 +28,10 @@
         /// still here when the turn ends is replayed to the surface.
         var pendingInputMethodKeys: [DeferredInputMethodKey] = []
         var inputMethodFlushScheduled = false
+        /// Keys were replayed raw and no UITextInput mutation has arrived
+        /// since. A mutation now is the input method answering late — the
+        /// replay typed those keys twice.
+        var replayedKeysAwaitingClaim = false
         /// Learned once per process — not per view, or every new tab would
         /// re-calibrate: the text input system ignored a loaned key
         /// outright, so deferred presses must be forwarded to it at the
@@ -505,6 +509,15 @@
             /// The text input system spoke — every loaned key was heard.
             /// Called from each UITextInput mutation entry point.
             func claimPendingInputMethodKeys() {
+                if hardwareKeyboard.replayedKeysAwaitingClaim {
+                    // The input method answered after the flush already
+                    // replayed its keys (Korean commits can trail the flush).
+                    // It is responsive: stop replaying, or every later key
+                    // types twice.
+                    hardwareKeyboard.replayedKeysAwaitingClaim = false
+                    HardwareKeyboardState.inputMethodProvenResponsive = true
+                    TerminalDebugLog.log(.input, "input method answered after a replay; no more replays")
+                }
                 guard !hardwareKeyboard.pendingInputMethodKeys.isEmpty else { return }
                 HardwareKeyboardState.inputMethodProvenResponsive = true
                 TerminalDebugLog.log(
@@ -598,6 +611,7 @@
                     .input,
                     "input method left \(keys.count) key(s) unclaimed, replaying",
                 )
+                hardwareKeyboard.replayedKeysAwaitingClaim = true
                 for key in keys {
                     var keyEvent = ghostty_input_key_s()
                     keyEvent.action = key.action
