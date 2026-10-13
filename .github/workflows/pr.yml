@@ -34,6 +34,9 @@ jobs:
       - name: Check Licenses
         run: ./Script/check-licenses.sh
 
+      - name: Check Localizations
+        run: ./Script/generate-localizations.sh --check
+
       - name: Build Package Matrix
         run: ./Script/test.sh
 

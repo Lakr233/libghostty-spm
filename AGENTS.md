@@ -88,6 +88,10 @@ swift test
 # Regenerate GhosttyTheme Swift files from iTerm2-Color-Schemes
 ./Script/generate-themes.sh
 
+# Compile Localization/Localizable.xcstrings into the shipped .lproj tables
+# (--check: fail when they are stale; pr.yml runs it)
+./Script/generate-localizations.sh
+
 # Refuse GPL license text anywhere in the tree (pr.yml and release.yml run it)
 ./Script/check-licenses.sh
 ```
@@ -107,7 +111,7 @@ GhosttyTerminal (Swift wrapper, ~70 files)
   ├─ Platform/AppKit/  macOS NSView: key events, NSTextInputClient IME, drop, CAMetalLayer, public input
   ├─ Platform/Shared/  Pasteboard reading, file staging, shell escaping, key tables, IME state, foreground pid
   ├─ Platform/UIKit/   iOS UIView: UITextInput, keyboard, touch/gesture, drop, pinch zoom, IME, input accessory bar
-  ├─ Resources/        Our MIT bash/zsh shell integration + Ghostty terminfo (exec backend; see "No GPL Files"), Localizable.xcstrings
+  ├─ Resources/        Our MIT bash/zsh shell integration + Ghostty terminfo (exec backend; see "No GPL Files"), Localization/<lang>.lproj string tables
   ├─ State/            ObservableObject TerminalViewState (SwiftUI state container)
   ├─ Surface/          TerminalSurface, coordinator + display link, SwiftUI TerminalSurfaceView, delegates, TerminalKey/TerminalKeyPress
   └─ View/             TerminalView typealias + platform representables
@@ -565,15 +569,21 @@ away from `pivot`. `usesTouchSelectionLoupe` turns it off and
 `touchSelectionLoupeCaretRect(forEndpointCell:isStart:)` shapes the caret it
 tracks; both are `open` in the class body. The default menu titles (Copy,
 Paste, Select, Select All, and AppKit's Copy) come from
-`Resources/Localizable.xcstrings` through `String(localized:bundle: .module)`,
+`Resources/Localization/<lang>.lproj/Localizable.strings` through
+`String(localized:bundle: .module)`,
 in the 18 languages `TerminalLocalizationTests` lists; a new title gets every
 one of them. A host app must declare its localizations or set
 `CFBundleAllowMixedLocalizations` for the titles to follow the user's
 language: otherwise the system resolves the package bundle to the app's own
-languages, English alone (both examples set the key). SwiftPM's native build system (the default `swift test` before
-Swift 6.4, so CI's) copies the catalog into the bundle uncompiled — no
-`.lproj` — while Xcode and swiftbuild compile it, so the test reads
-whichever the bundle holds. The example UI tests cover
+languages, English alone (both examples set the key). The tables are
+compiled from `Localization/Localizable.xcstrings` by
+`Script/generate-localizations.sh` and committed; edit the catalog, run the
+script, commit both (pr.yml fails on stale tables). **Never put an
+`.xcstrings` file back into a target**: swiftbuild compiles it with
+`xcstringstool`, which only Xcode.app carries, so the package stopped
+building on the Command Line Tools (#81). SwiftPM's native build system
+lowercases the folder names (`zh-hans.lproj`); Foundation matches languages
+case-insensitively, and so does the test. The example UI tests cover
 the gesture and menu contracts.
 
 Setting `usesInlineTextSelection = false` opts out of touch selection
