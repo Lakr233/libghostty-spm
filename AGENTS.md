@@ -60,6 +60,31 @@ reviewing a PR, read the manifest diff and the full file list, not the title
 integration from upstream; re-read the upstream `shell_integration.zig`
 contract and adjust our scripts if it changed.
 
+The rule covers the binary too, and LGPL with it. Upstream links its
+bundled GNU libintl (LGPL-2.1+) into every Darwin build, and libghostty.a
+carried it through 2.2.2026101501 (issue #88); statically linked, it puts a
+relinking obligation on every host app. `Script/build-ghostty.sh` passes
+`-Di18n=false` (every gettext call is comptime-gated, `src/os/i18n.zig`;
+the package ships no message catalogs, so those calls only ever returned
+their msgid) and `Patches/ghostty/0021-no-libintl.sh` makes upstream's link
+follow that option. The one libintl job that reached users — converting
+Apple's preferred languages into gettext names for `LANGUAGE`, which an
+exec-backend shell inherits, on macOS and on jailbroken iOS alike — is
+ours in Swift: `TerminalLocaleEnvironment` (`Configuration/`) sets `LANG`
+and `LANGUAGE` before `ghostty_init` the way upstream's `setLangFromCocoa`
+did, so Ghostty finds `LANG` set and skips its own export, and
+`TerminalLocaleName` converts each tag. It reproduces libintl's
+`_libintl_locale_name_canonicalize` byte for byte (verified against the
+last libintl we linked on 249,952 tags, every expectation in
+`TerminalLocaleNameTests` read off it); its tables are Apple's legacy
+language names, the seven-byte script tags and the script modifiers. A
+host that calls `ghostty_init` through GhosttyKit alone gets the raw
+BCP-47 tags in `LANGUAGE`. `check-licenses.sh` only sees the
+tree, so the archive is checked separately: `Script/verify-xcframework.sh`
+refuses any slice that defines a `libintl_` symbol, and source-build.yml
+does the same per slice. When bumping Ghostty, check `SharedDeps.zig` for a
+new bundled C dependency and its license before the first release on it.
+
 ## Build & Test Commands
 
 ```bash
@@ -103,7 +128,7 @@ GhosttyKit (C API re-export)
   └─ libghostty.a (Zig → static lib) + ghostty.h
 
 GhosttyTerminal (Swift wrapper, ~70 files)
-  ├─ Configuration/    Config structs, themes, color schemes, ghostty.conf rendering, GhosttyRuntimeResources
+  ├─ Configuration/    Config structs, themes, color schemes, ghostty.conf rendering, GhosttyRuntimeResources, TerminalLocaleEnvironment
   ├─ Controller/       TerminalController — app lifecycle, config, surface creation, C callbacks
   ├─ Debug/            TerminalDebugLog — category-gated logging to a host-settable sink
   ├─ InMemory/         Sandbox-safe I/O backend (no PTY), TerminalSessionBackend, C callback bridge

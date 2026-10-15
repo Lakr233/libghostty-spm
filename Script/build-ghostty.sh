@@ -125,6 +125,7 @@ ZIG_BUILD_COMMAND=(
     -Dsentry=false
     -Dcustom-shaders=false
     -Dinspector=false
+    -Di18n=false
     -Dtarget="$ZIG_TARGET"
 )
 

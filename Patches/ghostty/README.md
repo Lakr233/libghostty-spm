@@ -253,6 +253,17 @@ to move back.
   no rectangle flag, so a host could not tell whether a press landed on the
   selection (issue #75). Purely additive.
 
+- `0021-no-libintl.sh` — `build/SharedDeps.zig`: link the bundled GNU
+  libintl (LGPL-2.1+) only when `-Di18n` is on. Upstream linked it into
+  every Darwin build whatever the option said, so libghostty.a carried it
+  even with every gettext call compiled out (issue #88). The package
+  builds with `-Di18n=false` (`Script/build-ghostty.sh`), so the dependency
+  is no longer fetched or linked; `Script/verify-xcframework.sh` refuses
+  an archive that defines a `libintl_` symbol. The `LANGUAGE` conversion
+  libintl did for `setLangFromCocoa` moved to GhosttyTerminal's
+  `TerminalLocaleEnvironment`, which sets `LANG` first so that code never
+  runs.
+
 Dropped once upstream carried them: `0014-free-text-signature.patch`
 (`ghostty_surface_free_text` taking the surface, upstream `4803d58b`). A
 patch that only "already applies" is a liability — the day its context

@@ -65,3 +65,10 @@ jobs:
             "$PWD/References/ghostty-upstream" \
             "${{ matrix.target }}" \
             "$RUNNER_TEMP/libghostty"
+
+      - name: Refuse libintl
+        run: |
+          if nm -g -U "$RUNNER_TEMP/libghostty/lib/libghostty.a" | grep libintl_; then
+            echo "[!] libghostty.a links GNU libintl (LGPL)"
+            exit 1
+          fi
