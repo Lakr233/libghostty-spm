@@ -116,6 +116,23 @@ for library in libraries:
             f"got {sorted(actual_architectures)}"
         )
 
+    # GNU libintl is LGPL; linked statically it would put a relinking
+    # obligation on every host app (issue #88). Patch 0021 and -Di18n=false
+    # keep it out; this keeps it from coming back unnoticed.
+    for architecture in sorted(actual_architectures):
+        symbols = subprocess.run(
+            ["nm", "-g", "-U", "-arch", architecture, archive_path],
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.split()
+        libintl_symbols = sorted({symbol for symbol in symbols if "libintl_" in symbol})
+        if libintl_symbols:
+            raise SystemExit(
+                f"[!] {identifier} ({architecture}) links GNU libintl (LGPL): "
+                f"{', '.join(libintl_symbols[:5])}"
+            )
+
     with open(modulemap_path, "r", encoding="utf-8") as handle:
         modulemap = handle.read()
     if "framework module libghostty" in modulemap:

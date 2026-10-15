@@ -357,6 +357,7 @@ public final class TerminalController {
         guard !runtimeInitialized else { return }
         runtimeInitialized = true
         GhosttyRuntimeResources.configureEnvironment()
+        TerminalLocaleEnvironment.configureEnvironment()
         ghostty_init(0, nil)
     }
 
