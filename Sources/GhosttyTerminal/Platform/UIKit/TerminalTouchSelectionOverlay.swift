@@ -25,6 +25,9 @@
             let grid: TerminalSelectionGrid
             let range: ClosedRange<Int>
             let offset: Int
+            /// The highlight itself, row shapes included: the same range can
+            /// cover different text once the program redraws under it.
+            let rects: [CGRect]
             let bounds: CGRect
             let tint: UIColor
         }
@@ -72,15 +75,16 @@
             textCells: ((Int) -> ClosedRange<Int>?)? = nil,
         ) {
             let next = Presentation(
-                grid: grid, range: range, offset: offset, bounds: bounds,
-                tint: tintColor.resolvedColor(with: traitCollection),
+                grid: grid, range: range, offset: offset,
+                rects: grid.rects(for: range, viewportOffset: offset, textCells: textCells),
+                bounds: bounds, tint: tintColor.resolvedColor(with: traitCollection),
             )
             guard next != presentation else { return }
             presentation = next
             CATransaction.begin()
             CATransaction.setDisableActions(true)
             let path = UIBezierPath()
-            for rect in grid.rects(for: range, viewportOffset: offset, textCells: textCells) {
+            for rect in next.rects {
                 path.append(UIBezierPath(rect: rect))
             }
             highlight.path = path.cgPath
