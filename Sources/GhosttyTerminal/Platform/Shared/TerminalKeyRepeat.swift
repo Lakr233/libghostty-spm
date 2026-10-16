@@ -21,10 +21,10 @@ enum TerminalKeyRepeat {
 
     /// Whether a held key repeats. A Cmd combo is a shortcut, not typing.
     /// A key that is also a registered `UIKeyCommand` (the Ctrl combos,
-    /// Escape) is delivered by that command — a repeat of its press would
-    /// double the command's own, or repeat a press the claim dropped. A key
-    /// the system already repeats (`isRepeatedBySystem`) would type every
-    /// held character twice.
+    /// Escape, a modified Return) is delivered by that command — a repeat
+    /// of its press would double the command's own, or repeat a press the
+    /// claim dropped. A key the system already repeats
+    /// (`isRepeatedBySystem`) would type every held character twice.
     static func repeats(
         usage: UInt16,
         isCommandModified: Bool,

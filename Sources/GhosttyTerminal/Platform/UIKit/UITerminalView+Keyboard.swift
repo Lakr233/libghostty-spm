@@ -18,10 +18,10 @@
         var touchCopyKeycodes: Set<UInt32> = []
         /// Signatures of keys already delivered this runloop turn by one of
         /// the two paths that can carry a key we register as a `UIKeyCommand`
-        /// (the Ctrl combos, Escape). One physical press can reach us twice —
-        /// `pressesBegan` and the matching command — and which arrives (or
-        /// both) varies by iPadOS version; whichever runs first claims the
-        /// press here.
+        /// (the Ctrl combos, Escape, a modified Return). One physical press
+        /// can reach us twice — `pressesBegan` and the matching command —
+        /// and which arrives (or both) varies by iPadOS version; whichever
+        /// runs first claims the press here.
         var recentKeyCommandDeliveries: Set<String> = []
         /// Keys loaned to the input method this runloop turn. The text input
         /// system claims them through any UITextInput mutation; whatever is
@@ -335,7 +335,8 @@
             }
 
             // The key command fallback may have sent this very key already
-            // (see `controlKeyCommands` and `escapeKeyCommands`); on systems
+            // (see `controlKeyCommands`, `escapeKeyCommands` and
+            // `modifiedReturnKeyCommands`); on systems
             // that deliver both, the first claim wins and this press stays
             // silent.
             if action == GHOSTTY_ACTION_PRESS,
@@ -372,7 +373,9 @@
                 derivedText = filteredIgnoringModifiers
             }
 
-            guard let text = derivedText, !text.isEmpty else {
+            // Return, Tab, Escape and Backspace still read as control bytes;
+            // the encoder derives them from the key with every modifier.
+            guard let text = TerminalInputText.keyEventText(derivedText) else {
                 return sendInputKeyEvent(keyEvent)
             }
 
@@ -411,6 +414,12 @@
                !filteredModifierFlags.contains(.command)
             {
                 return UIKeyCommand.inputEscape
+            }
+            if key.keyCode == .keyboardReturnOrEnter || key.keyCode == .keypadEnter,
+               !filteredModifierFlags.contains(.command),
+               !filteredModifierFlags.isDisjoint(with: [.shift, .control, .alternate])
+            {
+                return "\r"
             }
             guard filteredModifierFlags.contains(.control) else { return nil }
             return TerminalInputText.filteredFunctionKeyText(key.charactersIgnoringModifiers)
