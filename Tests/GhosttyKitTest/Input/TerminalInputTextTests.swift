@@ -1,3 +1,5 @@
+import Foundation
+import GhosttyKit
 @testable import GhosttyTerminal
 import Testing
 
@@ -82,6 +84,56 @@ struct TerminalInputTextTests {
         #expect(TerminalInputText.lineCount(in: "") == 0)
         #expect(TerminalInputText.lineCount(in: "echo ok") == 0)
         #expect(TerminalInputText.lineCount(in: "line 1\nline 2\nline 3") == 2)
+    }
+
+    @Test
+    func `key event text leaves control characters to the encoder`() {
+        for text in ["\r", "\n", "\t", "\u{1B}", "\u{08}", "\u{7F}", "\u{00}"] {
+            #expect(TerminalInputText.keyEventText(text) == nil)
+        }
+        #expect(TerminalInputText.keyEventText(nil) == nil)
+        #expect(TerminalInputText.keyEventText("") == nil)
+        #expect(TerminalInputText.keyEventText("a") == "a")
+        #expect(TerminalInputText.keyEventText(" ") == " ")
+        #expect(TerminalInputText.keyEventText("å") == "å")
+        #expect(TerminalInputText.keyEventText("你好") == "你好")
+    }
+}
+
+/// Shift+Return as the UIKit view builds it: Shift in the mods and marked
+/// consumed (the view spends every modifier but Ctrl and Cmd on the text).
+/// With `\r` as its text the kitty encoder dropped Shift and wrote `\r`,
+/// so Claude Code submitted instead of inserting a newline.
+@MainActor
+struct TerminalHardwareReturnEncodingTests {
+    private func shiftReturn(text: String?, on surface: TerminalSurface) {
+        var event = ghostty_input_key_s()
+        event.action = GHOSTTY_ACTION_PRESS
+        event.keycode = TerminalHardwareKeyRouter.appKitKeyCodeForUIKit(usage: 0x28)
+        event.mods = TerminalInputModifiers.shift.ghosttyMods
+        event.consumed_mods = TerminalInputModifiers.shift.ghosttyMods
+        guard let text = TerminalInputText.keyEventText(text) else {
+            _ = surface.sendKeyEvent(event)
+            return
+        }
+        text.withCString { pointer in
+            event.text = pointer
+            _ = surface.sendKeyEvent(event)
+        }
+    }
+
+    @Test
+    func `shift return keeps shift under the legacy encoding and kitty`() async {
+        let harness = await GhosttySurfaceHarness.make()
+        defer { harness.tearDown() }
+        guard let surface = harness.surface else { return }
+
+        shiftReturn(text: "\r", on: surface)
+        #expect(await harness.drain() == Data("\u{1B}[27;2;13~".utf8))
+
+        harness.receive("\u{1B}[>1u")
+        shiftReturn(text: "\r", on: surface)
+        #expect(await harness.drain() == Data("\u{1B}[13;2u".utf8))
     }
 }
 
