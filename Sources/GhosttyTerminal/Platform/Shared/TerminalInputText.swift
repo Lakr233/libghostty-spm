@@ -27,6 +27,21 @@ enum TerminalInputText {
         return text
     }
 
+    /// The text a hardware key event carries, or nil when it is empty or
+    /// starts with an ASCII control character (C0 or DEL): Return's `\r`,
+    /// Tab, Escape, Backspace. Ghostty encodes those from the key and its
+    /// modifiers. Sent as text, they make the kitty encoder strip the
+    /// modifiers marked consumed, so under the protocol Claude Code turns on
+    /// Shift+Enter reached the program as a bare `\r` and submitted. Ghostty's
+    /// macOS app sends no text for them either (`String.keyEventText`).
+    static func keyEventText(_ text: String?) -> String? {
+        guard let text, let scalar = text.unicodeScalars.first else { return nil }
+        if scalar.value < 0x20 || scalar.value == 0x7F {
+            return nil
+        }
+        return text
+    }
+
     static func lineCount(in text: String) -> Int {
         text.reduce(into: 0) { count, character in
             if character == "\n" {

@@ -68,6 +68,30 @@
             }
         }()
 
+        /// Return under Shift, Option or Control. On Mac Catalyst the text
+        /// input system takes Return before `pressesBegan` and hands it over
+        /// as `insertText("\n")`, which carries no modifiers: Shift+Return
+        /// reached the program as a plain Enter, and Claude Code submitted
+        /// the prompt instead of breaking the line. The bare key stays on
+        /// that route (`sendReturnKey`); a modified one is claimed here, the
+        /// way Escape is, and goes to the surface with its modifiers.
+        private static let modifiedReturnKeyCommands: [UIKeyCommand] = {
+            let modifierSets: [UIKeyModifierFlags] = [
+                .shift, .control, .alternate,
+                [.shift, .control], [.shift, .alternate], [.control, .alternate],
+                [.shift, .control, .alternate],
+            ]
+            return modifierSets.map { flags in
+                let command = UIKeyCommand(
+                    input: "\r",
+                    modifierFlags: flags,
+                    action: #selector(handleReturnKeyCommand(_:)),
+                )
+                command.wantsPriorityOverSystemBehavior = true
+                return command
+            }
+        }()
+
         /// Catalyst included: its text-input system also swallows Ctrl+letter
         /// before `pressesBegan` (the Control press itself arrives, the letter
         /// never does), and the key command is the only route left. The
@@ -84,6 +108,7 @@
             commands.append(contentsOf: Self.controlKeyCommands)
             if !inputHandler.hasMarkedText {
                 commands.append(contentsOf: Self.escapeKeyCommands)
+                commands.append(contentsOf: Self.modifiedReturnKeyCommands)
             }
             return commands
         }
@@ -128,11 +153,29 @@
             ))
         }
 
+        /// The modified Return command's action: Enter with the command's
+        /// modifiers, on the key path, so the terminal's key encoding
+        /// decides the bytes (`CSI 13;2u` under the kitty protocol).
+        @objc private func handleReturnKeyCommand(_ command: UIKeyCommand) {
+            guard claimKeyCommandDelivery(
+                input: "\r",
+                modifierFlags: command.modifierFlags,
+            ) else { return }
+            TerminalDebugLog.log(
+                .input,
+                "uikit key command input=return mods=0x\(String(command.modifierFlags.rawValue, radix: 16))",
+            )
+            _ = sendInputKey(TerminalKeyPress(
+                .enter,
+                modifiers: TerminalInputModifiers(from: command.modifierFlags),
+            ))
+        }
+
         /// Whether this path gets to deliver a key that is also registered
-        /// as a `UIKeyCommand` (a Ctrl combo, Escape). Whichever of
-        /// `pressesBegan` / the key command runs first wins the press; the
-        /// entry expires at the end of the runloop turn, before the key can
-        /// physically repeat.
+        /// as a `UIKeyCommand` (a Ctrl combo, Escape, a modified Return).
+        /// Whichever of `pressesBegan` / the key command runs first wins the
+        /// press; the entry expires at the end of the runloop turn, before
+        /// the key can physically repeat.
         func claimKeyCommandDelivery(
             input: String,
             modifierFlags: UIKeyModifierFlags,
