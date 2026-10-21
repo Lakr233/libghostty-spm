@@ -38,7 +38,17 @@ public enum TerminalPasteboardContent {
     /// any other verbatim — then the string. The order matters: a file
     /// copied in Finder or Files carries both its URL and its display name
     /// as the string, and taking the string first pasted the name.
+    ///
+    /// A link that is only the string read as one is not a link: UIKit
+    /// offers `public.url` for any text that starts like a scheme
+    /// (`Worker: 04`, `C:\path`), and since iOS 17 that parse
+    /// percent-encodes whatever is not legal in a URL instead of failing,
+    /// so the whole text pasted as `Worker:%2004%0A…`. Such a URL is
+    /// dropped and the string pastes as it was copied.
     static func text(string: String?, urls: [URL]) -> String? {
+        let urls = urls.filter { url in
+            url.isFileURL || string.map { !isReading(of: $0, url) } ?? true
+        }
         if !urls.isEmpty {
             return urls
                 .map { $0.isFileURL ? TerminalShellEscape.escape($0.path) : $0.absoluteString }
@@ -46,6 +56,16 @@ public enum TerminalPasteboardContent {
         }
         guard let string, !string.isEmpty else { return nil }
         return string
+    }
+
+    /// Whether `url` spells nothing but `string`: the two match once each
+    /// is percent-decoded, which undoes whichever encoding the parse chose.
+    /// A string that is no valid encoding (`50% off`) compares as written.
+    static func isReading(of string: String, _ url: URL) -> Bool {
+        func decoded(_ text: String) -> String {
+            (text.removingPercentEncoding ?? text).trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        return decoded(url.absoluteString) == decoded(string)
     }
 
     #if canImport(UIKit)
