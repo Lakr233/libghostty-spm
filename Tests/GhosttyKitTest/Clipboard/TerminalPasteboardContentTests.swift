@@ -28,6 +28,28 @@ struct TerminalPasteboardContentTests {
     }
 
     @Test
+    func `text a parse turned into a link pastes as the text`() throws {
+        let string = "Worker: 04\n构建: 22G100"
+        // What UIKit's `urls` reports for that text, and what
+        // `URL(string:)` makes of it: each encodes its own set.
+        let coerced = try #require(URL(string: "Worker:%2004%0A%E6%9E%84%E5%BB%BA:%2022G100"))
+        #expect(TerminalPasteboardContent.text(string: string, urls: [coerced]) == string)
+        let parsed = try #require(URL(string: string))
+        #expect(TerminalPasteboardContent.text(string: string, urls: [parsed]) == string)
+        let windows = try #require(URL(string: "C:%5Cpath"))
+        #expect(TerminalPasteboardContent.text(string: "C:\\path", urls: [windows]) == "C:\\path")
+        let sale = try #require(URL(string: "Sale:%2050%25%20off"))
+        #expect(TerminalPasteboardContent.text(string: "Sale: 50% off", urls: [sale]) == "Sale: 50% off")
+    }
+
+    @Test
+    func `a link copied as its own text pastes as that text`() throws {
+        let url = try #require(URL(string: "https://example.com/a%20b?q=1"))
+        #expect(TerminalPasteboardContent.text(string: "https://example.com/a b?q=1", urls: [url]) == "https://example.com/a b?q=1")
+        #expect(TerminalPasteboardContent.text(string: "https://example.com/a%20b?q=1", urls: [url]) == "https://example.com/a%20b?q=1")
+    }
+
+    @Test
     func `the string is the fallback and empty means nothing`() {
         #expect(TerminalPasteboardContent.text(string: "ls -la", urls: []) == "ls -la")
         #expect(TerminalPasteboardContent.text(string: "", urls: []) == nil)

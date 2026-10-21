@@ -361,7 +361,13 @@ platforms, and both apply upstream's `getOpinionatedStringContents` rule
 shell-escaped path, any other verbatim — then the string. The order is
 load-bearing: a file copied in Finder or Files carries its URL *and* its
 display name as the string, and UIKit once took the string first, so a
-copied screenshot pasted "Screenshot … AM" instead of a path. AppKit gets the
+copied screenshot pasted "Screenshot … AM" instead of a path. The one
+exception is a URL that is only the string read as one (`isReading(of:_:)`,
+equal once both are percent-decoded): UIKit — never AppKit — offers
+`public.url` for any text that starts like a scheme, and since iOS 17 the
+parse percent-encodes the rest instead of failing, so `Worker: 04` followed
+by Chinese pasted as `Worker:%2004%0A%E6…`. The UIKit drop loads the text
+beside the URLs for the same check. AppKit gets the
 URLs from `readObjects(forClasses: [NSURL.self])`. UIKit gets `public.url`
 items from `hasURLs` / `urls`, but those do not report `public.file-url`,
 which is what a file copied in Finder (Catalyst) or Files lands as — the
