@@ -37,8 +37,6 @@
     }
 
     extension UITerminalView {
-        static let touchScrollMultiplier: CGFloat = 3.0
-
         @objc func handleScrollWheelGesture(_ gesture: UIPanGestureRecognizer) {
             guard pointer.session.reported == nil else { return }
             switch gesture.state {
@@ -62,8 +60,7 @@
 
             // Ghostty's scroll C API has no key mods. The last mouse_pos
             // carries them, so a wheel event can target the cell under the
-            // pointer (tmux, vim). View points: Ghostty applies
-            // content_scale internally.
+            // pointer (tmux, vim).
             let point = pointer.lastLocation ?? gesture.location(in: self)
             sendPointerPosition(at: point, remember: pointer.lastLocation == nil)
 
@@ -72,9 +69,13 @@
             // ghostty's non-precision path reads the value as lines times
             // the scroll multiplier.
             let scrollMods = TerminalScrollModifiers(precision: true)
+            let pixels = TerminalScrollDistance.scrollPixels(
+                for: translation,
+                displayScale: resolvedDisplayScale(),
+            )
             surface?.sendMouseScroll(
-                x: Double(translation.x),
-                y: Double(translation.y),
+                x: Double(pixels.x),
+                y: Double(pixels.y),
                 mods: scrollMods.rawValue,
             )
         }
@@ -154,9 +155,9 @@
                 core.requestImmediateTick()
                 return
             }
-            let multiplier = Self.touchScrollMultiplier
+            let pixels = TerminalScrollDistance.scrollPixels(for: delta, displayScale: resolvedDisplayScale())
             let mods = TerminalScrollModifiers(precision: true, momentum: momentum)
-            surface?.sendMouseScroll(x: Double(delta.x * multiplier), y: Double(delta.y * multiplier), mods: mods.rawValue)
+            surface?.sendMouseScroll(x: Double(pixels.x), y: Double(pixels.y), mods: mods.rawValue)
         }
 
         func startMomentumScrolling(velocity: CGPoint) {
