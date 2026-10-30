@@ -359,7 +359,9 @@ public struct TerminalConfiguration: Sendable, Hashable {
         #else
             builder.withFontSize(14)
         #endif
-        builder.withFontThicken(true)
+        // `font-thicken` is left at Ghostty's own default, off. On it has
+        // CoreText smooth every glyph, which on macOS and Mac Catalyst
+        // draws Latin and CJK strokes visibly heavier than Ghostty does.
     }
 
     public var rendered: String {
