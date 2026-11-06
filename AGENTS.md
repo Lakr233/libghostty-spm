@@ -694,7 +694,7 @@ Two release tracks, decoupled since 1.4.0:
   rebuilds every target on a PR that touches `Ghostty.ref`, `Patches/`,
   `Script/apply-patches.sh`, `Script/build-ghostty.sh`,
   `Script/prepare-zig-lib.sh`, or `Script/support/`. When bumping, keep the Zig version pinned in build.yml
-  *and* source-build.yml (0.16.0 today) in sync with the pinned upstream's
+  *and* source-build.yml (0.17.0 today) in sync with the pinned upstream's
   `minimum_zig_version` (build.zig.zon) — and re-diff `Patches/zig/` against
   the new std, since `prepare-zig-lib.sh` looks the patch up by exact Zig
   version. **`Ghostty.build`** is the asset revision for one pinned
