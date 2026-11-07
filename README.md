@@ -225,7 +225,7 @@ only clicks and toggles the keyboard. The long-press viewport-snapshot sheet
 The package downloads a pre-built XCFramework. To rebuild libghostty from the Ghostty source:
 
 ```bash
-# Requires: zig (CI builds with 0.16.0 — the pinned upstream's minimum_zig_version)
+# Requires: zig (CI builds with 0.17.0 — the pinned upstream's minimum_zig_version)
 ./build.sh
 ./build.sh --platforms macos,ios --source /path/to/ghostty --skip-tests
 ```
