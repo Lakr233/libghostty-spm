@@ -33,6 +33,15 @@
             return surface?.paste(text: text) ?? false
         }
 
+        /// Paste text through paste protection — see
+        /// ``TerminalSurface/pasteWithProtection(text:)``. False with no
+        /// surface yet.
+        @discardableResult
+        func pasteWithProtection(text: String) -> Bool {
+            dismissTouchSelection()
+            return surface?.pasteWithProtection(text: text) ?? false
+        }
+
         /// Presses and releases a key, as if typed on a hardware keyboard —
         /// see ``TerminalSurface/sendKey(_:)``. Armed sticky Ctrl/Alt/Cmd
         /// apply to the key and are spent by it, as on the bundled accessory

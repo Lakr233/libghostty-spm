@@ -72,6 +72,28 @@ public final class TerminalSurface {
         return true
     }
 
+    /// Pastes text the way a clipboard paste goes: paste protection reads it
+    /// first, and text it flags as unsafe — a newline for a program without
+    /// bracketed paste — reaches the host as a
+    /// ``TerminalClipboardConfirmationRequest`` and lands only if allowed.
+    /// For text the user has not read, such as a drop. ``paste(text:)``
+    /// sends without asking.
+    @discardableResult
+    public func pasteWithProtection(text: String) -> Bool {
+        guard let s = surface else {
+            TerminalDebugLog.log(.input, "surface protected paste ignored: missing surface")
+            return false
+        }
+        TerminalDebugLog.log(
+            .input,
+            "surface protected paste text=\(TerminalDebugLog.describe(text))",
+        )
+        text.withCString { cStr in
+            ghostty_surface_paste_text(s, cStr, UInt(text.utf8.count))
+        }
+        return true
+    }
+
     @discardableResult
     public func sendMouseButton(
         state: ghostty_input_mouse_state_e,

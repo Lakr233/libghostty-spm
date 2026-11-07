@@ -15,7 +15,8 @@
     /// that is not the app's user could not have read it anyway. A dropped
     /// folder, link, or text pastes as text: a folder is a path the shell
     /// can already reach. Everything a drop delivers travels the text path,
-    /// like a paste; a path or a string is never keystrokes.
+    /// like a paste; a path or a string is never keystrokes. Dropped text is
+    /// untrusted, so it passes paste protection as a clipboard paste does.
     extension UITerminalView: UIDropInteractionDelegate {
         func setupDropInput() {
             addInteraction(UIDropInteraction(delegate: self))
@@ -46,7 +47,7 @@
                         return
                     }
                     TerminalDebugLog.log(.input, "drop files bytes=\(paths.utf8.count)")
-                    _ = surface?.paste(text: paths)
+                    _ = surface?.pasteWithProtection(text: paths)
                 }
                 return
             }
@@ -60,7 +61,7 @@
                     let deliver = { (string: String?) in
                         guard let self, let text = TerminalPasteboardContent.text(string: string, urls: urls) else { return }
                         TerminalDebugLog.log(.input, "drop urls count=\(urls.count)")
-                        _ = self.surface?.paste(text: text)
+                        _ = self.surface?.pasteWithProtection(text: text)
                     }
                     guard hasText else { return deliver(nil) }
                     _ = session.loadObjects(ofClass: NSString.self) { objects in
@@ -74,7 +75,7 @@
                     let text = objects.compactMap { ($0 as? NSString).map { $0 as String } }.joined()
                     guard let self, !text.isEmpty else { return }
                     TerminalDebugLog.log(.input, "drop text bytes=\(text.utf8.count)")
-                    _ = surface?.paste(text: text)
+                    _ = surface?.pasteWithProtection(text: text)
                 }
             }
         }

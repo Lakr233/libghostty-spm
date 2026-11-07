@@ -274,6 +274,7 @@ interchangeable:
 | --- | --- | --- | --- |
 | key path | `ghostty_surface_key` | `keyEvent` → `keyCallback` → key encoder | keystrokes, per terminal mode (legacy / modifyOtherKeys / Kitty) |
 | text path | `ghostty_surface_text` | `textCallback` → `completeClipboardPaste` | **a paste**, wrapped in `ESC[200~ … ESC[201~` when the app enabled bracketed paste (mode 2004) |
+| protected text path | `ghostty_surface_paste_text` | `pasteText` → `completeClipboardRequest` → paste protection | the same paste, once the host allowed it if Ghostty flagged it as unsafe |
 
 Upstream says it outright, on `ghostty_surface_text` in
 `src/apprt/embedded.zig` (the shipped `ghostty.h` documents no functions —
@@ -300,6 +301,15 @@ the only name that path answers to: 2.0.0 removed
 `TerminalSurface.sendText(_:)` primitive they wrapped, because hosts read
 those names as "type this" and sent `"ls\r"` through a paste.
 `TerminalSurface.paste(text:)` is the primitive the other two call.
+
+`pasteWithProtection(text:)`, on the same three, is that paste with paste
+protection in front of it: `ghostty_surface_paste_text` sends the text
+through `completeClipboardRequest` as a clipboard paste, so text Ghostty
+flags as unsafe waits for the host (see Clipboard Confirmation).
+`ghostty_surface_text` never asks. Use the protected one for text the user
+has not read; a drop does. `paste(text:)` stays unprotected for what the
+library or the host wrote itself: an IME commit, staged paths from the
+Paste button, a host's own string.
 
 Getting this backwards does not fail loudly — it produces symptoms that look
 like rendering or cursor bugs, because the shell is the thing that behaves
@@ -390,8 +400,10 @@ go the same way: items with a stageable type (`TerminalFileStaging.fileType(amon
 folder) are staged and their escaped paths sent on the text path; otherwise
 the dropped URLs (a folder, a link — `text(string:urls:)` again, so a folder
 pastes as its escaped path) or strings are sent as text. A drop never
-becomes keystrokes, and paste protection is not consulted for it — a drop is
-the user's own act, like the accessory bar's Paste button.
+becomes keystrokes, and every drop goes through `pasteWithProtection(text:)`:
+text dragged out of a page can carry a newline the user never saw, so an
+unsafe drop asks the host the way an unsafe Cmd+V does (upstream did the same
+for its macOS drop in `5580df602`, which added the C function).
 
 AppKit drops (`AppTerminalView+Drop.swift`, registered in `commonInit`) take
 the same road: file URLs paste as escaped paths, image data with no file
@@ -536,8 +548,8 @@ live surface's own options rebuilds it.
 
 Ghostty asks the host before a protected clipboard operation: an OSC 52 read
 (`clipboard-read = ask`, the default), an OSC 52 write when
-`clipboard-write = ask`, and a paste that paste protection flagged (newlines
-into a program without bracketed paste). `TerminalViewState` conforms to
+`clipboard-write = ask`, and a paste or a drop that paste protection flagged
+(newlines into a program without bracketed paste). `TerminalViewState` conforms to
 `TerminalSurfaceClipboardConfirmationDelegate` and forwards to
 `onClipboardConfirmationRequest`; while that hook is `nil` a program's read or
 write is denied silently and a paste the user started is allowed. A host that
@@ -820,10 +832,8 @@ Two release tracks, decoupled since 1.4.0:
   `ghostty_config_load_cli_args` / `ghostty_config_load_default_files` /
   `ghostty_config_load_recursive_files` (the controller only calls
   `ghostty_config_load_file` on its rendered config; `ghostty_config_get`
-  is bound for `background` alone — `TerminalController.backgroundColor`),
-  `ghostty_surface_paste_text` (a paste that consults paste protection;
-  `paste(text:)` stays on `ghostty_surface_text`) and
-  `ghostty_surface_quicklook_font` have no Swift wrapper yet
+  is bound for `background` alone — `TerminalController.backgroundColor`)
+  and `ghostty_surface_quicklook_font` have no Swift wrapper yet
 
 ### Example App Requirements
 
