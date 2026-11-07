@@ -42,16 +42,19 @@ struct TerminalHardwareKeyRouterTests {
         #expect(
             TerminalKeyEventHandler.shouldReplayInterpretedCommand(
                 #selector(NSResponder.insertTab(_:)),
+                modifierFlags: [],
             ),
         )
         #expect(
             TerminalKeyEventHandler.shouldReplayInterpretedCommand(
                 NSSelectorFromString("insertBacktab:"),
+                modifierFlags: [],
             ),
         )
         #expect(
             TerminalKeyEventHandler.shouldReplayInterpretedCommand(
                 #selector(NSResponder.moveUp(_:)),
+                modifierFlags: [],
             ),
         )
     }

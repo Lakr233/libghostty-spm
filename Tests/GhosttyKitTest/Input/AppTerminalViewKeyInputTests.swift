@@ -76,6 +76,54 @@
             #expect(await rig.take().visible == "\\e[13;3u")
         }
 
+        /// AppKit answers a Control chord with no Cocoa binding with
+        /// `doCommand(by: noop:)`, and the encoder has nothing to send for
+        /// some of them without the event's text: `ctrlSeq` has no entry for
+        /// a backtick or a comma.
+        @Test
+        func `an unbound Control chord keeps its text`() async {
+            let harness = await GhosttySurfaceHarness.make()
+            defer { harness.tearDown() }
+            let view = ScriptedInputView(frame: NSRect(x: 0, y: 0, width: 800, height: 500))
+            view.script = { _, view in view.doCommand(by: Selector(("noop:"))) }
+            let rig = AppKitInputRig(view: view)
+            defer { rig.tearDown() }
+
+            let backtick = Key(code: 50, characters: "`", ignoringModifiers: "`", flags: Key.leftControl)
+            let comma = Key(code: 43, characters: ",", ignoringModifiers: ",", flags: Key.leftControl)
+            let ctrlC = Key(code: 8, characters: "\u{03}", ignoringModifiers: "c", flags: Key.leftControl)
+
+            rig.press(backtick)
+            #expect(await rig.take().visible == "\\e[96;5u")
+            rig.press(comma)
+            #expect(await rig.take().visible == "\\e[44;5u")
+            rig.press(ctrlC)
+            #expect(await rig.take() == Data([0x03]))
+
+            rig.receive(Self.kittyOn)
+            rig.press(backtick)
+            #expect(await rig.take().visible == "\\e[96;5u")
+            rig.receive(Self.kittyOff)
+        }
+
+        /// A key that AppKit resolves to a real command stays a key: the
+        /// encoder builds it, and the event's text must not reach it.
+        @Test
+        func `an interpreted command replays without the event's text`() {
+            let noop = Selector(("noop:"))
+            let control = NSEvent.ModifierFlags.control
+
+            #expect(TerminalKeyEventHandler.shouldReplayInterpretedCommand(noop, modifierFlags: control) == false)
+            #expect(TerminalKeyEventHandler.shouldReplayInterpretedCommand(noop, modifierFlags: [control, .shift]) == false)
+            #expect(TerminalKeyEventHandler.shouldReplayInterpretedCommand(noop, modifierFlags: [control, .command]))
+            #expect(TerminalKeyEventHandler.shouldReplayInterpretedCommand(noop, modifierFlags: .command))
+            #expect(TerminalKeyEventHandler.shouldReplayInterpretedCommand(noop, modifierFlags: []))
+            #expect(TerminalKeyEventHandler.shouldReplayInterpretedCommand(
+                #selector(NSResponder.moveToBeginningOfParagraph(_:)),
+                modifierFlags: control,
+            ))
+        }
+
         @Test
         func `the left Option is Alt and the right one types Polish letters`() async {
             let harness = await GhosttySurfaceHarness.make()
