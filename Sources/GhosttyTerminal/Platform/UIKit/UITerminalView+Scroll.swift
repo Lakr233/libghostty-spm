@@ -60,7 +60,8 @@
 
             // Ghostty's scroll C API has no key mods. The last mouse_pos
             // carries them, so a wheel event can target the cell under the
-            // pointer (tmux, vim).
+            // pointer (tmux, vim). View points: Ghostty applies content_scale
+            // to a position, unlike the scroll delta below.
             let point = pointer.lastLocation ?? gesture.location(in: self)
             sendPointerPosition(at: point, remember: pointer.lastLocation == nil)
 
