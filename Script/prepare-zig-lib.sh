@@ -1,11 +1,12 @@
 #!/bin/bash
 
 # Stage a patched copy of the Zig standard library for a target the pinned
-# Zig does not fully know. Zig 0.15.2 knows the `visionos` OS tag but leaves
-# it out of the Darwin arms of a handful of `native_os` switches (fs, Dir
-# iteration, Child rusage, the DWARF unwinder), so a `-Dtarget=*-visionos`
-# build stops at `@compileError("unimplemented")`. The patch under
-# Patches/zig/ adds the tag to those arms and nothing else.
+# Zig does not fully support. Zig 0.17.0's `Io.Threaded` does not compile for
+# iOS or visionOS: `processReplace` reaches `getDevNullFd`, and `NullFile`
+# has no `fd` on those tags. Upstream stopped building Ghostty.xcframework
+# for iOS, so nothing there catches it. The patch under Patches/zig/ sets
+# `process.can_replace` false on those tags, as `can_spawn` already is, and
+# nothing else.
 #
 # The toolchain itself is never edited: the lib directory is copied under
 # the build cache, the patch is applied there, and the copy's path is
@@ -23,7 +24,7 @@ if [ ! -f .root ]; then
 fi
 
 CACHE_ROOT=${1:-}
-PATCH_NAME=${2:-visionos-std}
+PATCH_NAME=${2:-ios-visionos-std}
 
 if [ -z "$CACHE_ROOT" ]; then
     echo "Usage: $0 <cache_root> [patch_name]" >&2
