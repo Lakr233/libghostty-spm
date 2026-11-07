@@ -34,6 +34,14 @@
             surface?.paste(text: text) ?? false
         }
 
+        /// Paste text through paste protection — see
+        /// ``TerminalSurface/pasteWithProtection(text:)``. False when the
+        /// surface has not been created yet.
+        @discardableResult
+        func pasteWithProtection(text: String) -> Bool {
+            surface?.pasteWithProtection(text: text) ?? false
+        }
+
         /// Presses and releases a key, as if typed on a hardware keyboard —
         /// see ``TerminalSurface/sendKey(_:)``. An open IME composition is
         /// committed first, as it would be ahead of a hardware key. False

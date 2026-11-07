@@ -140,6 +140,18 @@ public final class TerminalViewState: ObservableObject {
         return surface.paste(text: text)
     }
 
+    /// Pastes text into the attached surface through paste protection — see
+    /// ``TerminalSurface/pasteWithProtection(text:)``. Unsafe text waits for
+    /// ``onClipboardConfirmationRequest``.
+    @discardableResult
+    public func pasteWithProtection(text: String) -> Bool {
+        guard let surface else {
+            TerminalDebugLog.log(.input, "view state protected paste ignored: missing surface")
+            return false
+        }
+        return surface.pasteWithProtection(text: text)
+    }
+
     /// Presses and releases a key on the attached surface, as if typed on a
     /// hardware keyboard — see ``TerminalSurface/sendKey(_:)``.
     @discardableResult

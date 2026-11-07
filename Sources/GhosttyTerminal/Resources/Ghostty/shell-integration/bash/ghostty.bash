@@ -153,7 +153,10 @@ _ghostty_precmd() {
     if _ghostty_feature title; then
         local directory="$PWD"
         [[ -n "$HOME" && ( "$directory" == "$HOME" || "$directory" == "$HOME"/* ) ]] && directory="~${directory#"$HOME"}"
-        builtin printf '\033]2;%s\007' "$directory"
+        # A directory name is the filesystem's, so it can carry the bytes that
+        # end this sequence and start another. Strip them, as the command
+        # title below does.
+        builtin printf '\033]2;%s\007' "${directory//[[:cntrl:]]/}"
     fi
 
     if _ghostty_feature cursor:steady; then

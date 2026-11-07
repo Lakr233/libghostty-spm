@@ -156,7 +156,9 @@ or a paste that paste protection flagged — through
 `TerminalViewState.onClipboardConfirmationRequest` (a delegate adopts
 `TerminalSurfaceClipboardConfirmationDelegate`); the host presents the request
 and answers `respond(allow:)`. While the hook is `nil`, a program's read or
-write is denied silently and a paste the user started is allowed.
+write is denied silently and a paste the user started is allowed. A drop goes
+through paste protection too, and `pasteWithProtection(text:)` gives a host's
+own untrusted text the same check; `paste(text:)` sends without asking.
 
 Dropping onto the terminal works the same way on iOS and Mac Catalyst: files
 and images are copied into the staging directory and their escaped paths are

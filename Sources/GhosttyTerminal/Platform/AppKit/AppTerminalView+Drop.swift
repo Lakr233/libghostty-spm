@@ -90,7 +90,7 @@
             switch dropPayload(from: pasteboard) {
             case let .text(text):
                 TerminalDebugLog.log(.input, "drop text bytes=\(text.utf8.count)")
-                return surface?.paste(text: text) ?? false
+                return surface?.pasteWithProtection(text: text) ?? false
             case let .image(type):
                 guard let (data, utType) = Self.encodedImage(in: pasteboard, type: type) else { return false }
                 TerminalFileStaging.stage(data: data, name: "image", type: utType) { [weak self] path in
@@ -99,7 +99,7 @@
                         return
                     }
                     TerminalDebugLog.log(.input, "drop image bytes=\(data.count)")
-                    _ = surface?.paste(text: path)
+                    _ = surface?.pasteWithProtection(text: path)
                 }
                 return true
             case nil:
