@@ -1,5 +1,5 @@
 diff --git a/include/ghostty.h b/include/ghostty.h
-index 518af3ff2..3a27e6b16 100644
+index 9a12b9cad..f1e7be879 100644
 --- a/include/ghostty.h
 +++ b/include/ghostty.h
 @@ -505,10 +505,26 @@ typedef enum {
@@ -29,7 +29,7 @@ index 518af3ff2..3a27e6b16 100644
    double scale_factor;
    float font_size;
    const char* working_directory;
-@@ -1176,6 +1192,8 @@ GHOSTTY_API ghostty_surface_config_s ghostty_surface_inherited_config(ghostty_su
+@@ -1184,6 +1200,8 @@ GHOSTTY_API ghostty_surface_config_s ghostty_surface_inherited_config(ghostty_su
  GHOSTTY_API void ghostty_surface_update_config(ghostty_surface_t, ghostty_config_t);
  GHOSTTY_API bool ghostty_surface_needs_confirm_quit(ghostty_surface_t);
  GHOSTTY_API bool ghostty_surface_process_exited(ghostty_surface_t);
@@ -39,41 +39,54 @@ index 518af3ff2..3a27e6b16 100644
  GHOSTTY_API void ghostty_surface_draw(ghostty_surface_t);
  GHOSTTY_API void ghostty_surface_set_content_scale(ghostty_surface_t, double, double);
 diff --git a/src/Surface.zig b/src/Surface.zig
-index 8eddc14c8..34450afb6 100644
+index 7f7b1df88..9fa963459 100644
 --- a/src/Surface.zig
 +++ b/src/Surface.zig
-@@ -639,39 +639,47 @@ pub fn init(
+@@ -662,45 +662,55 @@ pub fn init(
      // This separate block ({}) is important because our errdefers must
      // be scoped here to be valid.
      {
--        var env = rt_surface.defaultTermioEnv() catch |err| env: {
--            // If an error occurs, we don't want to block surface startup.
--            log.warn("error getting env map for surface err={}", .{err});
--            break :env global.environMap() catch std.process.Environ.Map.init(alloc);
--        };
--        errdefer env.deinit();
-+        const backend: termio.Backend = switch (rt_surface.termioBackend()) {
+-        // Exec.init takes ownership of the env even if it fails, so the
+-        // errdefer for it must not reach past the call.
+-        const env = termio_env: {
+-            var env = rt_surface.defaultTermioEnv() catch |err| env: {
+-                // If an error occurs, we don't want to block surface startup.
+-                log.warn("error getting env map for surface err={}", .{err});
+-                break :env global.environMap() catch std.process.Environ.Map.init(alloc);
+-            };
+-            errdefer env.deinit();
++        var backend: termio.Backend = switch (rt_surface.termioBackend()) {
 +            .exec => backend: {
-+                var env = rt_surface.defaultTermioEnv() catch |err| env: {
-+                    log.warn("error getting env map for surface err={}", .{err});
-+                    break :env global.environMap() catch std.process.Environ.Map.init(alloc);
++                // Exec.init takes ownership of the env even if it fails, so the
++                // errdefer for it must not reach past the call.
++                const env = termio_env: {
++                    var env = rt_surface.defaultTermioEnv() catch |err| env: {
++                        // If an error occurs, we don't want to block surface startup.
++                        log.warn("error getting env map for surface err={}", .{err});
++                        break :env global.environMap() catch std.process.Environ.Map.init(alloc);
++                    };
++                    errdefer env.deinit();
+ 
+-            // don't leak GHOSTTY_LOG to any subprocesses
+-            _ = env.orderedRemove("GHOSTTY_LOG");
++                    // don't leak GHOSTTY_LOG to any subprocesses
++                    _ = env.orderedRemove("GHOSTTY_LOG");
+ 
+-            var buf: [18]u8 = undefined;
+-            try env.put(
+-                "GHOSTTY_SURFACE_ID",
+-                std.mem.print(&buf, "0x{x:0>16}", .{self.id}) catch unreachable,
+-            );
++                    var buf: [18]u8 = undefined;
++                    try env.put(
++                        "GHOSTTY_SURFACE_ID",
++                        std.mem.print(&buf, "0x{x:0>16}", .{self.id}) catch unreachable,
++                    );
+ 
+-            break :termio_env env;
+-        };
++                    break :termio_env env;
 +                };
-+                errdefer env.deinit();
- 
--        // don't leak GHOSTTY_LOG to any subprocesses
--        _ = env.orderedRemove("GHOSTTY_LOG");
-+                _ = env.orderedRemove("GHOSTTY_LOG");
- 
--        var buf: [18]u8 = undefined;
--        try env.put(
--            "GHOSTTY_SURFACE_ID",
--            std.fmt.bufPrint(&buf, "0x{x:0>16}", .{self.id}) catch unreachable,
--        );
-+                var buf: [18]u8 = undefined;
-+                try env.put(
-+                    "GHOSTTY_SURFACE_ID",
-+                    std.fmt.bufPrint(&buf, "0x{x:0>16}", .{self.id}) catch unreachable,
-+                );
  
 -        // Initialize our IO backend
 -        var io_exec = try termio.Exec.init(alloc, .{
@@ -90,7 +103,7 @@ index 8eddc14c8..34450afb6 100644
 -            .rt_post_fork_info = .init(config),
 -        });
 -        errdefer io_exec.deinit();
-+                var io_exec = try termio.Exec.init(alloc, .{
++                const io_exec = try termio.Exec.init(alloc, .{
 +                    .command = command,
 +                    .env = env,
 +                    .env_override = config.env,
@@ -103,7 +116,6 @@ index 8eddc14c8..34450afb6 100644
 +                    .rt_pre_exec_info = .init(config),
 +                    .rt_post_fork_info = .init(config),
 +                });
-+                errdefer io_exec.deinit();
 +
 +                break :backend .{ .exec = io_exec };
 +            },
@@ -114,21 +126,22 @@ index 8eddc14c8..34450afb6 100644
 +                ),
 +            },
 +        };
++        errdefer backend.deinit();
  
 -        // Initialize our IO mailbox
          var io_mailbox = try termio.Mailbox.initSPSC(alloc);
          errdefer io_mailbox.deinit(alloc);
  
-@@ -679,7 +687,7 @@ pub fn init(
+@@ -712,7 +722,7 @@ pub fn init(
              .size = size,
              .full_config = config,
-             .config = try termio.Termio.DerivedConfig.init(alloc, config),
+             .config = io_config,
 -            .backend = .{ .exec = io_exec },
 +            .backend = backend,
              .mailbox = io_mailbox,
              .renderer_state = &self.renderer_state,
              .renderer_wakeup = render_thread.wakeup,
-@@ -1336,9 +1344,11 @@ fn childExitedAbnormally(
+@@ -1384,9 +1394,11 @@ fn childExitedAbnormally(
      const alloc = arena.allocator();
  
      // Build up our command for the error message
@@ -140,11 +153,11 @@ index 8eddc14c8..34450afb6 100644
 +        .host_managed => try alloc.dupe(u8, "host-managed session"),
 +    };
 +    defer alloc.free(command);
-     const runtime_str = try std.fmt.allocPrint(alloc, "{d} ms", .{info.runtime_ms});
+     const runtime_str = try alloc.print("{d} ms", .{info.runtime_ms});
  
      self.renderer_state.mutex.lockUncancelable(global.io());
 diff --git a/src/apprt/embedded.zig b/src/apprt/embedded.zig
-index 525bc856d..428cc21a4 100644
+index 697f0a786..0d04627a6 100644
 --- a/src/apprt/embedded.zig
 +++ b/src/apprt/embedded.zig
 @@ -16,6 +16,7 @@ const input = @import("../input.zig");
@@ -236,7 +249,7 @@ index 525bc856d..428cc21a4 100644
      pub fn rtApp(self: *const Surface) *App {
          return self.app;
      }
-@@ -1859,6 +1906,28 @@ pub const CAPI = struct {
+@@ -1899,6 +1946,28 @@ pub const CAPI = struct {
          return surface.core_surface.child_exited;
      }
  

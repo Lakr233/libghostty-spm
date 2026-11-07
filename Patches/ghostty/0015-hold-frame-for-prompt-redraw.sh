@@ -708,7 +708,7 @@ src.replace(
 """,
 )
 src.insert_before(
-    "        /// True if our renderer is using vsync. If true, the renderer or apprt\n",
+    "        /// Callback when the focus changes for the terminal this is rendering.\n",
     """        /// Whether the frame stays held for a prompt redraw; see updateFrame.
         /// Called on the render thread with the terminal state locked.
         fn promptRedrawHeld(self: *Self, t: *terminal.Terminal) bool {

@@ -26,14 +26,24 @@
             inputMethodHandler = TerminalTextInputHandler(view: view)
         }
 
+        private nonisolated static let noCocoaBindingSelector = Selector(("noop:"))
+
         nonisolated static func shouldReplayInterpretedCommand(
             _ selector: Selector,
+            modifierFlags: NSEvent.ModifierFlags,
         ) -> Bool {
             // AppKit sometimes resolves non-text keys into editing commands
             // (for example Shift-Tab -> insertBacktab:). In a terminal, those
             // commands still need to reach Ghostty as the original hardware key.
-            let _ = selector
-            return true
+            //
+            // `noop:` is the exception under Control: it says the chord has
+            // no Cocoa binding, not that it was a command. The encoder has no
+            // C0 entry for some of those chords (Control-` and Control-,), so
+            // without the event's text they reach the program as nothing.
+            // Ghostty's own view always sends the text. With Command held the
+            // chord stays as it was: the host's to claim, not the program's.
+            guard selector == Self.noCocoaBindingSelector else { return true }
+            return !modifierFlags.contains(.control) || modifierFlags.contains(.command)
         }
 
         func handleKeyDown(with event: NSEvent) {
@@ -71,7 +81,7 @@
 
             if let selector = interpretedCommandSelector {
                 interpretedCommandSelector = nil
-                if Self.shouldReplayInterpretedCommand(selector) {
+                if Self.shouldReplayInterpretedCommand(selector, modifierFlags: event.modifierFlags) {
                     sendKeyEvent(
                         for: event,
                         translationEvent: translationEvent,

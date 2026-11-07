@@ -110,9 +110,7 @@
                 return
             }
 
-            if TerminalKeyEventHandler.shouldReplayInterpretedCommand(selector) {
-                inputHandler?.recordInterpretedCommand(selector)
-            }
+            inputHandler?.recordInterpretedCommand(selector)
         }
 
         @IBAction open func copy(_: Any?) {

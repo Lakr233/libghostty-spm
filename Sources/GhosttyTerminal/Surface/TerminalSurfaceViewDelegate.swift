@@ -197,11 +197,13 @@ public enum TerminalOpenURLKind: Sendable {
     case unknown
     case text
     case html
+    case osc8
 
     init(_ raw: ghostty_action_open_url_kind_e) {
         switch raw {
         case GHOSTTY_ACTION_OPEN_URL_KIND_TEXT: self = .text
         case GHOSTTY_ACTION_OPEN_URL_KIND_HTML: self = .html
+        case GHOSTTY_ACTION_OPEN_URL_KIND_OSC8: self = .osc8
         default: self = .unknown
         }
     }

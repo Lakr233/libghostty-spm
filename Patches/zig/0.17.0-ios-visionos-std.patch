@@ -1,0 +1,11 @@
+--- a/std/process.zig
++++ b/std/process.zig
+@@ -254,7 +254,7 @@
+ /// process image. If this is `false` then calling `replace` or `replaceFile`
+ /// functions will return `error.OperationUnsupported`.
+ pub const can_replace = switch (native_os) {
+-    .windows, .haiku, .wasi => false,
++    .windows, .haiku, .wasi, .ios, .tvos, .visionos, .watchos => false,
+     else => true,
+ };
+ 

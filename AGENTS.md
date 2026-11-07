@@ -460,7 +460,10 @@ so in the code — "it's just text" is the mistake this section exists to preven
   scroll is sent with `precision: true`: UIKit delivers a discrete wheel
   notch as a point translation, not a line count, and ghostty's
   non-precision path would read it as lines times the scroll multiplier.
-  The wheel path sends the last pointer position (view points; Ghostty
+  Ghostty reads a precision delta as device pixels and applies no content
+  scale to it, so the finger, the momentum and the wheel all send
+  `TerminalScrollDistance.scrollPixels`: points times
+  `resolvedDisplayScale()`. The wheel path sends the last pointer position (view points; Ghostty
   applies content scale) before `sendMouseScroll` so a captured TUI can
   associate the wheel with the cell under the pointer. Pointer mods come
   from a live hover recognizer, else `GCKeyboard.coalesced` on iOS, else
@@ -694,7 +697,7 @@ Two release tracks, decoupled since 1.4.0:
   rebuilds every target on a PR that touches `Ghostty.ref`, `Patches/`,
   `Script/apply-patches.sh`, `Script/build-ghostty.sh`,
   `Script/prepare-zig-lib.sh`, or `Script/support/`. When bumping, keep the Zig version pinned in build.yml
-  *and* source-build.yml (0.16.0 today) in sync with the pinned upstream's
+  *and* source-build.yml (0.17.0 today) in sync with the pinned upstream's
   `minimum_zig_version` (build.zig.zon) — and re-diff `Patches/zig/` against
   the new std, since `prepare-zig-lib.sh` looks the patch up by exact Zig
   version. **`Ghostty.build`** is the asset revision for one pinned
@@ -705,11 +708,12 @@ Two release tracks, decoupled since 1.4.0:
   build.yml exits early on an existing tag, so nothing else republishes
   the asset; delete it again on the next `Ghostty.ref` bump. A new pin's
   storage tag does not exist until build.yml has run for it, and
-  release.yml refuses to cut a package until it does. The visionOS slices (xros, xrsimulator) build against a
-  patched Zig std only when `Patches/zig/` carries a patch for the Zig on
-  PATH (`Script/prepare-zig-lib.sh` — a copy under the build cache
-  exported as `ZIG_LIB_DIR`; the toolchain itself is never edited); Zig
-  0.16.0 needs none. Zig 0.16 also renamed Mac Catalyst from
+  release.yml refuses to cut a package until it does. The iOS and visionOS slices build against a
+  patched Zig std when `Patches/zig/` carries a patch for the Zig on PATH
+  (`Script/prepare-zig-lib.sh` — a copy under the build cache exported as
+  `ZIG_LIB_DIR`; the toolchain itself is never edited). Zig 0.17.0 needs
+  one: `Io.Threaded` does not compile for those tags, and upstream no
+  longer builds for iOS, so only our Source Build catches it. Zig 0.16 also renamed Mac Catalyst from
   `*-ios-macabi` to `*-maccatalyst`, its own OS tag — `0016-maccatalyst.sh`
   and `0017-zig-pkg-apple-targets.sh` give it the iOS arms in Ghostty and
   in the Zig packages (libxev, aro) under `<source>/zig-pkg/`.
@@ -817,7 +821,9 @@ Two release tracks, decoupled since 1.4.0:
   `ghostty_config_load_recursive_files` (the controller only calls
   `ghostty_config_load_file` on its rendered config; `ghostty_config_get`
   is bound for `background` alone — `TerminalController.backgroundColor`),
-  and `ghostty_surface_quicklook_font` have no Swift wrapper yet
+  `ghostty_surface_paste_text` (a paste that consults paste protection;
+  `paste(text:)` stays on `ghostty_surface_text`) and
+  `ghostty_surface_quicklook_font` have no Swift wrapper yet
 
 ### Example App Requirements
 
