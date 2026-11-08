@@ -20,6 +20,7 @@ extension TerminalViewState:
     TerminalSurfaceCommandFinishedDelegate,
     TerminalSurfaceLifecycleDelegate,
     TerminalSurfaceClipboardConfirmationDelegate,
+    TerminalSurfaceOpenURLHandlingDelegate,
     TerminalSurfaceColorChangeDelegate,
     TerminalSurfaceFontSizeDelegate
 {
@@ -176,6 +177,11 @@ extension TerminalViewState:
             return
         }
         onClipboardConfirmationRequest(request)
+    }
+
+    /// Not routed through `publishSoon`: Ghostty waits for the answer.
+    public func terminalShouldHandleOpenURL(_ url: String, kind: TerminalOpenURLKind) -> Bool {
+        onOpenURL?(url, kind) ?? false
     }
 
     public func terminalDidAttachSurface(_ surface: TerminalSurface) {

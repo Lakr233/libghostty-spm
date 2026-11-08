@@ -182,6 +182,27 @@ func applicationWillTerminate(_: UIApplication) {
 }
 ```
 
+### Opening Links
+
+A cmd-click on a link reaches the host through
+`TerminalViewState.onOpenURL` (a delegate adopts
+`TerminalSurfaceOpenURLHandlingDelegate`). Return `true` when the host opened
+the link, `false` to leave it to Ghostty's own opener. That opener spawns
+`/usr/bin/open` for a URL detected in the text, but on macOS it refuses an
+OSC 8 hyperlink (`kind == .osc8`), the kind that programs such as Claude Code
+print. A host that wants those links to open sets the hook and applies its own
+policy to them:
+
+```swift
+state.onOpenURL = { url, _ in
+    guard let url = URL(string: url),
+          ["http", "https", "mailto"].contains(url.scheme?.lowercased())
+    else { return false }
+    NSWorkspace.shared.open(url)
+    return true
+}
+```
+
 ### Surface Snapshots and Host View Subclasses
 
 `TerminalView.snapshotImage()` renders the surface's current on-screen
