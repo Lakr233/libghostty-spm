@@ -110,9 +110,12 @@ fi
 
 mkdir -p \
     "$OUTPUT_DIR/lib" \
+    "$OUTPUT_DIR/include" \
     "$GLOBAL_CACHE_DIR" \
     "$LOCAL_CACHE_DIR" \
     "$MODULE_CACHE_DIR"
+
+./Script/stage-source-notices.sh "$SOURCE_DIR" "$OUTPUT_DIR/include/Licenses"
 
 ZIG_BUILD_COMMAND=(
     zig build
@@ -200,6 +203,8 @@ module libghostty {
 EOF
 
 echo "[*] built archive: $OUTPUT_DIR/lib/libghostty.a"
+
+./Script/stage-source-notices.sh --verify-source "$SOURCE_DIR" "$OUTPUT_DIR/include/Licenses"
 
 # Record the inputs this cache was built from (success path only).
 printf "%s" "$CURRENT_STAMP" > "$STAMP_FILE"

@@ -311,6 +311,15 @@ MIT License. See [LICENSE](LICENSE) for details.
 
 The bundled `libghostty` binary is built from [Ghostty](https://ghostty.org), MIT License, Copyright (c) 2024 Mitchell Hashimoto, Ghostty contributors.
 
+New XCFramework builds carry that source's exact license and root notices in
+each slice's `Headers/Licenses/ghostty/`, with this package's MIT license kept
+separately in `Headers/Licenses/libghostty-spm/`. `Licenses/manifest.json` records
+the actual source origins, commits, committed trees and notice hashes. Applied
+source changes are preserved in a hashed patch sidecar, including nonignored
+added files. Staging refuses source changes during compilation, and assembly
+refuses differing notice contexts across slices. Existing published assets are
+not rewritten or assigned inferred source provenance by these scripts.
+
 `Sources/GhosttyTerminal/Resources/terminfo/` is the `xterm-ghostty` terminfo entry compiled from Ghostty's `src/terminfo/ghostty.zig` (same MIT License and copyright).
 
 `Sources/GhosttyTerminal/Resources/Ghostty/shell-integration/` is this package's own bash and zsh integration, MIT License, written from scratch — Ghostty's own bash and zsh integration scripts are GPLv3 and are not shipped. `bash/bash-preexec.sh` is vendored from [bash-preexec](https://github.com/rcaloras/bash-preexec), MIT License; see [LICENSE-bash-preexec.md](Sources/GhosttyTerminal/Resources/Ghostty/shell-integration/bash/LICENSE-bash-preexec.md).

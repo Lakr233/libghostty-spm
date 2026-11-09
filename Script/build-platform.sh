@@ -54,6 +54,9 @@ build_variant() {
         libraries+=("$target_dir/lib/libghostty.a")
         if [ -z "$first_headers" ]; then
             first_headers="$target_dir/include"
+        else
+            ./Script/stage-source-notices.sh --compare \
+                "$first_headers/Licenses" "$target_dir/include/Licenses"
         fi
     done
 
