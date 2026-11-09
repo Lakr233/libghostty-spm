@@ -347,7 +347,7 @@
 
         open func selectionContextMenuElements() -> [UIMenuElement] {
             let copy = UIAction(
-                title: String(localized: "Copy", bundle: .module),
+                title: String(localized: "Copy", bundle: .ghosttyTerminal),
                 image: UIImage(systemName: "doc.on.doc"),
             ) { [weak self] _ in
                 self?.copySelectedTextToPasteboard()
