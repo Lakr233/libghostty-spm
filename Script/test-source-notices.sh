@@ -107,6 +107,53 @@ export PATH="$temporary/tools:$PATH"
 unzip -p "$temporary/releases/GhosttyKit.xcframework.zip" \
     GhosttyKit.xcframework/ios-arm64/Headers/Licenses/ghostty/LICENSE | cmp - "$temporary/original/ghostty/LICENSE"
 
+python3 - "$temporary/releases/GhosttyKit.xcframework.zip" "$temporary" <<'PY'
+import copy
+from pathlib import Path
+import stat
+import sys
+import zipfile
+
+root = Path(sys.argv[2])
+framework = "GhosttyKit.xcframework"
+headers = framework + "/ios-arm64/Headers"
+target = root / "BinaryTarget" / framework
+
+def link(archive, name, destination):
+    entry = zipfile.ZipInfo(name)
+    entry.create_system = 3
+    entry.external_attr = (stat.S_IFLNK | 0o777) << 16
+    archive.writestr(entry, str(destination))
+
+with zipfile.ZipFile(sys.argv[1]) as original:
+    with zipfile.ZipFile(root / "symlink-notice.zip", "w") as malformed:
+        for entry in original.infolist():
+            changed = copy.copy(entry)
+            if entry.filename == headers + "/Licenses/ghostty/LICENSE":
+                changed.create_system = 3
+                changed.external_attr = (stat.S_IFLNK | 0o777) << 16
+            malformed.writestr(changed, original.read(entry))
+    with zipfile.ZipFile(root / "external-headers.zip", "w") as malformed:
+        for entry in original.infolist():
+            if not entry.filename.startswith(headers + "/"):
+                malformed.writestr(copy.copy(entry), original.read(entry))
+        link(malformed, headers, target / "ios-arm64/Headers")
+        assert not any("/Licenses/" in entry.filename for entry in malformed.infolist())
+    with zipfile.ZipFile(root / "external-framework.zip", "w") as malformed:
+        link(malformed, framework, target)
+    with zipfile.ZipFile(root / "internal-headers.zip", "w") as contained:
+        for entry in original.infolist():
+            changed = copy.copy(entry)
+            if entry.filename.startswith(headers + "/"):
+                changed.filename = headers + "Internal/" + entry.filename[len(headers)+1:]
+            contained.writestr(changed, original.read(entry))
+        link(contained, headers, "HeadersInternal")
+PY
+./Script/verify-xcframework.sh "$temporary/internal-headers.zip"
+refuses ./Script/verify-xcframework.sh "$temporary/symlink-notice.zip"
+refuses ./Script/verify-xcframework.sh "$temporary/external-framework.zip"
+refuses ./Script/verify-xcframework.sh "$temporary/external-headers.zip"
+
 cp -R "$temporary/variants/iphoneos" "$temporary/variants/mismatched"
 rm -r "$temporary/variants/mismatched/include/Licenses"
 cp -R "$temporary/changed" "$temporary/variants/mismatched/include/Licenses"

@@ -95,6 +95,9 @@ for library in libraries:
             raise SystemExit(f"[!] {identifier} missing required file: {required_path}")
 
     notices = os.path.join(headers_dir, "Licenses")
+    framework_root = os.path.realpath(xcframework)
+    if os.path.commonpath([framework_root, os.path.realpath(notices)]) != framework_root:
+        raise SystemExit(f"[!] {identifier} notices escape the xcframework through an alias")
     collector = os.path.join(os.getcwd(), "Script", "stage-source-notices.sh")
     subprocess.run([collector, "--check", notices], check=True)
     if first_notices is not None:
