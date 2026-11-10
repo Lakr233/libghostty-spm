@@ -1,0 +1,439 @@
+diff --git a/src/Surface.zig b/src/Surface.zig
+index 3906912..ddec630 100644
+--- a/src/Surface.zig
++++ b/src/Surface.zig
+@@ -3761,7 +3761,16 @@ pub fn scrollCallback(
+             return;
+         }
+ 
+-        if (y.delta != 0) {
++        if (scroll_mods.precision and yoff != 0) {
++            // Precision scrolls move the viewport by the pixel: the whole
++            // amount (the rows above plus what stayed pending) goes to
++            // smoothScrollViewport, which keeps the remainder itself.
++            const cell_h: f64 = @floatFromInt(self.size.cell.height);
++            const up_px = @as(f64, @floatFromInt(y.delta)) * cell_h +
++                self.mouse.pending_scroll_y;
++            self.mouse.pending_scroll_y = 0;
++            self.smoothScrollViewport(up_px);
++        } else if (y.delta != 0) {
+             // Modify our viewport, this requires a lock since it affects
+             // rendering. We have to switch signs here because our delta
+             // is negative down but our viewport is positive down.
+@@ -3772,6 +3781,42 @@ pub fn scrollCallback(
+     try self.queueRender();
+ }
+ 
++/// Smooth scrolling (a libghostty-spm patch). Scrolls the viewport by `up_px`
++/// pixels toward the scrollback (negative: toward the active area): whole
++/// rows move the viewport, the rest becomes `renderer_state.scroll_frac_px`,
++/// how far the grid is drawn above the viewport's first row. The fraction is
++/// always in [0, cell height) and is dropped (zero) where there is nothing
++/// to show past it: at the top of the scrollback and when the viewport
++/// reaches the active area. The renderer also ignores it once the viewport
++/// moves for any other reason (see `renderer.State.scroll_frac_offset`).
++///
++/// Precondition: the renderer_state mutex must be held.
++fn smoothScrollViewport(self: *Surface, up_px: f64) void {
++    const cell_h: f64 = @floatFromInt(self.size.cell.height);
++    if (cell_h <= 0) return;
++
++    const pages = &self.io.terminal.screens.active.pages;
++    const before = pages.scrollbar();
++    const frac: f64 = if (before.offset == self.renderer_state.scroll_frac_offset)
++        self.renderer_state.scroll_frac_px
++    else
++        0;
++
++    // Pixels from the top of the current first row down to the new top.
++    const target = frac - up_px;
++    const rows = @floor(target / cell_h);
++    var new_frac = target - rows * cell_h;
++    const delta: isize = @intFromFloat(rows);
++    if (delta != 0) self.io.terminal.scrollViewport(.{ .delta = delta });
++
++    const after = pages.scrollbar();
++    const moved = @as(isize, @intCast(after.offset)) - @as(isize, @intCast(before.offset));
++    if (moved != delta or after.offset + after.len >= after.total) new_frac = 0;
++
++    self.renderer_state.scroll_frac_px = @floatCast(new_frac);
++    self.renderer_state.scroll_frac_offset = after.offset;
++}
++
+ /// This is called when the content scale of the surface changes. The surface
+ /// can then update any DPI-sensitive state.
+ pub fn contentScaleCallback(self: *Surface, content_scale: apprt.ContentScale) !void {
+diff --git a/src/renderer/State.zig b/src/renderer/State.zig
+index 1184221..d90cd39 100644
+--- a/src/renderer/State.zig
++++ b/src/renderer/State.zig
+@@ -33,6 +33,16 @@ preedit: ?Preedit = null,
+ /// need about the mouse.
+ mouse: Mouse = .{},
+ 
++/// Smooth scrolling: how far, in pixels, the viewport is scrolled past the
++/// top of its first row, in [0, cell height). The renderer draws the grid
++/// that much higher and fills the bottom with one overscan row. It only
++/// applies while the viewport's scrollbar offset still equals
++/// `scroll_frac_offset`; any other viewport move (output, keybindings,
++/// resize) makes it stale, and it is then ignored. Written by the surface
++/// with the mutex held.
++scroll_frac_px: f32 = 0,
++scroll_frac_offset: usize = 0,
++
+ /// The number of threads currently waiting to acquire `mutex` via
+ /// `lockDemand`. This is not protected by the mutex; it is read by
+ /// hot lock/unlock loops (the IO parse thread) in `yieldToDemand` to
+diff --git a/src/renderer/generic.zig b/src/renderer/generic.zig
+index 2e4dc84..1735935 100644
+--- a/src/renderer/generic.zig
++++ b/src/renderer/generic.zig
+@@ -1728,6 +1728,7 @@ pub fn Renderer(comptime GraphicsAPI: type) type {
+                 preedit: ?renderer.State.Preedit,
+                 scrollbar: terminal.Scrollbar,
+                 overlay_features: []const Overlay.Feature,
++                scroll_frac_px: f32,
+             };
+ 
+             // Update all our data as tightly as possible within the mutex.
+@@ -1811,6 +1812,27 @@ pub fn Renderer(comptime GraphicsAPI: type) type {
+                     break :next now_ms + delay;
+                 };
+ 
++                // Get our scrollbar out of the terminal. We synchronize
++                // the scrollbar read with frame data updates because this
++                // naturally limits the number of calls to this method (it
++                // can be expensive) and also makes it so we don't need another
++                // cross-thread mailbox message within the IO path.
++                const scrollbar = state.terminal.screens.active.pages.scrollbar();
++
++                // Smooth scrolling (a libghostty-spm patch): the surface's
++                // fractional row only counts while the viewport is still
++                // where the surface left it. With one, capture one overscan
++                // row below the viewport to fill the bottom edge.
++                const scroll_frac_px: f32 = if (state.scroll_frac_px > 0 and
++                    state.scroll_frac_offset == scrollbar.offset)
++                    state.scroll_frac_px
++                else
++                    0;
++                self.terminal_state.overscan_request = if (scroll_frac_px > 0)
++                    .{ .below = 1 }
++                else
++                    .{};
++
+                 // Begin the update of our terminal state. Work that
+                 // doesn't require terminal access (e.g. style
+                 // denormalization) is deferred to the endUpdate call
+@@ -1827,13 +1849,6 @@ pub fn Renderer(comptime GraphicsAPI: type) type {
+                     state.terminal.flags.search_viewport_dirty = true;
+                 }
+ 
+-                // Get our scrollbar out of the terminal. We synchronize
+-                // the scrollbar read with frame data updates because this
+-                // naturally limits the number of calls to this method (it
+-                // can be expensive) and also makes it so we don't need another
+-                // cross-thread mailbox message within the IO path.
+-                const scrollbar = state.terminal.screens.active.pages.scrollbar();
+-
+                 // Get our preedit state
+                 const preedit: ?renderer.State.Preedit = preedit: {
+                     const p = state.preedit orelse break :preedit null;
+@@ -1893,6 +1908,7 @@ pub fn Renderer(comptime GraphicsAPI: type) type {
+                     .preedit = preedit,
+                     .scrollbar = scrollbar,
+                     .overlay_features = overlay_features,
++                    .scroll_frac_px = scroll_frac_px,
+                 };
+             };
+ 
+@@ -1999,6 +2015,21 @@ pub fn Renderer(comptime GraphicsAPI: type) type {
+                     log.warn("error rebuilding GPU cells err={}", .{err});
+                 };
+ 
++                // Smooth scrolling: shift the whole grid up by the
++                // fractional row. It needs the overscan row below; without
++                // it (the viewport follows the active area) it is dropped.
++                {
++                    const frac: f32 = if (self.terminal_state.overscan.below > 0)
++                        critical.scroll_frac_px
++                    else
++                        0;
++                    const offset_y = -frac;
++                    if (self.uniforms.content_offset[1] != offset_y) {
++                        self.uniforms.content_offset = .{ 0, offset_y };
++                        self.cells_rebuilt = true;
++                    }
++                }
++
+                 // The scrollbar is only emitted during draws so we also
+                 // check the scrollbar cache here and update if needed.
+                 // This is pretty fast.
+@@ -2970,13 +3001,23 @@ pub fn Renderer(comptime GraphicsAPI: type) type {
+         ) Allocator.Error!void {
+             const state: *terminal.RenderState = &self.terminal_state;
+ 
++            // The GPU grid holds the viewport plus any overscan row below it
++            // (smooth scrolling). Uncaptured overscan rows stay empty.
++            const grid_rows: terminal.size.CellCountInt =
++                state.rows + state.overscan_request.below;
++
+             const grid_size_diff =
+-                self.cells.size.rows != state.rows or
++                self.cells.size.rows != grid_rows or
+                 self.cells.size.columns != state.cols;
+ 
++            // Only the Metal shaders clip to the viewport so far.
++            if (comptime @hasField(@TypeOf(self.uniforms), "viewport_rows")) {
++                self.uniforms.viewport_rows = state.rows;
++            }
++
+             if (grid_size_diff) {
+                 var new_size = self.cells.size;
+-                new_size.rows = state.rows;
++                new_size.rows = grid_rows;
+                 new_size.columns = state.cols;
+                 try self.cells.resize(self.alloc, new_size);
+ 
+@@ -3024,10 +3065,15 @@ pub fn Renderer(comptime GraphicsAPI: type) type {
+             // the viewport is shorter than the cell contents buffer, we align
+             // the top of the viewport with the top of the contents buffer.
+             const row_len: usize = @min(
+-                state.rows,
++                state.rowDataRange().end,
+                 self.cells.size.rows,
+             );
+ 
++            // Overscan rows that were requested but not captured.
++            for (row_len..self.cells.size.rows) |y| {
++                self.cells.clear(@intCast(y));
++            }
++
+             // Determine our x/y range for preedit. We don't want to render anything
+             // here because we will render the preedit separately.
+             const preedit_range: ?PreeditRange = if (preedit) |preedit_v| preedit: {
+@@ -3294,7 +3340,7 @@ pub fn Renderer(comptime GraphicsAPI: type) type {
+                         &state.colors.palette,
+                         state.colors.background,
+                     );
+-                } else if (y == self.cells.size.rows - 1) {
++                } else if (y == state.rows - 1) {
+                     self.uniforms.padding_extend.down = !rowNeverExtendBg(
+                         row,
+                         cells_raw,
+diff --git a/src/renderer/metal/shaders.zig b/src/renderer/metal/shaders.zig
+index b14068f..06fcdf9 100644
+--- a/src/renderer/metal/shaders.zig
++++ b/src/renderer/metal/shaders.zig
+@@ -206,9 +206,21 @@ pub const Uniforms = extern struct {
+     /// Size of a single cell in pixels, unscaled.
+     cell_size: [2]f32 align(8),
+ 
++    /// Pixel offset applied to every cell, glyph and image, for smooth
++    /// scrolling. Zero means the grid is drawn as is. When
++    /// it is not zero, everything is clipped to the viewport (the grid
++    /// area inside the padding).
++    content_offset: [2]f32 align(8) = .{ 0, 0 },
++
+     /// Size of the grid in columns and rows.
+     grid_size: [2]u16 align(4),
+ 
++    /// Rows of the grid that are the viewport; the rest of `grid_size` are
++    /// overscan rows below it (smooth scrolling). Only read while
++    /// `content_offset` is not zero. Fits in the padding before
++    /// `grid_padding`, so the layout of the other fields is unchanged.
++    viewport_rows: u16 align(2) = 0,
++
+     /// The padding around the terminal grid in pixels. In order:
+     /// top, right, bottom, left.
+     grid_padding: [4]f32 align(16),
+diff --git a/src/renderer/opengl/shaders.zig b/src/renderer/opengl/shaders.zig
+index b268b1f..a827440 100644
+--- a/src/renderer/opengl/shaders.zig
++++ b/src/renderer/opengl/shaders.zig
+@@ -171,6 +171,10 @@ pub const Uniforms = extern struct {
+     /// Size of a single cell in pixels, unscaled.
+     cell_size: [2]f32 align(8),
+ 
++    /// See the Metal Uniforms. The GLSL shaders apply the offset but do not
++    /// clip yet.
++    content_offset: [2]f32 align(8) = .{ 0, 0 },
++
+     /// Size of the grid in columns and rows.
+     grid_size: [2]u16 align(4),
+ 
+diff --git a/src/renderer/shaders/glsl/cell_bg.f.glsl b/src/renderer/shaders/glsl/cell_bg.f.glsl
+index fa48c67..d265c46 100644
+--- a/src/renderer/shaders/glsl/cell_bg.f.glsl
++++ b/src/renderer/shaders/glsl/cell_bg.f.glsl
+@@ -12,7 +12,7 @@ layout(binding = 1, std430) readonly buffer bg_cells {
+ 
+ vec4 cell_bg() {
+     uvec2 grid_size = unpack2u16(grid_size_packed_2u16);
+-    ivec2 grid_pos = ivec2(floor((gl_FragCoord.xy - grid_padding.wx) / cell_size));
++    ivec2 grid_pos = ivec2(floor((gl_FragCoord.xy - grid_padding.wx - content_offset) / cell_size));
+     bool use_linear_blending = (bools & USE_LINEAR_BLENDING) != 0;
+ 
+     vec4 bg = vec4(0.0);
+diff --git a/src/renderer/shaders/glsl/cell_text.v.glsl b/src/renderer/shaders/glsl/cell_text.v.glsl
+index 7e38e2f..f846c0a 100644
+--- a/src/renderer/shaders/glsl/cell_text.v.glsl
++++ b/src/renderer/shaders/glsl/cell_text.v.glsl
+@@ -47,7 +47,7 @@ void main() {
+     bool use_linear_blending = (bools & USE_LINEAR_BLENDING) != 0;
+ 
+     // Convert the grid x, y into world space x, y by accounting for cell size
+-    vec2 cell_pos = cell_size * vec2(grid_pos);
++    vec2 cell_pos = cell_size * vec2(grid_pos) + content_offset;
+ 
+     int vid = gl_VertexID;
+ 
+diff --git a/src/renderer/shaders/glsl/common.glsl b/src/renderer/shaders/glsl/common.glsl
+index 1a7ea03..af19992 100644
+--- a/src/renderer/shaders/glsl/common.glsl
++++ b/src/renderer/shaders/glsl/common.glsl
+@@ -15,6 +15,7 @@ layout(binding = 1, std140) uniform Globals {
+     uniform mat4 projection_matrix;
+     uniform vec2 screen_size;
+     uniform vec2 cell_size;
++    uniform vec2 content_offset;
+     uniform uint grid_size_packed_2u16;
+     uniform vec4 grid_padding;
+     uniform uint padding_extend;
+diff --git a/src/renderer/shaders/glsl/image.v.glsl b/src/renderer/shaders/glsl/image.v.glsl
+index 779fae3..9849386 100644
+--- a/src/renderer/shaders/glsl/image.v.glsl
++++ b/src/renderer/shaders/glsl/image.v.glsl
+@@ -40,7 +40,7 @@ void main() {
+ 
+     // The position of our image starts at the top-left of the grid cell and
+     // adds the source rect width/height components.
+-    vec2 image_pos = (cell_size * grid_pos) + cell_offset;
++    vec2 image_pos = (cell_size * grid_pos) + cell_offset + content_offset;
+     image_pos += dest_size * corner;
+ 
+     gl_Position = projection_matrix * vec4(image_pos.xy, 1.0, 1.0);
+diff --git a/src/renderer/shaders/shaders.metal b/src/renderer/shaders/shaders.metal
+index 4e02b63..1f36360 100644
+--- a/src/renderer/shaders/shaders.metal
++++ b/src/renderer/shaders/shaders.metal
+@@ -13,7 +13,9 @@ struct Uniforms {
+   float4x4 projection_matrix;
+   float2 screen_size;
+   float2 cell_size;
++  float2 content_offset;
+   ushort2 grid_size;
++  ushort viewport_rows;
+   float4 grid_padding;
+   uint8_t padding_extend;
+   float min_contrast;
+@@ -443,6 +445,25 @@ fragment float4 bg_image_fragment(
+   return rgba;
+ }
+ 
++//-------------------------------------------------------------------
++// Content offset (smooth scrolling, a libghostty-spm patch)
++//-------------------------------------------------------------------
++
++// Height in pixels of the viewport: the grid area inside the padding. With
++// overscan the grid has more rows than this; they are clipped.
++float viewport_height(constant Uniforms& uniforms) {
++  return float(uniforms.viewport_rows) * uniforms.cell_size.y;
++}
++
++// Whether a fragment at pixel position `position` falls outside the
++// viewport while the grid is offset, i.e. must be clipped. With no offset
++// nothing is clipped, so glyphs may overhang into the padding as before.
++bool content_clipped(constant Uniforms& uniforms, float4 position) {
++  if (uniforms.content_offset.y == 0.0f) return false;
++  float y = position.y - uniforms.grid_padding.x;
++  return y < 0.0f || y >= viewport_height(uniforms);
++}
++
+ //-------------------------------------------------------------------
+ // Cell Background Shader
+ //-------------------------------------------------------------------
+@@ -453,7 +474,29 @@ fragment float4 cell_bg_fragment(
+   constant Uniforms& uniforms [[buffer(1)]],
+   constant uchar4 *cells [[buffer(2)]]
+ ) {
+-  int2 grid_pos = int2(floor((in.position.xy - uniforms.grid_padding.wx) / uniforms.cell_size));
++  float2 pos = in.position.xy - uniforms.grid_padding.wx;
++
++  // Rows that exist on the screen: the grid can hold more (overscan), but
++  // padding extension always extends the viewport's last row.
++  int view_rows = uniforms.grid_size.y;
++  bool below_view = false;
++
++  // Smooth scrolling: inside the viewport the grid is offset;
++  // the padding keeps its usual unshifted mapping.
++  if (uniforms.content_offset.y != 0.0f) {
++    float view_h = viewport_height(uniforms);
++    view_rows = uniforms.viewport_rows;
++    below_view = pos.y >= view_h;
++    if (pos.y >= 0.0f && !below_view) {
++      pos -= uniforms.content_offset;
++      // Past the grid there is nothing to extend: show the background.
++      if (pos.y < 0.0f || pos.y >= float(uniforms.grid_size.y) * uniforms.cell_size.y) {
++        return float4(0.0);
++      }
++    }
++  }
++
++  int2 grid_pos = int2(floor(pos / uniforms.cell_size));
+ 
+   float4 bg = float4(0.0);
+ 
+@@ -479,9 +522,10 @@ fragment float4 cell_bg_fragment(
+     } else {
+       return bg;
+     }
+-  } else if (grid_pos.y > uniforms.grid_size.y - 1) {
++  } else if (grid_pos.y > uniforms.grid_size.y - 1 ||
++             (below_view && grid_pos.y > view_rows - 1)) {
+     if (uniforms.padding_extend & EXTEND_DOWN) {
+-      grid_pos.y = uniforms.grid_size.y - 1;
++      grid_pos.y = view_rows - 1;
+     } else {
+       return bg;
+     }
+@@ -560,7 +604,7 @@ vertex CellTextVertexOut cell_text_vertex(
+   constant uchar4 *bg_colors [[buffer(2)]]
+ ) {
+   // Convert the grid x, y into world space x, y by accounting for cell size
+-  float2 cell_pos = uniforms.cell_size * float2(in.grid_pos);
++  float2 cell_pos = uniforms.cell_size * float2(in.grid_pos) + uniforms.content_offset;
+ 
+   // We use a triangle strip with 4 vertices to render quads,
+   // so we determine which corner of the cell this vertex is in
+@@ -681,6 +725,8 @@ fragment float4 cell_text_fragment(
+   texture2d<float> textureColor [[texture(1)]],
+   constant Uniforms& uniforms [[buffer(1)]]
+ ) {
++  if (content_clipped(uniforms, in.position)) discard_fragment();
++
+   constexpr sampler textureSampler(
+     coord::pixel,
+     address::clamp_to_edge,
+@@ -820,11 +866,12 @@ vertex ImageVertexOut image_vertex(
+ 
+   // The position of our image starts at the top-left of the grid cell and
+   // adds the source rect width/height components.
+-  float2 image_pos = (uniforms.cell_size * in.grid_pos) + in.cell_offset;
++  float2 image_pos = (uniforms.cell_size * in.grid_pos) + in.cell_offset + uniforms.content_offset;
+   image_pos += in.dest_size * corner;
+ 
+   out.position =
+       uniforms.projection_matrix * float4(image_pos.x, image_pos.y, 0.0f, 1.0f);
++
+   out.tex_coord = tex_coord;
+   return out;
+ }
+@@ -834,6 +881,8 @@ fragment float4 image_fragment(
+   texture2d<float> image [[texture(0)]],
+   constant Uniforms& uniforms [[buffer(1)]]
+ ) {
++  if (content_clipped(uniforms, in.position)) discard_fragment();
++
+   constexpr sampler textureSampler(
+     coord::pixel,
+     address::clamp_to_edge,
