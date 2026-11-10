@@ -57,10 +57,37 @@ struct InMemoryTerminalPendingOperationsTests {
         #expect(queue.isEmpty)
     }
 
+    /// The detached cap bounds live output. A replay is a reconstruction:
+    /// cut short it is a state that never existed, and counted against the
+    /// cap it would push the live output behind it out.
+    @Test
+    func `a replay is counted apart and survives a trim`() {
+        var queue = InMemoryTerminalPendingOperations()
+        queue.append(.write(Data("0123".utf8)))
+        queue.append(.replay(Data("history".utf8)))
+        queue.appendCoalescing(Data("45".utf8))
+
+        #expect(queue.count == 3)
+        #expect(queue.writeByteCount == 6)
+        #expect(queue.replayByteCount == 7)
+
+        queue.trimWrites(toLimit: 3)
+
+        #expect(queue.writeByteCount == 3)
+        #expect(queue.replayByteCount == 7)
+        #expect(text(queue.popFirst()) == "3")
+        #expect(text(queue.popFirst()) == "replay:history")
+        #expect(queue.replayByteCount == 0)
+        #expect(text(queue.popFirst()) == "45")
+        #expect(queue.isEmpty)
+    }
+
     private func text(_ operation: InMemoryTerminalPendingOperations.Operation?) -> String? {
         switch operation {
         case let .write(data)?:
             String(decoding: data, as: UTF8.self)
+        case let .replay(data)?:
+            "replay:" + String(decoding: data, as: UTF8.self)
         case let .processExit(exitCode, _)?:
             "exit:\(exitCode)"
         case nil:

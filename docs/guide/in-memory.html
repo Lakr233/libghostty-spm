@@ -33,6 +33,7 @@
   <strong>On this page:</strong>
   <a href="#session">Session</a>
   <a href="#output">Output</a>
+  <a href="#replay">Replay</a>
   <a href="#viewport">Viewport</a>
   <a href="#exit">Exit</a>
 </nav>
@@ -58,6 +59,12 @@ terminal.configuration = TerminalSurfaceOptions(
 <p>Use UTF-8 strings for simple demos and <code>Data</code> for exact byte streams.</p>
 <pre><code class="language-swift">session.receive("hello from host\r\n")
 session.receive(Data([0x1B, 0x5B, 0x32, 0x4A])) // ESC [ 2 J
+</code></pre>
+
+<h2 id="replay">Replay history</h2>
+<p>Bytes the terminal has already seen once &mdash; a snapshot restored into a new surface, the backlog of a session you reattach to &mdash; go through <code>receiveReplay</code>. They are parsed like any output and keep their place among the <code>receive</code> calls around them, but the queries in them (device attributes, cursor and status reports, OSC 10/11) are not answered a second time, so nothing is typed into the shell. Pass a whole screen in one call. A replay received before the surface attaches waits for it and is not subject to the 1 MiB cap on early output.</p>
+<pre><code class="language-swift">session.receiveReplay(snapshotBytes)
+session.receive(liveBytes)
 </code></pre>
 
 <h2 id="viewport">Read viewport text</h2>

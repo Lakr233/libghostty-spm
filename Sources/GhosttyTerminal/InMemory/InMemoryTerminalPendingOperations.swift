@@ -9,6 +9,9 @@ import Foundation
 struct InMemoryTerminalPendingOperations {
     enum Operation {
         case write(Data)
+        /// Reconstructed history: handed to the surface through the entry
+        /// that parses it without answering its queries.
+        case replay(Data)
         case processExit(exitCode: UInt32, runtimeMilliseconds: UInt64)
     }
 
@@ -24,6 +27,10 @@ struct InMemoryTerminalPendingOperations {
     private var head = 0
     private(set) var count = 0
     private(set) var writeByteCount = 0
+    /// Replay bytes are counted apart from live writes: the detached cap
+    /// (`trimWrites`) bounds live output only, so a large replay waiting for
+    /// a surface neither gets cut nor pushes the live output behind it out.
+    private(set) var replayByteCount = 0
     /// Numbers every append, so a waiter can tell when everything appended
     /// before it has left the queue — handed over or trimmed away.
     private(set) var appendedSequence = 0
@@ -34,8 +41,10 @@ struct InMemoryTerminalPendingOperations {
     }
 
     mutating func append(_ operation: Operation) {
-        if case let .write(data) = operation {
-            writeByteCount += data.count
+        switch operation {
+        case let .write(data): writeByteCount += data.count
+        case let .replay(data): replayByteCount += data.count
+        case .processExit: break
         }
         appendedSequence += 1
         storage.append(Entry(operation: operation, sequence: appendedSequence))
@@ -64,8 +73,10 @@ struct InMemoryTerminalPendingOperations {
             head += 1
             guard let entry else { continue }
             count -= 1
-            if case let .write(data) = entry.operation {
-                writeByteCount -= data.count
+            switch entry.operation {
+            case let .write(data): writeByteCount -= data.count
+            case let .replay(data): replayByteCount -= data.count
+            case .processExit: break
             }
             retiredSequence = entry.sequence
             compact()
@@ -75,7 +86,8 @@ struct InMemoryTerminalPendingOperations {
         return nil
     }
 
-    /// Drops the oldest queued bytes past `limit`; process exits are kept.
+    /// Drops the oldest queued live bytes past `limit`; replays and process
+    /// exits are kept.
     mutating func trimWrites(toLimit limit: Int) {
         var excess = writeByteCount - limit
         var index = head
