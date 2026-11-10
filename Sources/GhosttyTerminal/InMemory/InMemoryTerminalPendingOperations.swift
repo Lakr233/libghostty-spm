@@ -111,6 +111,27 @@ struct InMemoryTerminalPendingOperations {
         }
     }
 
+    /// Drops every queued write and replay and returns their byte count;
+    /// process exits are kept, in order.
+    mutating func removeAllOutput() -> Int {
+        var dropped = 0
+        for index in head ..< storage.count {
+            guard let entry = storage[index] else { continue }
+            switch entry.operation {
+            case let .write(data), let .replay(data):
+                dropped += data.count
+                storage[index] = nil
+                count -= 1
+                retiredSequence = max(retiredSequence, entry.sequence)
+            case .processExit:
+                break
+            }
+        }
+        writeByteCount = 0
+        replayByteCount = 0
+        return dropped
+    }
+
     /// Amortized O(1): the consumed prefix is dropped only once it is at
     /// least half the storage.
     private mutating func compact() {

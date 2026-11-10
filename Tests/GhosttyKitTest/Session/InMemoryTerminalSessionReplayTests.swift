@@ -94,6 +94,87 @@ struct InMemoryTerminalSessionReplayTests {
     }
 }
 
+/// `discardPendingOutput` is for a host about to replace the screen: what
+/// the surface has not started parsing is dropped, not parsed and then
+/// overwritten.
+struct InMemoryTerminalSessionDiscardTests {
+    @Test
+    func `discarding drops what is queued and spares the write in flight and the exit`() {
+        let writeStarted = DispatchSemaphore(value: 0)
+        let gate = DispatchSemaphore(value: 0)
+        let events = LockedValues<String>()
+        let session = InMemoryTerminalSession(
+            write: { _ in },
+            resize: { _ in },
+            surfaceWrite: { _, data in
+                let text = String(decoding: data, as: UTF8.self)
+                events.append("write:" + text)
+                if text == "in flight" {
+                    writeStarted.signal()
+                    gate.wait()
+                }
+            },
+            surfaceReplay: { _, data in
+                events.append("replay:" + String(decoding: data, as: UTF8.self))
+            },
+            processExit: { _, exitCode, _ in
+                events.append("exit:\(exitCode)")
+            },
+        )
+        session.setSurface(testSurface(0x150))
+
+        session.receive("in flight")
+        #expect(writeStarted.wait(timeout: .now() + 10) == .success)
+        session.receive("queued")
+        session.receiveReplay(Data("stale".utf8))
+        session.finish(exitCode: 4, runtimeMilliseconds: 0)
+
+        #expect(session.discardPendingOutput() == 11)
+        #expect(session.pendingOutputByteCount == 0)
+
+        session.receiveReplay(Data("fresh".utf8))
+        gate.signal()
+        #expect(session.waitForPendingOutput())
+
+        #expect(events.values == ["write:in flight", "exit:4", "replay:fresh"])
+    }
+
+    @Test
+    func `discarding output that waits for a surface leaves nothing for the next one`() {
+        let events = LockedValues<String>()
+        let session = makeSession(events)
+
+        session.receive(Data(repeating: 0x61, count: 3 << 20))
+        session.receiveReplay(Data("stale".utf8))
+        #expect(session.discardPendingOutput() == (1 << 20) + 5)
+        #expect(session.discardPendingOutput() == 0)
+
+        session.receive("live")
+        session.setSurface(testSurface(0x160))
+        #expect(session.waitForPendingOutput())
+
+        #expect(events.values == ["write:live"])
+    }
+
+    /// A host that paused its transport on the backlog handler resumes it
+    /// when the backlog is thrown away, not only when it is parsed.
+    @Test
+    func `discarding a backlog reports low water`() {
+        let backlog = LockedValues<Bool>()
+        let session = InMemoryTerminalSession(
+            write: { _ in },
+            resize: { _ in },
+            surfaceWrite: { _, _ in },
+        )
+        session.setOutputBacklogHandler(highWater: 4096, lowWater: 1024) { backlog.append($0) }
+
+        session.receive(Data(repeating: 0x61, count: 8192))
+        #expect(backlog.values == [true])
+        session.discardPendingOutput()
+        #expect(backlog.values == [true, false])
+    }
+}
+
 /// The same bytes through both entries of a real surface: the queries are
 /// answered when they arrive live and not when they are replayed, and the
 /// text between them reaches the screen either way.

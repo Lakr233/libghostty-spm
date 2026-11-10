@@ -219,6 +219,24 @@ public final class InMemoryTerminalSession: @unchecked Sendable {
         )
     }
 
+    /// Drops every byte passed to ``receive(_:)`` or ``receiveReplay(_:)``
+    /// that the terminal has not started parsing, and returns how many.
+    ///
+    /// For a host that keeps the terminal's state somewhere else and is
+    /// about to replace the screen with a replay of it: output queued for a
+    /// surface that is not drawing (the app is in the background, the view
+    /// is hidden) would otherwise be parsed first, every title and bell in
+    /// it going through the app mailbox a tick at a time, only to be
+    /// overwritten. The write a surface is parsing when this is called runs
+    /// to its end, and a queued ``finish(exitCode:runtimeMilliseconds:)``
+    /// stays queued. Queries in the dropped bytes are never answered.
+    @discardableResult
+    public func discardPendingOutput() -> Int {
+        let dropped = surfaceAccess.discardPendingOutput()
+        TerminalDebugLog.log(.output, "pending output discarded bytes=\(dropped)")
+        return dropped
+    }
+
     /// Bytes passed to ``receive(_:)`` or ``receiveReplay(_:)`` that the
     /// terminal has not parsed yet.
     ///

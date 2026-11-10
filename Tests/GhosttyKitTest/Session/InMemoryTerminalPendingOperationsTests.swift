@@ -82,6 +82,29 @@ struct InMemoryTerminalPendingOperationsTests {
         #expect(queue.isEmpty)
     }
 
+    @Test
+    func `removing all output keeps the exits and retires what it drops`() {
+        var queue = InMemoryTerminalPendingOperations()
+        queue.append(.write(Data("0123".utf8)))
+        #expect(text(queue.popFirst()) == "0123")
+        queue.append(.write(Data("45".utf8)))
+        queue.append(.processExit(exitCode: 3, runtimeMilliseconds: 0))
+        queue.append(.replay(Data("history".utf8)))
+        queue.append(.write(Data("6".utf8)))
+
+        #expect(queue.removeAllOutput() == 10)
+
+        #expect(queue.count == 1)
+        #expect(queue.writeByteCount == 0)
+        #expect(queue.replayByteCount == 0)
+        #expect(queue.retiredSequence == queue.appendedSequence)
+        #expect(text(queue.popFirst()) == "exit:3")
+        #expect(queue.isEmpty)
+
+        queue.appendCoalescing(Data("7".utf8))
+        #expect(text(queue.popFirst()) == "7")
+    }
+
     private func text(_ operation: InMemoryTerminalPendingOperations.Operation?) -> String? {
         switch operation {
         case let .write(data)?:

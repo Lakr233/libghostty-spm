@@ -149,6 +149,19 @@ final class InMemoryTerminalSurfaceAccess: @unchecked Sendable {
         backlogChange?()
     }
 
+    /// Drops the output still queued, attached or not, and returns its byte
+    /// count. A write a surface is already parsing runs to its end.
+    @discardableResult
+    func discardPendingOutput() -> Int {
+        condition.lock()
+        let dropped = operations.removeAllOutput()
+        pendingTrimOwed = false
+        let backlogChange = takeBacklogChange()
+        condition.unlock()
+        backlogChange?()
+        return dropped
+    }
+
     /// Bytes received and not yet handed to a surface, live and replayed.
     var pendingByteCount: Int {
         condition.lock()

@@ -197,6 +197,7 @@ public final class TerminalController {
     public func receive(_ data: Data)
     public func receive(_ string: String)
     public func receiveReplay(_ data: Data)
+    @discardableResult public func discardPendingOutput() -&gt; Int
     public func sendInput(_ data: Data)
     public func finish(exitCode: UInt32, runtimeMilliseconds: UInt64)
 }

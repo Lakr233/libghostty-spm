@@ -66,6 +66,10 @@ session.receive(Data([0x1B, 0x5B, 0x32, 0x4A])) // ESC [ 2 J
 <pre><code class="language-swift">session.receiveReplay(snapshotBytes)
 session.receive(liveBytes)
 </code></pre>
+<p>If the replay replaces the whole screen, output still queued ahead of it is wasted work: <code>discardPendingOutput()</code> drops whatever the terminal has not started parsing and returns the byte count. Only call it when you hold the terminal&rsquo;s state elsewhere and are about to replay it; the dropped bytes are gone, and queries in them are never answered.</p>
+<pre><code class="language-swift">session.discardPendingOutput()
+session.receiveReplay(snapshotBytes)
+</code></pre>
 
 <h2 id="viewport">Read viewport text</h2>
 <p><code>readViewportText()</code> returns the visible grid as a UTF-8 string. It reads viewport rows and separates them with <code>\n</code>.</p>
