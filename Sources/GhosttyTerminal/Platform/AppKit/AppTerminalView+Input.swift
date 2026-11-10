@@ -255,9 +255,19 @@
                 precision: event.hasPreciseScrollingDeltas,
                 momentum: TerminalScrollModifiers.momentumFrom(phase: event.momentumPhase),
             )
+            // A precise delta is in view points and Ghostty reads it as
+            // pixels (`TerminalScrollDistance`). A wheel notch is a line
+            // count and takes no scale.
+            var delta = CGPoint(x: event.scrollingDeltaX, y: event.scrollingDeltaY)
+            if event.hasPreciseScrollingDeltas {
+                delta = TerminalScrollDistance.scrollPixels(
+                    for: delta,
+                    displayScale: CGFloat(currentScaleFactor()),
+                )
+            }
             surface?.sendMouseScroll(
-                x: event.scrollingDeltaX,
-                y: event.scrollingDeltaY,
+                x: Double(delta.x),
+                y: Double(delta.y),
                 mods: scrollMods.rawValue,
             )
         }

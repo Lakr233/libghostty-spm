@@ -475,7 +475,9 @@ so in the code — "it's just text" is the mistake this section exists to preven
   Ghostty reads a precision delta as device pixels and applies no content
   scale to it, so the finger, the momentum and the wheel all send
   `TerminalScrollDistance.scrollPixels`: points times
-  `resolvedDisplayScale()`. The wheel path sends the last pointer position (view points; Ghostty
+  `resolvedDisplayScale()` (AppKit's `scrollWheel` does the same with a
+  precise delta and the backing scale factor; a wheel notch there is a line
+  count and is sent as is). The wheel path sends the last pointer position (view points; Ghostty
   applies content scale) before `sendMouseScroll` so a captured TUI can
   associate the wheel with the cell under the pointer. Pointer mods come
   from a live hover recognizer, else `GCKeyboard.coalesced` on iOS, else
