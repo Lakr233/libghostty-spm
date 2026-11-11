@@ -122,10 +122,27 @@ extension TerminalController {
             userdata: userdata,
             supports_selection_clipboard: true,
             wakeup_cb: terminalControllerWakeupCallback,
-            action_cb: terminalControllerActionCallback,
+            action_cb: { app, target, action in
+                terminalControllerActionCallback(appPtr: app, target: target, action: action)
+            },
             read_clipboard_cb: terminalControllerReadClipboardCallback,
-            confirm_read_clipboard_cb: terminalControllerConfirmReadClipboardCallback,
-            write_clipboard_cb: terminalControllerWriteClipboardCallback,
+            confirm_read_clipboard_cb: { userdata, confirm, state, request in
+                terminalControllerConfirmReadClipboardCallback(
+                    userdata: userdata,
+                    confirm: confirm,
+                    statePtr: state,
+                    request: request,
+                )
+            },
+            write_clipboard_cb: { userdata, clipboard, contents, count, confirm in
+                terminalControllerWriteClipboardCallback(
+                    userdata: userdata,
+                    clipboard: clipboard,
+                    contents: contents,
+                    contentsLen: count,
+                    confirm: confirm,
+                )
+            },
             close_surface_cb: terminalControllerCloseSurfaceCallback,
         )
 
