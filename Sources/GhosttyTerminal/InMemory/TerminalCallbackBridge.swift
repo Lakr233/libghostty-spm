@@ -31,7 +31,8 @@ final class TerminalCallbackBridge {
     func handleAction(_ action: ghostty_action_s) {
         switch action.tag {
         case GHOSTTY_ACTION_SET_TITLE:
-            if let cStr = action.action.set_title.title {
+            let titlePointer: UnsafePointer<CChar>? = action.action.set_title.title
+            if let cStr = titlePointer {
                 let title = String(cString: cStr)
                 TerminalDebugLog.log(
                     .actions,
@@ -110,8 +111,10 @@ final class TerminalCallbackBridge {
 
         case GHOSTTY_ACTION_DESKTOP_NOTIFICATION:
             let payload = action.action.desktop_notification
-            let title = payload.title.map { String(cString: $0) } ?? ""
-            let body = payload.body.map { String(cString: $0) } ?? ""
+            let titlePointer: UnsafePointer<CChar>? = payload.title
+            let bodyPointer: UnsafePointer<CChar>? = payload.body
+            let title = titlePointer.map { String(cString: $0) } ?? ""
+            let body = bodyPointer.map { String(cString: $0) } ?? ""
             TerminalDebugLog.log(
                 .actions,
                 "callback action=desktop_notification title=\(TerminalDebugLog.describe(title)) body=\(TerminalDebugLog.describe(body))",
@@ -122,7 +125,8 @@ final class TerminalCallbackBridge {
         case GHOSTTY_ACTION_OPEN_URL:
             let payload = action.action.open_url
             let kind = TerminalOpenURLKind(payload.kind)
-            let url: String = payload.url.map { ptr in
+            let urlPointer: UnsafePointer<CChar>? = payload.url
+            let url: String = urlPointer.map { ptr in
                 // Ghostty provides a length-prefixed string; respect the
                 // documented length rather than trusting a NUL terminator.
                 let buf = UnsafeBufferPointer(start: ptr, count: Int(payload.len))
@@ -147,8 +151,9 @@ final class TerminalCallbackBridge {
 
         case GHOSTTY_ACTION_MOUSE_OVER_LINK:
             let payload = action.action.mouse_over_link
+            let urlPointer: UnsafePointer<CChar>? = payload.url
             let url: String? = {
-                guard let ptr = payload.url, payload.len > 0 else { return nil }
+                guard let ptr = urlPointer, payload.len > 0 else { return nil }
                 let buf = UnsafeBufferPointer(start: ptr, count: Int(payload.len))
                 return String(decoding: buf.map(UInt8.init), as: UTF8.self)
             }()
@@ -161,7 +166,8 @@ final class TerminalCallbackBridge {
 
         case GHOSTTY_ACTION_PWD:
             let payload = action.action.pwd
-            if let cStr = payload.pwd {
+            let pathPointer: UnsafePointer<CChar>? = payload.pwd
+            if let cStr = pathPointer {
                 let pwd = String(cString: cStr)
                 TerminalDebugLog.log(
                     .actions,
@@ -188,7 +194,8 @@ final class TerminalCallbackBridge {
                 )
 
         case GHOSTTY_ACTION_START_SEARCH:
-            let needle = action.action.start_search.needle.map { String(cString: $0) }
+            let needlePointer: UnsafePointer<CChar>? = action.action.start_search.needle
+            let needle = needlePointer.map { String(cString: $0) }
             TerminalDebugLog.log(.actions, "callback action=start_search needle=\(TerminalDebugLog.describe(needle ?? ""))")
             (delegate as? any TerminalSurfaceSearchDelegate)?
                 .terminalDidStartSearch(needle: needle?.isEmpty == false ? needle : nil)
