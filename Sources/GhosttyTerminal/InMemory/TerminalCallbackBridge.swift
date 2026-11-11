@@ -7,6 +7,7 @@
 
 import Foundation
 import GhosttyKit
+import QuartzCore
 
 /// Dispatches C runtime callbacks to a ``TerminalSurfaceViewDelegate``.
 ///
@@ -19,6 +20,11 @@ final class TerminalCallbackBridge {
     /// Raw surface pointer for use in C callbacks (e.g. clipboard).
     nonisolated(unsafe) var rawSurface: ghostty_surface_t?
     var scrollbar: TerminalScrollbar?
+    /// When `scrollbar` was last reported. The report is posted by the
+    /// renderer and read on a main-thread tick, a frame or more after the
+    /// scroll that caused it; the smooth-scroll mirror compares this with
+    /// its last send to tell a report of that scroll from an older one.
+    var scrollbarStamp: CFTimeInterval = 0
     var onCellSizeChange: ((UInt32, UInt32) -> Void)?
     var onRenderRequest: (() -> Void)?
     var onMouseShape: ((ghostty_action_mouse_shape_e) -> Void)?
@@ -174,6 +180,7 @@ final class TerminalCallbackBridge {
         case GHOSTTY_ACTION_SCROLLBAR:
             let payload = action.action.scrollbar
             scrollbar = TerminalScrollbar(total: payload.total, offset: payload.offset, len: payload.len)
+            scrollbarStamp = CACurrentMediaTime()
             TerminalDebugLog.log(
                 .actions,
                 "callback action=scrollbar total=\(payload.total) offset=\(payload.offset) len=\(payload.len)",

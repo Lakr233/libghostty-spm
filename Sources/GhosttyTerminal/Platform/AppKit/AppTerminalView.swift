@@ -24,6 +24,7 @@
         var pointer: PointerSelectionState = .init()
         var focusBridge: FocusBridgeState = .init()
         var drop: DropState = .init()
+        var smoothScroll: SmoothScrollState = .init()
 
         open weak var delegate: (any TerminalSurfaceViewDelegate)? {
             get { core.delegate }

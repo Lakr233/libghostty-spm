@@ -489,6 +489,27 @@ so in the code — "it's just text" is the mistake this section exists to preven
   hover recognizer must run simultaneously with the others and must not
   cancel touches. Do not wrap the view in a host `ScrollView` that steals
   wheel or pan events.
+- With `0022-pixel-smooth-scrolling.patch` a precision scroll of the primary
+  screen moves the viewport by the pixel, and it can stop between rows,
+  where Ghostty's hit testing and `TerminalSelectionGrid`, both counting
+  whole rows, are a row off. The C API reports the row (the scrollbar, on a
+  later tick) and never the pixels, so a view that sends such scrolls keeps
+  its own copy of the position (`TerminalSmoothScrollPosition` in
+  `Metrics/`, the engine's arithmetic mirrored, unit-tested), sends whole
+  pixels only so the copy cannot drift by a fraction, and scrolls the part
+  of a row left over to a whole row when the scroll ends: on the way it was
+  going when momentum ends or the fingers lift with the viewport still
+  moving (never back against the travel, or a string of flicks jumps back
+  and forth), to the nearer row when it was dragged to a stop. AppKit:
+  `AppTerminalView+SmoothScroll.swift` (`handleSmoothScroll`, which
+  `scrollWheel(with:)` asks first) and
+  `+ScrollSnap` (a lift waits 80 ms for momentum, momentum's end snaps at
+  once). A scrollbar report is believed over the copy only when it
+  is known to be later than the last delta sent
+  (`TerminalCallbackBridge.scrollbarStamp`, `TerminalWakeupGate.isPending`):
+  after a main-thread stall the one in hand predates the stall. A wheel
+  notch, a program tracking the mouse and a screen with no scrollback go to
+  the surface as before.
 - A pinch (`+PinchZoom`, iOS only) steps the font size through the
   `increase_font_size:1` / `decrease_font_size:1` bindings, one step per
   0.1 of scale, and stops at `minFontSize`…`maxFontSize` (4…64), checked
@@ -784,7 +805,7 @@ Two release tracks, decoupled since 1.4.0:
   `+Interaction`, `FontZoomState` in `+PinchZoom`, `FocusBridgeState` in
   `+Lifecycle`, `TextInputBridgeState` in `+UITextInput`; AppKit:
   `KeyEchoState` and `PointerSelectionState` in `+Input`, `FocusBridgeState`
-  in `+Lifecycle`); the root class declares only `var xxx: XxxState = .init()`
+  in `+Lifecycle`, `SmoothScrollState` in `+SmoothScroll`); the root class declares only `var xxx: XxxState = .init()`
   lines — the storage must live in the class because extensions cannot add
   stored properties. Lazy objects that need `self` (`inputHandler`,
   `terminalInputAccessory`) and reference-type helpers

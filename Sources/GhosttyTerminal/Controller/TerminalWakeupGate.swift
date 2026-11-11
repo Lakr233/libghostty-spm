@@ -31,4 +31,13 @@ final class TerminalWakeupGate: @unchecked Sendable {
         isScheduled = false
         lock.unlock()
     }
+
+    /// A tick is queued and has not run. While false, every message Ghostty
+    /// has posted so far has been handled: what the bridge holds — the
+    /// scrollbar, say — is current.
+    var isPending: Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return isScheduled
+    }
 }

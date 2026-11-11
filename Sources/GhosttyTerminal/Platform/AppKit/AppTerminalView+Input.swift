@@ -251,6 +251,9 @@
         }
 
         override open func scrollWheel(with event: NSEvent) {
+            if handleSmoothScroll(event) {
+                return
+            }
             let scrollMods = TerminalScrollModifiers(
                 precision: event.hasPreciseScrollingDeltas,
                 momentum: TerminalScrollModifiers.momentumFrom(phase: event.momentumPhase),
