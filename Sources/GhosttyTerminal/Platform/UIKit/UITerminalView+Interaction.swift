@@ -37,9 +37,9 @@
             #if targetEnvironment(macCatalyst)
                 becomeFirstResponder()
             #else
-                if momentumScroll.displayLink != nil {
+                if momentumScroll.displayLink != nil || systemScrollInMotion {
                     // A touch during momentum is a scroll-stop, not a tap.
-                    stopMomentumScrolling()
+                    stopMomentumForTouchDown()
                     softwareKeyboard.tapCandidateArmed = false
                 } else if let touch = touches.first,
                           // View-scoped on purpose: `allTouches` spans the
@@ -85,6 +85,11 @@
             if handleIndirectPointerTouches(touches, phase: .ended, event: event) {
                 return
             }
+            #if !targetEnvironment(macCatalyst)
+                if event?.touches(for: self)?.allSatisfy({ $0.phase == .ended || $0.phase == .cancelled }) ?? true {
+                    systemScrollTouchEnded()
+                }
+            #endif
             if usesInlineTextSelection {
                 super.touchesEnded(touches, with: event)
                 return
@@ -241,9 +246,13 @@
             }
             if usesInlineTextSelection, gestureRecognizer === touchSelection.tapRecognizers.first {
                 touchSelection.tapBeganWithMenu = isTouchMenuVisible
-                touchSelection.tapStopsMomentum = momentumScroll.displayLink != nil
+                #if targetEnvironment(macCatalyst)
+                    touchSelection.tapStopsMomentum = momentumScroll.displayLink != nil
+                #else
+                    touchSelection.tapStopsMomentum = momentumScroll.displayLink != nil || systemScrollInMotion
+                #endif
                 if touchSelection.tapStopsMomentum {
-                    stopMomentumScrolling()
+                    stopMomentumForTouchDown()
                 }
             }
             return true
@@ -259,6 +268,15 @@
             if gestureRecognizer is UILongPressGestureRecognizer {
                 return usesInlineTextSelection
             }
+            #if !targetEnvironment(macCatalyst)
+                // One finger over scrollback is the scroll view's
+                // (+SystemScroll); the view's own pan stands aside for it.
+                if gestureRecognizer === touchSelection.scrollGesture,
+                   gestureRecognizer.numberOfTouches == 1, systemPanWouldBegin
+                {
+                    return false
+                }
+            #endif
             return true
         }
     }

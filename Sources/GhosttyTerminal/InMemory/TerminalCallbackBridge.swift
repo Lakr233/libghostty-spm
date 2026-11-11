@@ -25,6 +25,8 @@ final class TerminalCallbackBridge {
     /// scroll that caused it; the smooth-scroll mirror compares this with
     /// its last send to tell a report of that scroll from an older one.
     var scrollbarStamp: CFTimeInterval = 0
+    /// The scrollbar changed: system scrolling sizes its scroll view by it.
+    var onScrollbarChange: (() -> Void)?
     var onCellSizeChange: ((UInt32, UInt32) -> Void)?
     var onRenderRequest: (() -> Void)?
     var onMouseShape: ((ghostty_action_mouse_shape_e) -> Void)?
@@ -179,8 +181,13 @@ final class TerminalCallbackBridge {
 
         case GHOSTTY_ACTION_SCROLLBAR:
             let payload = action.action.scrollbar
-            scrollbar = TerminalScrollbar(total: payload.total, offset: payload.offset, len: payload.len)
+            let reported = TerminalScrollbar(total: payload.total, offset: payload.offset, len: payload.len)
+            let changed = scrollbar != reported
+            scrollbar = reported
             scrollbarStamp = CACurrentMediaTime()
+            if changed {
+                onScrollbarChange?()
+            }
             TerminalDebugLog.log(
                 .actions,
                 "callback action=scrollbar total=\(payload.total) offset=\(payload.offset) len=\(payload.len)",
