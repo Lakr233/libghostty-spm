@@ -132,7 +132,7 @@
         open func selectionContextMenu() -> NSMenu {
             let menu = NSMenu()
             let copyItem = NSMenuItem(
-                title: String(localized: "Copy", bundle: .module),
+                title: String(localized: "Copy", bundle: .ghosttyTerminal),
                 action: #selector(copy(_:)),
                 keyEquivalent: "",
             )

@@ -634,7 +634,7 @@ away from `pivot`. `usesTouchSelectionLoupe` turns it off and
 tracks; both are `open` in the class body. The default menu titles (Copy,
 Paste, Select, Select All, and AppKit's Copy) come from
 `Resources/Localization/<lang>.lproj/Localizable.strings` through
-`String(localized:bundle: .module)`,
+`String(localized:bundle: .ghosttyTerminal)`,
 in the 18 languages `TerminalLocalizationTests` lists; a new title gets every
 one of them. A host app must declare its localizations or set
 `CFBundleAllowMixedLocalizations` for the titles to follow the user's
