@@ -105,6 +105,22 @@ struct InMemoryTerminalPendingOperationsTests {
         #expect(text(queue.popFirst()) == "7")
     }
 
+    /// `waitForPendingOutput()` waits for `retiredSequence` to reach what
+    /// was appended. Popping the exit that survived a discard must not move
+    /// it back below the output dropped from behind that exit, or the wait
+    /// never ends.
+    @Test
+    func `popping a surviving exit does not un-retire the output dropped behind it`() {
+        var queue = InMemoryTerminalPendingOperations()
+        queue.append(.processExit(exitCode: 0, runtimeMilliseconds: 0))
+        queue.append(.write(Data("after exit".utf8)))
+
+        #expect(queue.removeAllOutput() == 10)
+        #expect(queue.retiredSequence == queue.appendedSequence)
+        #expect(text(queue.popFirst()) == "exit:0")
+        #expect(queue.retiredSequence == queue.appendedSequence)
+    }
+
     private func text(_ operation: InMemoryTerminalPendingOperations.Operation?) -> String? {
         switch operation {
         case let .write(data)?:

@@ -78,7 +78,7 @@ struct InMemoryTerminalPendingOperations {
             case let .replay(data): replayByteCount -= data.count
             case .processExit: break
             }
-            retiredSequence = entry.sequence
+            retiredSequence = max(retiredSequence, entry.sequence)
             compact()
             return entry.operation
         }
