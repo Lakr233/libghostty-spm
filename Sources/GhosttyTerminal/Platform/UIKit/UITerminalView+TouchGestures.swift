@@ -33,7 +33,9 @@
 
             @objc func handleSelectionTap(_ gesture: UITapGestureRecognizer) {
                 guard usesInlineTextSelection, gesture.state == .ended, surface != nil else { return }
-                stopMomentumScrolling()
+                // A tap that stopped a moving scroll leaves the viewport
+                // where it stopped, to be aligned in a moment, not at once.
+                stopMomentumScrolling(settle: touchSelection.tapStopsMomentum ? .later : .now)
                 let point = gesture.location(in: self)
                 defer {
                     touchSelection.tapBeganWithMenu = false

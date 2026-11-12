@@ -31,6 +31,7 @@
         #if !targetEnvironment(macCatalyst)
             var softwareKeyboard: SoftwareKeyboardState = .init()
             var fontZoom: FontZoomState = .init()
+            var systemScroll: SystemScrollState = .init()
         #endif
 
         lazy var selectionContextMenuInteraction = UIContextMenuInteraction(delegate: self)
@@ -166,6 +167,10 @@
                 stopMomentumScrolling(sendTerminalEndEvent: false)
                 dismissTouchSelection()
             }
+            #if !targetEnvironment(macCatalyst)
+                // A surface that is not drawn takes no scroll gesture.
+                systemScroll.driver?.panGestureRecognizer.isEnabled = visible
+            #endif
             core.setDisplayVisible(visible)
         }
 
@@ -220,7 +225,15 @@
             }
             core.onCellSizeDidChange = { [weak self] in
                 self?.refreshTextInputGeometry(reason: "cell-size-action")
+                #if !targetEnvironment(macCatalyst)
+                    self?.systemScrollSyncFromEngine()
+                #endif
             }
+            #if !targetEnvironment(macCatalyst)
+                core.bridge.onScrollbarChange = { [weak self] in
+                    self?.systemScrollBarChanged()
+                }
+            #endif
             core.onMouseShape = { [weak self] shape in
                 self?.applyMouseShape(shape)
             }
@@ -234,6 +247,7 @@
             setupPlatformInput()
             #if !targetEnvironment(macCatalyst)
                 setupKeyboardObservers()
+                installSystemScrollDriver()
             #endif
         }
 

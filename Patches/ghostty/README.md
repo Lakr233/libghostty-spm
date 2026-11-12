@@ -264,6 +264,37 @@ to move back.
   libintl did for `setLangFromCocoa` moved to GhosttyTerminal's
   `TerminalLocaleEnvironment`, which sets `LANG` first so that code never
   runs.
+- `0022-pixel-smooth-scrolling.patch` — a precision scroll moves the
+  picture by the pixel. Upstream's `Surface.scrollCallback` collects the
+  pixels of a precision scroll and moves the viewport once a whole row has
+  come in, so content under a finger or a trackpad jumps a row at a time.
+  Here the viewport still moves by whole rows and the remainder becomes a
+  fraction in `[0, cell height)` (`renderer.State.scroll_frac_px`): the
+  renderer draws the grid that many pixels higher and captures one overscan
+  row below the viewport (`RenderState.overscan_request`, upstream) to fill
+  the bottom edge. Only a precision scroll of the primary screen with no
+  mouse reporting takes this path; wheel notches, mouse reporting and
+  alternate scroll are unchanged, and the fraction is zero at the top of
+  the scrollback and on the active area. It is stored with the scrollbar
+  offset it belongs to, and the renderer ignores it once the viewport has
+  moved for any other reason (output, a keybinding, a resize). The renderer
+  gets a `content_offset` uniform applied to cell backgrounds, glyphs
+  (decorations, cursor and selection are glyph instances) and Kitty images,
+  and a `viewport_rows` uniform in the padding after `grid_size`; while the
+  offset is not zero, text and images are discarded outside the viewport
+  and the background keeps its unshifted padding mapping. With no offset
+  every path is what it was. No C API changes: the hosts keep sending
+  `ghostty_surface_mouse_scroll` with the precision bit. A viewport can
+  now rest between rows, and both Ghostty's own hit testing
+  (`Surface.posToViewport`) and this package's selection grid count in
+  whole rows, so the views bring it back to a row when a scroll ends (on
+  macOS when the fingers lift, on iOS where the scroll comes to rest); the
+  C API reports no fraction, so they keep their own copy of the position
+  (`TerminalSmoothScrollPosition`). The OpenGL shaders get the offset but
+  no clipping, and are neither built nor tested here. A plain diff over
+  `generic.zig` and `shaders.metal`, the two files upstream moves most:
+  expect it to need the 3-way merge, or a regeneration, more often than
+  the others.
 
 Dropped once upstream carried them: `0014-free-text-signature.patch`
 (`ghostty_surface_free_text` taking the surface, upstream `4803d58b`). A

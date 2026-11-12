@@ -235,6 +235,8 @@ Files in `Platform/UIKit/`:
 - `UITerminalView+Keyboard.swift` — hardware key handling via UIPress, Ctrl `UIKeyCommand`s, input-method key deferral, modifier translation; `HardwareKeyboardState`, `SoftwareKeyboardState`
 - `InputAccessory/UITerminalView+InputAccessory.swift` — input accessory bar integration (iOS only), key actions, sticky modifier dispatch, `sendSyntheticKey` / `sendControlByte` / `sendModifiedTextKey`
 - `UITerminalView+Interaction.swift` — tap-to-click and keyboard toggle, touch scrolling, momentum scroll via CADisplayLink, scroll-wheel recognizer, indirect-pointer selection, long-press menu, copy/paste actions; `PointerInteractionState`, `MomentumScrollState`
+- `UITerminalView+ScrollPosition.swift` / `+ScrollSettle.swift` — the copy of the viewport position (`TerminalSmoothScrollPosition`) that every touch, momentum and wheel scroll advances, and aligning it to a row when a scroll stops
+- `UITerminalView+SystemScroll.swift` — one-finger scrolling over scrollback through a hidden `UIScrollView` (`TerminalScrollDriverView`; iOS and visionOS, not Catalyst): whether it takes a drag, installing it; `SystemScrollState`. `+SystemScrollDelegate` maps its offset to whole-pixel deltas (`TerminalScrollOffsetMapping` in `Metrics/`, unit-tested), `+SystemScrollAlign` stops it and aligns it to a row, `+SystemScrollSync` brings it to the engine at rest and shows the rubber band
 - `UITerminalView+Drop.swift` — drag and drop: files staged to paths, text and links as text (see "Key Path vs Text Path")
 - `UITerminalView+PinchZoom.swift` — pinch changes font size via `increase_font_size` / `decrease_font_size` bindings (iOS only); `FontZoomState` (the gesture's scale only — the size itself is tracked by the coordinator, see "Font Size")
 - `UITerminalView+PublicInput.swift` — public `acquireProgrammaticFocus`, `paste(text:)`, `sendKey`, `performBindingAction`, `jumpToPrompt(by:)`, `scrollToRow`, `fontSize`
@@ -491,6 +493,53 @@ so in the code — "it's just text" is the mistake this section exists to preven
   hover recognizer must run simultaneously with the others and must not
   cancel touches. Do not wrap the view in a host `ScrollView` that steals
   wheel or pan events.
+- With `0022-pixel-smooth-scrolling.patch` a precision scroll of the primary
+  screen moves the viewport by the pixel, and it can stop between rows,
+  where Ghostty's hit testing and `TerminalSelectionGrid`, both counting
+  whole rows, are a row off. The C API reports the row (the scrollbar, on a
+  later tick) and never the pixels, so a view that sends such scrolls keeps
+  its own copy of the position (`TerminalSmoothScrollPosition` in
+  `Metrics/`, the engine's arithmetic mirrored, unit-tested), sends whole
+  pixels only so the copy cannot drift by a fraction, and scrolls the part
+  of a row left over to a whole row when the scroll ends: on the way it was
+  going when momentum ends or the fingers lift with the viewport still
+  moving (never back against the travel, or a string of flicks jumps back
+  and forth), to the nearer row when it was dragged to a stop. AppKit:
+  `AppTerminalView+SmoothScroll.swift` (`handleSmoothScroll`, which
+  `scrollWheel(with:)` asks first) and
+  `+ScrollSnap` (a lift waits 80 ms for momentum, momentum's end snaps at
+  once). A scrollbar report is believed over the copy only when it
+  is known to be later than the last delta sent
+  (`TerminalCallbackBridge.scrollbarStamp`, `TerminalWakeupGate.isPending`):
+  after a main-thread stall the one in hand predates the stall. A wheel
+  notch, a program tracking the mouse and a screen with no scrollback go to
+  the surface as before. UIKit keeps the same copy in `MomentumScrollState`
+  (`syncScrollModel` / `applyToScrollModel` in `+ScrollPosition`), fed by the finger,
+  the momentum and the wheel alike.
+- On iOS and visionOS one finger over scrollback is the system's scroll
+  (`+SystemScroll`): the view holds a `UIScrollView` that draws nothing,
+  hit-tests to nil and is hidden from accessibility, and attaches its
+  `panGestureRecognizer` to itself. No transparent layer sits over the
+  terminal, so taps, long presses and the selection handles reach the same
+  recognizers as before. `contentSize.height` is the view's height plus the
+  scrollback in points, `contentOffset` maps one to one onto the copy of
+  the viewport position, and `scrollViewDidScroll` sends the difference as
+  whole pixels; the part of the offset out of range, UIKit's rubber band,
+  is shown by translating the view's sublayers (`applyOverscroll`), so the
+  renderer draws no frame for it. `scrollViewWillEndDragging` rounds the
+  landing place to a row. A lift with no deceleration and a tap that stops
+  a moving scroll align with the view's own display-link animation, never
+  `setContentOffset(_:animated:)`: that one cannot be cancelled, and under
+  a finger that drags again both write the offset every frame. While
+  anything moves the scroll view (`systemScrollIsBusy`) nothing here writes
+  the offset, and the copy ignores the scrollbar; both are brought to the
+  engine at rest (`systemScrollSyncFromEngine`, and once more after
+  `systemScrollResyncSoon`). Output arriving at the bottom under a finger
+  or a bounce is absorbed in `SystemScrollState.shiftPixels`. The view's
+  own pan (`gestureRecognizerShouldBegin` stands it down otherwise) keeps
+  a program tracking the mouse, a screen with nothing to scroll back to,
+  two fingers and a drag that extends a selection. The rule about a host
+  `ScrollView` above still holds: this one takes no touches.
 - A pinch (`+PinchZoom`, iOS only) steps the font size through the
   `increase_font_size:1` / `decrease_font_size:1` bindings, one step per
   0.1 of scale, and stops at `minFontSize`…`maxFontSize` (4…64), checked
@@ -799,10 +848,11 @@ Two release tracks, decoupled since 1.4.0:
   state is a struct defined in the `+Xxx` extension file that owns the
   behavior (UIKit: `HardwareKeyboardState` and `SoftwareKeyboardState` in
   `+Keyboard`, `PointerInteractionState` and `MomentumScrollState` in
-  `+Interaction`, `FontZoomState` in `+PinchZoom`, `FocusBridgeState` in
+  `+Interaction`, `SystemScrollState` in `+SystemScroll`, `FontZoomState` in
+  `+PinchZoom`, `FocusBridgeState` in
   `+Lifecycle`, `TextInputBridgeState` in `+UITextInput`; AppKit:
   `KeyEchoState` and `PointerSelectionState` in `+Input`, `FocusBridgeState`
-  in `+Lifecycle`); the root class declares only `var xxx: XxxState = .init()`
+  in `+Lifecycle`, `SmoothScrollState` in `+SmoothScroll`); the root class declares only `var xxx: XxxState = .init()`
   lines — the storage must live in the class because extensions cannot add
   stored properties. Lazy objects that need `self` (`inputHandler`,
   `terminalInputAccessory`) and reference-type helpers
