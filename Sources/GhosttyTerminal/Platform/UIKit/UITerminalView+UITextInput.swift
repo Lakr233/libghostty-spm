@@ -419,12 +419,14 @@
             for _: UITextRange,
         ) {}
 
+        /// The cursor cell's row. Ghostty's ime point y is the cell's bottom
+        /// edge, so the rect starts one cell height above it.
         private func imeRect() -> CGRect {
             guard let surface else { return .zero }
             let point = surface.imePoint()
             return CGRect(
                 x: point.x,
-                y: point.y,
+                y: point.y - point.height,
                 width: point.width,
                 height: point.height,
             )

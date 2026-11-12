@@ -31,7 +31,8 @@ final class TerminalCallbackBridge {
     func handleAction(_ action: ghostty_action_s) {
         switch action.tag {
         case GHOSTTY_ACTION_SET_TITLE:
-            if let cStr = action.action.set_title.title {
+            let titlePointer: UnsafePointer<CChar>? = action.action.set_title.title
+            if let cStr = titlePointer {
                 let title = String(cString: cStr)
                 TerminalDebugLog.log(
                     .actions,
@@ -110,8 +111,10 @@ final class TerminalCallbackBridge {
 
         case GHOSTTY_ACTION_DESKTOP_NOTIFICATION:
             let payload = action.action.desktop_notification
-            let title = payload.title.map { String(cString: $0) } ?? ""
-            let body = payload.body.map { String(cString: $0) } ?? ""
+            let titlePointer: UnsafePointer<CChar>? = payload.title
+            let bodyPointer: UnsafePointer<CChar>? = payload.body
+            let title = titlePointer.map { String(cString: $0) } ?? ""
+            let body = bodyPointer.map { String(cString: $0) } ?? ""
             TerminalDebugLog.log(
                 .actions,
                 "callback action=desktop_notification title=\(TerminalDebugLog.describe(title)) body=\(TerminalDebugLog.describe(body))",
@@ -120,20 +123,7 @@ final class TerminalCallbackBridge {
                 .terminalDidRequestDesktopNotification(title: title, body: body)
 
         case GHOSTTY_ACTION_OPEN_URL:
-            let payload = action.action.open_url
-            let kind = TerminalOpenURLKind(payload.kind)
-            let url: String = payload.url.map { ptr in
-                // Ghostty provides a length-prefixed string; respect the
-                // documented length rather than trusting a NUL terminator.
-                let buf = UnsafeBufferPointer(start: ptr, count: Int(payload.len))
-                return String(decoding: buf.map(UInt8.init), as: UTF8.self)
-            } ?? ""
-            TerminalDebugLog.log(
-                .actions,
-                "callback action=open_url kind=\(kind) url=\(TerminalDebugLog.describe(url))",
-            )
-            (delegate as? any TerminalSurfaceOpenURLDelegate)?
-                .terminalDidRequestOpenURL(url, kind: kind)
+            handleOpenURL(action.action.open_url)
 
         case GHOSTTY_ACTION_MOUSE_SHAPE:
             let shape = action.action.mouse_shape
@@ -147,8 +137,9 @@ final class TerminalCallbackBridge {
 
         case GHOSTTY_ACTION_MOUSE_OVER_LINK:
             let payload = action.action.mouse_over_link
+            let urlPointer: UnsafePointer<CChar>? = payload.url
             let url: String? = {
-                guard let ptr = payload.url, payload.len > 0 else { return nil }
+                guard let ptr = urlPointer, payload.len > 0 else { return nil }
                 let buf = UnsafeBufferPointer(start: ptr, count: Int(payload.len))
                 return String(decoding: buf.map(UInt8.init), as: UTF8.self)
             }()
@@ -161,7 +152,8 @@ final class TerminalCallbackBridge {
 
         case GHOSTTY_ACTION_PWD:
             let payload = action.action.pwd
-            if let cStr = payload.pwd {
+            let pathPointer: UnsafePointer<CChar>? = payload.pwd
+            if let cStr = pathPointer {
                 let pwd = String(cString: cStr)
                 TerminalDebugLog.log(
                     .actions,
@@ -188,7 +180,8 @@ final class TerminalCallbackBridge {
                 )
 
         case GHOSTTY_ACTION_START_SEARCH:
-            let needle = action.action.start_search.needle.map { String(cString: $0) }
+            let needlePointer: UnsafePointer<CChar>? = action.action.start_search.needle
+            let needle = needlePointer.map { String(cString: $0) }
             TerminalDebugLog.log(.actions, "callback action=start_search needle=\(TerminalDebugLog.describe(needle ?? ""))")
             (delegate as? any TerminalSurfaceSearchDelegate)?
                 .terminalDidStartSearch(needle: needle?.isEmpty == false ? needle : nil)
@@ -215,6 +208,39 @@ final class TerminalCallbackBridge {
                 "callback action=\(TerminalDebugLog.describe(action.tag))",
             )
         }
+    }
+
+    /// Hands an activated link to the delegate and says whether the host
+    /// took it.
+    ///
+    /// The answer goes back to Ghostty as the action's return value. A link
+    /// reported unhandled falls to core's own opener (`src/os/open.zig`),
+    /// which on macOS refuses `.unknown` and `.osc8` outright
+    /// (`error.UntrustedLink`), spawns `open` for `.text` and `.html` alone,
+    /// and is unimplemented on iOS: a host that wants links to open must
+    /// take them.
+    @discardableResult
+    func handleOpenURL(_ payload: ghostty_action_open_url_s) -> Bool {
+        let kind = TerminalOpenURLKind(payload.kind)
+        let urlPointer: UnsafePointer<CChar>? = payload.url
+        let url: String = urlPointer.map { ptr in
+            // Ghostty provides a length-prefixed string; respect the
+            // documented length rather than trusting a NUL terminator.
+            let buf = UnsafeBufferPointer(start: ptr, count: Int(payload.len))
+            return String(decoding: buf.map(UInt8.init), as: UTF8.self)
+        } ?? ""
+        TerminalDebugLog.log(
+            .actions,
+            "callback action=open_url kind=\(kind) url=\(TerminalDebugLog.describe(url))",
+        )
+        if let handler = delegate as? any TerminalSurfaceOpenURLHandlingDelegate {
+            return handler.terminalShouldHandleOpenURL(url, kind: kind)
+        }
+        guard let observer = delegate as? any TerminalSurfaceOpenURLDelegate else {
+            return false
+        }
+        observer.terminalDidRequestOpenURL(url, kind: kind)
+        return true
     }
 
     func handleClose(processAlive: Bool) {

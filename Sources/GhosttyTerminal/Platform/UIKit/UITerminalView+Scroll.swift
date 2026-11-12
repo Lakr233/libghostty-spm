@@ -176,9 +176,19 @@
                 target: self,
                 selector: #selector(momentumScrollFrame(_:)),
             )
+            // A link with no preferred range runs at 60 Hz on a ProMotion
+            // display. The surface draws at 120, so every position was
+            // shown for two frames and the glide moved in visible steps.
+            link.preferredFrameRateRange = Self.momentumFrameRateRange
             link.add(to: .main, forMode: .common)
             momentumScroll.displayLink = link
         }
+
+        static let momentumFrameRateRange = CAFrameRateRange(
+            minimum: 80,
+            maximum: 120,
+            preferred: 120,
+        )
 
         @objc func momentumScrollFrame(_ link: CADisplayLink) {
             let dt = link.targetTimestamp - link.timestamp

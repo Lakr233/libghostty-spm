@@ -182,6 +182,29 @@ func applicationWillTerminate(_: UIApplication) {
 }
 ```
 
+### Opening Links
+
+A cmd-click on a link reaches the host through
+`TerminalViewState.onOpenURL` (a delegate adopts
+`TerminalSurfaceOpenURLHandlingDelegate`). Return `true` when the host opened
+the link, `false` to leave it to Ghostty's own opener. On macOS that opener
+refuses every link found in the terminal — a URL detected in the text
+(`kind == .unknown`) as much as an OSC 8 hyperlink (`.osc8`), the kind that
+programs such as Claude Code print — and opens only the files Ghostty writes
+itself (`.text`, `.html`); on iOS it opens nothing. So a host that wants links
+to open sets the hook and applies its own policy to them. A `.unknown` link is
+whatever the text matched, and may be a file path rather than a URL:
+
+```swift
+state.onOpenURL = { url, _ in
+    guard let url = URL(string: url),
+          ["http", "https", "mailto"].contains(url.scheme?.lowercased())
+    else { return false }
+    NSWorkspace.shared.open(url)
+    return true
+}
+```
+
 ### Surface Snapshots and Host View Subclasses
 
 `TerminalView.snapshotImage()` renders the surface's current on-screen

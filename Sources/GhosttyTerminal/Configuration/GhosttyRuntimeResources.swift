@@ -12,12 +12,12 @@ public enum GhosttyRuntimeResources {
     /// Ghostty expects shell integration below this directory and its compiled
     /// terminfo database in a sibling `terminfo` directory.
     public static var directoryURL: URL? {
-        Bundle.module.url(forResource: "Ghostty", withExtension: nil)
+        Bundle.ghosttyTerminal.url(forResource: "Ghostty", withExtension: nil)
     }
 
     /// The compiled terminfo database exported to child shells by Ghostty.
     public static var terminfoDirectoryURL: URL? {
-        Bundle.module.url(forResource: "terminfo", withExtension: nil)
+        Bundle.ghosttyTerminal.url(forResource: "terminfo", withExtension: nil)
     }
 
     static func configureEnvironment() {

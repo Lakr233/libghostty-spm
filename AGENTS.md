@@ -475,7 +475,9 @@ so in the code — "it's just text" is the mistake this section exists to preven
   Ghostty reads a precision delta as device pixels and applies no content
   scale to it, so the finger, the momentum and the wheel all send
   `TerminalScrollDistance.scrollPixels`: points times
-  `resolvedDisplayScale()`. The wheel path sends the last pointer position (view points; Ghostty
+  `resolvedDisplayScale()` (AppKit's `scrollWheel` does the same with a
+  precise delta and the backing scale factor; a wheel notch there is a line
+  count and is sent as is). The wheel path sends the last pointer position (view points; Ghostty
   applies content scale) before `sendMouseScroll` so a captured TUI can
   associate the wheel with the cell under the pointer. Pointer mods come
   from a live hover recognizer, else `GCKeyboard.coalesced` on iOS, else
@@ -564,6 +566,22 @@ when the delegate does not adopt the protocol. The C side is the
 write-clipboard callback for `.osc52Write`; tests in
 `Tests/GhosttyKitTest/Clipboard/TerminalClipboardConfirmationTests.swift`.
 
+### Opening Links
+
+A cmd-click on a link is `GHOSTTY_ACTION_OPEN_URL`, and the action's return
+value tells Ghostty whether the host took it.
+`TerminalCallbackBridge.handleOpenURL` asks a delegate that adopts
+`TerminalSurfaceOpenURLHandlingDelegate`
+(`terminalShouldHandleOpenURL(_:kind:) -> Bool`) first; a delegate that
+adopts only the older `TerminalSurfaceOpenURLDelegate` takes every link, as
+before. `TerminalViewState` adopts the handling protocol and forwards to
+`onOpenURL`, answering `false` while it is `nil`. An unhandled link falls to
+core's opener (`src/os/open.zig`), which on macOS refuses `.unknown` (a URL
+detected in the text) and `.osc8` with `error.UntrustedLink` and spawns
+`open` for `.text` / `.html` only, and on iOS is unimplemented — so links
+open only when the host takes them. Tests in
+`Tests/GhosttyKitTest/Surface/TerminalOpenURLDelegateTests.swift`.
+
 ### Selection Region
 
 `TerminalSurface.selectionRegion()` (re-exposed as `selectionRegion` on both
@@ -634,7 +652,7 @@ away from `pivot`. `usesTouchSelectionLoupe` turns it off and
 tracks; both are `open` in the class body. The default menu titles (Copy,
 Paste, Select, Select All, and AppKit's Copy) come from
 `Resources/Localization/<lang>.lproj/Localizable.strings` through
-`String(localized:bundle: .module)`,
+`String(localized:bundle: .ghosttyTerminal)`,
 in the 18 languages `TerminalLocalizationTests` lists; a new title gets every
 one of them. A host app must declare its localizations or set
 `CFBundleAllowMixedLocalizations` for the titles to follow the user's
