@@ -210,9 +210,27 @@ public enum TerminalOpenURLKind: Sendable {
 }
 
 /// User activated (cmd-clicked) a hyperlink inside the terminal grid.
+///
+/// Adopting this protocol takes every link: Ghostty is told the host opened
+/// it, whatever the delegate does with it. A delegate that decides per link
+/// adopts ``TerminalSurfaceOpenURLHandlingDelegate`` instead.
 @MainActor
 public protocol TerminalSurfaceOpenURLDelegate: TerminalSurfaceViewDelegate {
     func terminalDidRequestOpenURL(_ url: String, kind: TerminalOpenURLKind)
+}
+
+/// User activated (cmd-clicked) a hyperlink, and the delegate decides
+/// whether it opens it.
+///
+/// Return `true` when the host opened the link (or chose to drop it).
+/// Return `false` to leave it to Ghostty's own opener, which spawns
+/// `/usr/bin/open` for a detected URL and, on macOS, refuses an OSC 8
+/// hyperlink (`.osc8`): those open only when a host takes them. When a
+/// delegate adopts both protocols, this one is asked and
+/// ``TerminalSurfaceOpenURLDelegate`` is not called.
+@MainActor
+public protocol TerminalSurfaceOpenURLHandlingDelegate: TerminalSurfaceViewDelegate {
+    func terminalShouldHandleOpenURL(_ url: String, kind: TerminalOpenURLKind) -> Bool
 }
 
 /// Mouse hovered over a recognized hyperlink. nil = hover ended / link lost.

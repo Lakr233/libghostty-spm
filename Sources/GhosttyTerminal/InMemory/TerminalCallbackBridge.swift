@@ -123,21 +123,7 @@ final class TerminalCallbackBridge {
                 .terminalDidRequestDesktopNotification(title: title, body: body)
 
         case GHOSTTY_ACTION_OPEN_URL:
-            let payload = action.action.open_url
-            let kind = TerminalOpenURLKind(payload.kind)
-            let urlPointer: UnsafePointer<CChar>? = payload.url
-            let url: String = urlPointer.map { ptr in
-                // Ghostty provides a length-prefixed string; respect the
-                // documented length rather than trusting a NUL terminator.
-                let buf = UnsafeBufferPointer(start: ptr, count: Int(payload.len))
-                return String(decoding: buf.map(UInt8.init), as: UTF8.self)
-            } ?? ""
-            TerminalDebugLog.log(
-                .actions,
-                "callback action=open_url kind=\(kind) url=\(TerminalDebugLog.describe(url))",
-            )
-            (delegate as? any TerminalSurfaceOpenURLDelegate)?
-                .terminalDidRequestOpenURL(url, kind: kind)
+            handleOpenURL(action.action.open_url)
 
         case GHOSTTY_ACTION_MOUSE_SHAPE:
             let shape = action.action.mouse_shape
@@ -222,6 +208,38 @@ final class TerminalCallbackBridge {
                 "callback action=\(TerminalDebugLog.describe(action.tag))",
             )
         }
+    }
+
+    /// Hands an activated link to the delegate and says whether the host
+    /// took it.
+    ///
+    /// The answer goes back to Ghostty as the action's return value. A link
+    /// reported unhandled falls to core's own opener, which spawns
+    /// `/usr/bin/open` for a detected URL and, on macOS, refuses an OSC 8
+    /// hyperlink outright (`error.UnsafeOSC8Link`): a host that wants OSC 8
+    /// links to open must take them.
+    @discardableResult
+    func handleOpenURL(_ payload: ghostty_action_open_url_s) -> Bool {
+        let kind = TerminalOpenURLKind(payload.kind)
+        let urlPointer: UnsafePointer<CChar>? = payload.url
+        let url: String = urlPointer.map { ptr in
+            // Ghostty provides a length-prefixed string; respect the
+            // documented length rather than trusting a NUL terminator.
+            let buf = UnsafeBufferPointer(start: ptr, count: Int(payload.len))
+            return String(decoding: buf.map(UInt8.init), as: UTF8.self)
+        } ?? ""
+        TerminalDebugLog.log(
+            .actions,
+            "callback action=open_url kind=\(kind) url=\(TerminalDebugLog.describe(url))",
+        )
+        if let handler = delegate as? any TerminalSurfaceOpenURLHandlingDelegate {
+            return handler.terminalShouldHandleOpenURL(url, kind: kind)
+        }
+        guard let observer = delegate as? any TerminalSurfaceOpenURLDelegate else {
+            return false
+        }
+        observer.terminalDidRequestOpenURL(url, kind: kind)
+        return true
     }
 
     func handleClose(processAlive: Bool) {
