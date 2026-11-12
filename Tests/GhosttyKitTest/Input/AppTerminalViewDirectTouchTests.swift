@@ -154,6 +154,71 @@
             rig.view.handleDirectTouchPinch(state: .cancelled, scale: 1)
         }
 
+        /// The recognizer reports in the view's own coordinates, y up; the
+        /// handler it calls must turn that over, or a finger scrolls
+        /// backwards.
+        @Test(.timeLimit(.minutes(1)))
+        func `the recognizer's upward y is turned over before it scrolls`() async throws {
+            final class Pan: NSPanGestureRecognizer {
+                var reportedState: NSGestureRecognizer.State = .possible
+                var reportedTranslation = NSPoint.zero
+                override var state: NSGestureRecognizer.State {
+                    get { reportedState }
+                    set { reportedState = newValue }
+                }
+
+                override func translation(in _: NSView?) -> NSPoint { reportedTranslation }
+                override func velocity(in _: NSView?) -> NSPoint { .zero }
+                override func location(in _: NSView?) -> NSPoint { NSPoint(x: 40, y: 40) }
+                override func setTranslation(_: NSPoint, in _: NSView?) {}
+            }
+
+            let harness = await GhosttySurfaceHarness.make()
+            defer { harness.tearDown() }
+            let rig = AppKitInputRig()
+            defer { rig.tearDown() }
+
+            rig.receive((0 ..< 400).map { "line \($0)\r\n" }.joined())
+            let row = try rowPoints(of: rig)
+            let before = try #require(firstVisibleLine(of: rig))
+
+            let pan = Pan(target: nil, action: nil)
+            pan.reportedState = .began
+            rig.view.handleDirectTouchPanGesture(pan)
+            pan.reportedState = .changed
+            // The finger moves down the screen: negative in a view whose
+            // y points up.
+            pan.reportedTranslation = NSPoint(x: 0, y: -6 * row)
+            rig.view.handleDirectTouchPanGesture(pan)
+            pan.reportedState = .ended
+            pan.reportedTranslation = .zero
+            rig.view.handleDirectTouchPanGesture(pan)
+
+            let after = try #require(firstVisibleLine(of: rig))
+            #expect(before - after == 6)
+        }
+
+        @Test(.timeLimit(.minutes(1)))
+        func `a glide's tick moves by the time since the last one and stops off a window`() async throws {
+            let harness = await GhosttySurfaceHarness.make()
+            defer { harness.tearDown() }
+            let rig = AppKitInputRig()
+
+            rig.receive((0 ..< 400).map { "line \($0)\r\n" }.joined())
+            pan(rig, by: 10, liftVelocity: 2000)
+            let timer = try #require(rig.view.directTouch.momentumTimer)
+            let atLift = try #require(firstVisibleLine(of: rig))
+
+            rig.view.directTouch.momentumTimestamp = ProcessInfo.processInfo.systemUptime - 0.05
+            rig.view.directTouchMomentumTick(timer)
+            let gliding = try #require(firstVisibleLine(of: rig))
+            #expect(gliding < atLift)
+
+            rig.tearDown()
+            #expect(rig.view.directTouch.momentumTimer == nil)
+            #expect(!timer.isValid)
+        }
+
         /// What keeps a Mac without touch input exactly where it was: the
         /// recognizers take no mouse button and refuse every `NSEvent`, so a
         /// click, a drag and a trackpad pinch never reach them.
@@ -170,6 +235,7 @@
             #expect(recognizers.count == 2)
             #expect(pan.buttonMask == 0)
             #expect(pan.allowedTouchTypes == .direct)
+            #expect(pan.value(forKey: "maximumNumberOfTouches") as? Int == 1)
             #expect(magnification.allowedTouchTypes == .direct)
 
             let click = try #require(NSEvent.mouseEvent(

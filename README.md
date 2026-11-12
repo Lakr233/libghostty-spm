@@ -216,7 +216,7 @@ only clicks and toggles the keyboard. The long-press viewport-snapshot sheet
 
 On a Mac with a touch display (macOS 27, or a Sidecar iPad), one finger
 scrolls with a glide after the lift and two fingers pinch the font size, in
-both the AppKit view and the Mac Catalyst one; a tap is a click. The mouse
+both the AppKit view and the Mac Catalyst one. The mouse
 and the trackpad behave as before, and a trackpad pinch is left to the host.
 
 ## Notes

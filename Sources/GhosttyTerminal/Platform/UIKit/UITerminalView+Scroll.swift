@@ -137,7 +137,15 @@
                     .input,
                     "touch scroll ended velocity=\(String(format: "%.2f", velocity.x))x\(String(format: "%.2f", velocity.y))",
                 )
-                if !usesInlineTextSelection || momentumScroll.scrollsLocally || surface?.isMouseCaptured != true {
+                #if targetEnvironment(macCatalyst)
+                    // A program tracking the mouse reads each report as a
+                    // wheel notch; a glide would keep sending them.
+                    let glides = surface?.isMouseCaptured != true
+                #else
+                    let glides = !usesInlineTextSelection || momentumScroll.scrollsLocally
+                        || surface?.isMouseCaptured != true
+                #endif
+                if glides {
                     startMomentumScrolling(velocity: velocity)
                 }
 

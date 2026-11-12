@@ -521,7 +521,9 @@ quote.
   (`TerminalScrollDistance`), a glide after the lift from
   `TerminalScrollMomentum` on a timer, none for a program tracking the
   mouse — and an `NSMagnificationGestureRecognizer` for the pinch. A tap is
-  still AppKit's emulated click. Three things keep a Mac without touch
+  left to AppKit's emulated click; whether that emulation survives a
+  direct-touch recognizer on the view is the first thing to check on
+  hardware (TN3216 reads either way). Three things keep a Mac without touch
   input exactly as it was, and `AppTerminalViewDirectTouchTests` holds
   them: both are installed on macOS 27 and later only; the pan takes no
   mouse button; and their delegate (`TerminalDirectTouchGestureDelegate`,

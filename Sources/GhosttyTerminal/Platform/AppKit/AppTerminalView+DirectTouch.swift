@@ -69,6 +69,11 @@
             )
             pan.buttonMask = 0
             pan.allowedTouchTypes = .direct
+            // One finger, as on iOS and Catalyst: left at its default the
+            // pan begins under two and locks the pinch out. The property is
+            // new in the macOS 27 SDK; set by key so an older SDK still
+            // builds this file.
+            pan.setValue(1, forKey: "maximumNumberOfTouches")
             pan.delegate = delegate
             addGestureRecognizer(pan)
 
