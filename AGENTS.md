@@ -520,12 +520,18 @@ quote.
   for one finger — precision scroll in device pixels
   (`TerminalScrollDistance`), a glide after the lift from
   `TerminalScrollMomentum` on a timer, none for a program tracking the
-  mouse — and an `NSMagnificationGestureRecognizer` for the pinch. A tap is
-  left to AppKit's emulated click; whether that emulation survives a
-  direct-touch recognizer on the view is the first thing to check on
-  hardware (TN3216 reads either way). Three things keep a Mac without touch
+  mouse — and an `NSMagnificationGestureRecognizer` for the pinch. The
+  emulation does not survive a direct-touch recognizer on the view:
+  `-[NSView _gestureRecognizersForMouseEmulation]` returns three
+  recognizers (pan → left drag, press → context click, click) for a view
+  that overrides `mouseDown`, and nil once ours are attached (probed on
+  macOS 27.0; TN3216 hints at it). So the tap and the hold are ours too:
+  an `NSClickGestureRecognizer` sends focus and a left click, an
+  `NSPressGestureRecognizer` the secondary click — the copy menu over a
+  selection, a right press and release otherwise. A finger no longer
+  drag-selects; selection stays with the mouse. Three things keep a Mac without touch
   input exactly as it was, and `AppTerminalViewDirectTouchTests` holds
-  them: both are installed on macOS 27 and later only; the pan takes no
+  them: all four are installed on macOS 27 and later only; none takes a
   mouse button; and their delegate (`TerminalDirectTouchGestureDelegate`,
   a separate object because a host subclass may be an
   `NSGestureRecognizerDelegate` itself) refuses every `NSEvent`, with

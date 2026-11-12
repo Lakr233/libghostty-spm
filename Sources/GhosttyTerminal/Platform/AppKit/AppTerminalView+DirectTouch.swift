@@ -49,14 +49,19 @@
 
         /// On a Mac with a touch display AppKit turns a finger into mouse
         /// events for a view that overrides `mouseDown(with:)`, as this one
-        /// does: a tap clicks, and a drag is a mouse drag — it selects text
-        /// — while two fingers reach nothing at all. Scrolling and pinching
-        /// come only from gesture recognizers that take direct touches
-        /// ("Adopting gesture recognizers in your app", TN3216), so one
-        /// finger gets a pan and two a magnification here. `buttonMask = 0`
-        /// and the delegate keep both off the mouse and the trackpad, whose
-        /// `mouseDown` / `scrollWheel` paths stay exactly as they were, and
-        /// a tap still arrives as AppKit's emulated click.
+        /// does: a tap clicks, a hold is a context click, and a drag is a
+        /// mouse drag — it selects text — while two fingers reach nothing at
+        /// all. Scrolling and pinching come only from gesture recognizers
+        /// that take direct touches ("Adopting gesture recognizers in your
+        /// app", TN3216), so one finger gets a pan and two a magnification.
+        ///
+        /// A view with a direct-touch recognizer of its own loses that
+        /// emulation altogether (`-[NSView
+        /// _gestureRecognizersForMouseEmulation]` goes from three
+        /// recognizers to nil on macOS 27.0), so the tap and the hold it
+        /// provided are recognizers here too. `buttonMask = 0` and the
+        /// delegate keep all four off the mouse and the trackpad, whose
+        /// `mouseDown` / `scrollWheel` paths stay exactly as they were.
         func setupDirectTouchInput() {
             // Direct touches reach a view only from macOS 27 on.
             guard #available(macOS 27.0, *) else { return }
@@ -87,6 +92,68 @@
             magnification.delaysMagnificationEvents = false
             magnification.delegate = delegate
             addGestureRecognizer(magnification)
+
+            let tap = NSClickGestureRecognizer(
+                target: self,
+                action: #selector(handleDirectTouchTapGesture(_:)),
+            )
+            tap.buttonMask = 0
+            tap.allowedTouchTypes = .direct
+            tap.delegate = delegate
+            addGestureRecognizer(tap)
+
+            let hold = NSPressGestureRecognizer(
+                target: self,
+                action: #selector(handleDirectTouchHoldGesture(_:)),
+            )
+            hold.buttonMask = 0
+            hold.allowedTouchTypes = .direct
+            hold.delegate = delegate
+            addGestureRecognizer(hold)
+        }
+
+        /// A point a recognizer reports, in the terminal's coordinates
+        /// (y down from the top left).
+        private func terminalPoint(of gesture: NSGestureRecognizer) -> CGPoint {
+            let location = gesture.location(in: self)
+            return CGPoint(x: location.x, y: bounds.height - location.y)
+        }
+
+        @objc func handleDirectTouchTapGesture(_ gesture: NSClickGestureRecognizer) {
+            guard gesture.state == .ended else { return }
+            handleDirectTouchTap(at: terminalPoint(of: gesture))
+        }
+
+        /// A tap is the click AppKit's emulation used to send: focus, then
+        /// a left press and release where the finger was.
+        func handleDirectTouchTap(at point: CGPoint) {
+            window?.makeFirstResponder(self)
+            pointer.pendingSelectionMenuPoint = nil
+            surface?.sendMousePos(x: point.x, y: point.y, mods: GHOSTTY_MODS_NONE)
+            surface?.sendMouseButton(state: GHOSTTY_MOUSE_PRESS, button: GHOSTTY_MOUSE_LEFT, mods: GHOSTTY_MODS_NONE)
+            surface?.sendMouseButton(state: GHOSTTY_MOUSE_RELEASE, button: GHOSTTY_MOUSE_LEFT, mods: GHOSTTY_MODS_NONE)
+        }
+
+        @objc func handleDirectTouchHoldGesture(_ gesture: NSPressGestureRecognizer) {
+            guard gesture.state == .began else { return }
+            if handleDirectTouchHold(at: terminalPoint(of: gesture)) {
+                selectionContextMenu().popUp(positioning: nil, at: gesture.location(in: self), in: self)
+            }
+        }
+
+        /// A hold is the secondary click: over a selection it asks for the
+        /// copy menu (true), otherwise the terminal gets a right press and
+        /// release, as `rightMouseDown` / `rightMouseUp` send them.
+        func handleDirectTouchHold(at point: CGPoint) -> Bool {
+            window?.makeFirstResponder(self)
+            stopDirectTouchMomentum()
+            surface?.sendMousePos(x: point.x, y: point.y, mods: GHOSTTY_MODS_NONE)
+            if selectionMenuPoint(at: point) != nil {
+                return true
+            }
+            surface?.sendMouseButton(state: GHOSTTY_MOUSE_PRESS, button: GHOSTTY_MOUSE_RIGHT, mods: GHOSTTY_MODS_NONE)
+            surface?.sendMouseButton(state: GHOSTTY_MOUSE_RELEASE, button: GHOSTTY_MOUSE_RIGHT, mods: GHOSTTY_MODS_NONE)
+            return false
         }
 
         @objc func handleDirectTouchPanGesture(_ gesture: NSPanGestureRecognizer) {

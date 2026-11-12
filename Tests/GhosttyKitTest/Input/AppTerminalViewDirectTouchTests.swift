@@ -154,6 +154,42 @@
             rig.view.handleDirectTouchPinch(state: .cancelled, scale: 1)
         }
 
+        /// AppKit's mouse emulation leaves a view that has a direct-touch
+        /// recognizer of its own, so the tap and the hold are ours to send.
+        @Test(.timeLimit(.minutes(1)))
+        func `a tap is a left click and a hold a right click where the finger is`() async throws {
+            let harness = await GhosttySurfaceHarness.make()
+            defer { harness.tearDown() }
+            let rig = AppKitInputRig()
+            defer { rig.tearDown() }
+
+            rig.receive("\u{1B}[?1000h\u{1B}[?1006h")
+            _ = await rig.take()
+
+            rig.view.handleDirectTouchTap(at: CGPoint(x: 4, y: 4))
+            let tap = String(decoding: await rig.take(), as: UTF8.self)
+            #expect(tap.contains("\u{1B}[<0;1;1M"))
+            #expect(tap.contains("\u{1B}[<0;1;1m"))
+
+            #expect(rig.view.handleDirectTouchHold(at: CGPoint(x: 4, y: 4)) == false)
+            let hold = String(decoding: await rig.take(), as: UTF8.self)
+            #expect(hold.contains("\u{1B}[<2;1;1M"))
+            #expect(hold.contains("\u{1B}[<2;1;1m"))
+        }
+
+        @Test(.timeLimit(.minutes(1)))
+        func `a hold over a selection asks for the copy menu and sends no click`() async throws {
+            let harness = await GhosttySurfaceHarness.make()
+            defer { harness.tearDown() }
+            let rig = AppKitInputRig()
+            defer { rig.tearDown() }
+
+            rig.receive("hello world")
+            #expect(rig.view.performBindingAction("select_all"))
+            #expect(rig.view.handleDirectTouchHold(at: CGPoint(x: 4, y: 4)))
+            #expect(rig.view.surface?.hasSelection() == true)
+        }
+
         /// The recognizer reports in the view's own coordinates, y up; the
         /// handler it calls must turn that over, or a finger scrolls
         /// backwards.
@@ -232,7 +268,13 @@
             }
             let pan = try #require(recognizers.compactMap { $0 as? NSPanGestureRecognizer }.first)
             let magnification = try #require(recognizers.compactMap { $0 as? NSMagnificationGestureRecognizer }.first)
-            #expect(recognizers.count == 2)
+            let tap = try #require(recognizers.compactMap { $0 as? NSClickGestureRecognizer }.first)
+            let hold = try #require(recognizers.compactMap { $0 as? NSPressGestureRecognizer }.first)
+            #expect(recognizers.count == 4)
+            #expect(tap.buttonMask == 0)
+            #expect(hold.buttonMask == 0)
+            #expect(tap.allowedTouchTypes == .direct)
+            #expect(hold.allowedTouchTypes == .direct)
             #expect(pan.buttonMask == 0)
             #expect(pan.allowedTouchTypes == .direct)
             #expect(pan.value(forKey: "maximumNumberOfTouches") as? Int == 1)
@@ -242,11 +284,12 @@
                 with: .leftMouseDown, location: .zero, modifierFlags: [], timestamp: 0, windowNumber: 0,
                 context: nil, eventNumber: 0, clickCount: 1, pressure: 1,
             ))
-            for recognizer in [pan, magnification] as [NSGestureRecognizer] {
+            for recognizer in [pan, magnification, tap, hold] as [NSGestureRecognizer] {
                 let delegate = try #require(recognizer.delegate)
                 #expect(delegate.gestureRecognizer?(recognizer, shouldAttemptToRecognizeWith: click) == false)
                 #expect(!recognizer.delaysPrimaryMouseButtonEvents)
                 #expect(!recognizer.delaysMagnificationEvents)
+                #expect(!recognizer.delaysSecondaryMouseButtonEvents)
             }
         }
     }
