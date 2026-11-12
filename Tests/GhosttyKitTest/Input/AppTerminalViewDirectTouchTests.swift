@@ -1,0 +1,187 @@
+#if !canImport(UIKit) && canImport(AppKit)
+    import AppKit
+    @testable import GhosttyTerminal
+    import Testing
+
+    /// A finger on a Mac's touch display. AppKit hands it to the view's
+    /// gesture recognizers; the tests drive the handlers those call, with
+    /// the values a recognizer reports.
+    @Suite("AppTerminalViewDirectTouch", .serialized)
+    @MainActor
+    struct AppTerminalViewDirectTouchTests {
+        private func rowPoints(of rig: AppKitInputRig) throws -> CGFloat {
+            let metrics = try #require(rig.view.surface?.size())
+            return CGFloat(metrics.cellHeightPixels) / CGFloat(rig.view.currentScaleFactor())
+        }
+
+        /// The number in the viewport's first row of `line N` output.
+        private func firstVisibleLine(of rig: AppKitInputRig) -> Int? {
+            rig.session.readViewportText()?
+                .components(separatedBy: "\n").first?
+                .split(separator: " ").last
+                .flatMap { Int($0) }
+        }
+
+        private func pan(_ rig: AppKitInputRig, by points: CGFloat, steps: Int = 4, liftVelocity: CGFloat = 0) {
+            let view = rig.view
+            let at = CGPoint(x: 40, y: 40)
+            view.handleDirectTouchPan(state: .began, translation: .zero, velocity: .zero, location: at)
+            for _ in 0 ..< steps {
+                view.handleDirectTouchPan(
+                    state: .changed, translation: CGPoint(x: 0, y: points / CGFloat(steps)),
+                    velocity: .zero, location: at,
+                )
+            }
+            view.handleDirectTouchPan(
+                state: .ended, translation: .zero, velocity: CGPoint(x: 0, y: liftVelocity), location: at,
+            )
+        }
+
+        @Test(.timeLimit(.minutes(1)))
+        func `a finger dragged down brings back as many rows as it moved`() async throws {
+            let harness = await GhosttySurfaceHarness.make()
+            defer { harness.tearDown() }
+            let rig = AppKitInputRig()
+            defer { rig.tearDown() }
+
+            rig.receive((0 ..< 400).map { "line \($0)\r\n" }.joined())
+            let row = try rowPoints(of: rig)
+            let before = try #require(firstVisibleLine(of: rig))
+
+            pan(rig, by: 10.5 * row)
+            let scrolledBack = try #require(firstVisibleLine(of: rig))
+            #expect(before - scrolledBack == 10)
+
+            // The half row left over from the way back counts against the
+            // way forward: Ghostty moves whole rows and keeps the rest.
+            pan(rig, by: -4.5 * row)
+            let scrolledForward = try #require(firstVisibleLine(of: rig))
+            #expect(scrolledForward - scrolledBack == 4)
+            #expect(rig.view.directTouch.momentumTimer == nil)
+        }
+
+        @Test(.timeLimit(.minutes(1)))
+        func `a flick glides on after the lift and a new touch catches it`() async throws {
+            let harness = await GhosttySurfaceHarness.make()
+            defer { harness.tearDown() }
+            let rig = AppKitInputRig()
+            defer { rig.tearDown() }
+
+            rig.receive((0 ..< 400).map { "line \($0)\r\n" }.joined())
+            let row = try rowPoints(of: rig)
+            pan(rig, by: 2 * row, liftVelocity: 1500)
+            #expect(rig.view.directTouch.momentumTimer != nil)
+            let atLift = try #require(firstVisibleLine(of: rig))
+
+            for _ in 0 ..< 30 {
+                rig.view.advanceDirectTouchMomentum(by: 1.0 / 120)
+            }
+            let gliding = try #require(firstVisibleLine(of: rig))
+            #expect(gliding < atLift)
+
+            // What the recognizers' delegate does when a finger lands.
+            rig.view.stopDirectTouchMomentum()
+            #expect(rig.view.directTouch.momentumTimer == nil)
+            #expect(rig.view.directTouch.momentum == nil)
+        }
+
+        @Test(.timeLimit(.minutes(1)))
+        func `a glide runs out by itself`() async throws {
+            let harness = await GhosttySurfaceHarness.make()
+            defer { harness.tearDown() }
+            let rig = AppKitInputRig()
+            defer { rig.tearDown() }
+
+            rig.receive((0 ..< 50).map { "line \($0)\r\n" }.joined())
+            pan(rig, by: 10, liftVelocity: 600)
+            #expect(rig.view.directTouch.momentumTimer != nil)
+            for _ in 0 ..< 2000 where rig.view.directTouch.momentum != nil {
+                rig.view.advanceDirectTouchMomentum(by: 1.0 / 120)
+            }
+            #expect(rig.view.directTouch.momentumTimer == nil)
+        }
+
+        @Test(.timeLimit(.minutes(1)))
+        func `a program tracking the mouse gets wheel reports at the finger and no glide`() async throws {
+            let harness = await GhosttySurfaceHarness.make()
+            defer { harness.tearDown() }
+            let rig = AppKitInputRig()
+            defer { rig.tearDown() }
+
+            rig.receive("\u{1B}[?1000h\u{1B}[?1006h")
+            _ = await rig.take()
+            let row = try rowPoints(of: rig)
+
+            pan(rig, by: 3 * row, liftVelocity: 1500)
+            let down = String(decoding: await rig.take(), as: UTF8.self)
+            // SGR button 64 is wheel up: the finger moved down, toward
+            // earlier content, as a trackpad's natural scroll does.
+            #expect(down.contains("\u{1B}[<64;"))
+            #expect(!down.contains("\u{1B}[<65;"))
+            #expect(rig.view.directTouch.momentumTimer == nil)
+
+            pan(rig, by: -3 * row)
+            let up = String(decoding: await rig.take(), as: UTF8.self)
+            #expect(up.contains("\u{1B}[<65;"))
+            #expect(!up.contains("\u{1B}[<64;"))
+        }
+
+        @Test(.timeLimit(.minutes(1)))
+        func `a pinch steps the font size and stops at the gesture's range`() async throws {
+            let harness = await GhosttySurfaceHarness.make()
+            defer { harness.tearDown() }
+            let rig = AppKitInputRig()
+            defer { rig.tearDown() }
+
+            let start = try #require(rig.view.fontSize)
+            rig.view.handleDirectTouchPinch(state: .began, scale: 1)
+            rig.view.handleDirectTouchPinch(state: .changed, scale: 1.05)
+            #expect(rig.view.fontSize == start)
+            rig.view.handleDirectTouchPinch(state: .changed, scale: 1.32)
+            #expect(rig.view.fontSize == start + 3)
+            rig.view.handleDirectTouchPinch(state: .changed, scale: 1.0)
+            #expect(rig.view.fontSize == start)
+            rig.view.handleDirectTouchPinch(state: .ended, scale: 1.0)
+
+            rig.view.handleDirectTouchPinch(state: .began, scale: 1)
+            rig.view.handleDirectTouchPinch(state: .changed, scale: 30)
+            #expect(rig.view.fontSize == TerminalPinchFontZoom.maxFontSize)
+            rig.view.handleDirectTouchPinch(state: .ended, scale: 30)
+
+            rig.view.handleDirectTouchPinch(state: .began, scale: 1)
+            rig.view.handleDirectTouchPinch(state: .changed, scale: -30)
+            #expect(rig.view.fontSize == TerminalPinchFontZoom.minFontSize)
+            rig.view.handleDirectTouchPinch(state: .cancelled, scale: 1)
+        }
+
+        /// What keeps a Mac without touch input exactly where it was: the
+        /// recognizers take no mouse button and refuse every `NSEvent`, so a
+        /// click, a drag and a trackpad pinch never reach them.
+        @Test
+        func `the recognizers take fingers only`() throws {
+            let view = AppTerminalView(frame: NSRect(x: 0, y: 0, width: 200, height: 100))
+            let recognizers = view.gestureRecognizers
+            guard #available(macOS 27.0, *) else {
+                #expect(recognizers.isEmpty)
+                return
+            }
+            let pan = try #require(recognizers.compactMap { $0 as? NSPanGestureRecognizer }.first)
+            let magnification = try #require(recognizers.compactMap { $0 as? NSMagnificationGestureRecognizer }.first)
+            #expect(recognizers.count == 2)
+            #expect(pan.buttonMask == 0)
+            #expect(pan.allowedTouchTypes == .direct)
+            #expect(magnification.allowedTouchTypes == .direct)
+
+            let click = try #require(NSEvent.mouseEvent(
+                with: .leftMouseDown, location: .zero, modifierFlags: [], timestamp: 0, windowNumber: 0,
+                context: nil, eventNumber: 0, clickCount: 1, pressure: 1,
+            ))
+            for recognizer in [pan, magnification] as [NSGestureRecognizer] {
+                let delegate = try #require(recognizer.delegate)
+                #expect(delegate.gestureRecognizer?(recognizer, shouldAttemptToRecognizeWith: click) == false)
+                #expect(!recognizer.delaysPrimaryMouseButtonEvents)
+                #expect(!recognizer.delaysMagnificationEvents)
+            }
+        }
+    }
+#endif

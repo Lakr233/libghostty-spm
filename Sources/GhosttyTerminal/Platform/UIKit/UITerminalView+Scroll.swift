@@ -100,7 +100,14 @@
             switch gesture.state {
             case .began:
                 guard pointer.session.reported == nil else { return }
-                #if !targetEnvironment(macCatalyst)
+                #if targetEnvironment(macCatalyst)
+                    // The pointer is somewhere else on a Mac: a program
+                    // tracking the mouse gets its wheel reports for the
+                    // cell under the finger, not under the pointer.
+                    if surface?.isMouseCaptured == true {
+                        sendPointerPosition(at: gesture.location(in: self), remember: false)
+                    }
+                #else
                     softwareKeyboard.tapCandidateArmed = false
                 #endif
                 if !usesInlineTextSelection {

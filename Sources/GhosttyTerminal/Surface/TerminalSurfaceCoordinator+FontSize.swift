@@ -52,3 +52,25 @@ extension TerminalSurfaceCoordinator {
             .terminalDidChangeFontSize(next.points)
     }
 }
+
+extension TerminalSurfaceCoordinator {
+    /// Moves the font size by a pinch's steps (`TerminalPinchFontZoom`),
+    /// positive to grow. Each step goes through the binding, which moves the
+    /// tracked size as it lands, and the pinch's own range is checked
+    /// against that size before every step. True when the size moved.
+    @discardableResult
+    func applyPinchFontZoom(steps: Int) -> Bool {
+        var changed = false
+        for _ in 0 ..< abs(steps) {
+            guard let size = fontSize?.points,
+                  let action = TerminalPinchFontZoom.bindingAction(growing: steps > 0, from: size),
+                  surface?.performBindingAction(action) == true
+            else { break }
+            changed = true
+        }
+        if changed {
+            synchronizeMetrics()
+        }
+        return changed
+    }
+}
