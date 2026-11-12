@@ -118,15 +118,33 @@ extension TerminalController {
 
         let userdata = Unmanaged.passUnretained(self).toOpaque()
 
-        var runtimeConfig = ghostty_runtime_config_s()
-        runtimeConfig.userdata = userdata
-        runtimeConfig.supports_selection_clipboard = true
-        runtimeConfig.wakeup_cb = terminalControllerWakeupCallback
-        runtimeConfig.action_cb = terminalControllerActionCallback
-        runtimeConfig.close_surface_cb = terminalControllerCloseSurfaceCallback
-        runtimeConfig.write_clipboard_cb = terminalControllerWriteClipboardCallback
-        runtimeConfig.read_clipboard_cb = terminalControllerReadClipboardCallback
-        runtimeConfig.confirm_read_clipboard_cb = terminalControllerConfirmReadClipboardCallback
+        var runtimeConfig = ghostty_runtime_config_s(
+            userdata: userdata,
+            supports_selection_clipboard: true,
+            wakeup_cb: terminalControllerWakeupCallback,
+            action_cb: { app, target, action in
+                terminalControllerActionCallback(appPtr: app, target: target, action: action)
+            },
+            read_clipboard_cb: terminalControllerReadClipboardCallback,
+            confirm_read_clipboard_cb: { userdata, confirm, state, request in
+                terminalControllerConfirmReadClipboardCallback(
+                    userdata: userdata,
+                    confirm: confirm,
+                    statePtr: state,
+                    request: request,
+                )
+            },
+            write_clipboard_cb: { userdata, clipboard, contents, count, confirm in
+                terminalControllerWriteClipboardCallback(
+                    userdata: userdata,
+                    clipboard: clipboard,
+                    contents: contents,
+                    contentsLen: count,
+                    confirm: confirm,
+                )
+            },
+            close_surface_cb: terminalControllerCloseSurfaceCallback,
+        )
 
         app = ghostty_app_new(&runtimeConfig, cfg)
     }
@@ -224,7 +242,8 @@ extension TerminalController {
 
         return (0 ..< count).compactMap { index in
             let diagnostic = ghostty_config_get_diagnostic(config, index)
-            guard let message = diagnostic.message else { return nil }
+            let messagePointer: UnsafePointer<CChar>? = diagnostic.message
+            guard let message = messagePointer else { return nil }
             return String(cString: message)
         }
     }

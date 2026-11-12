@@ -247,11 +247,12 @@ public final class InMemoryTerminalSession: @unchecked Sendable {
     // MARK: - C Callbacks
 
     static let receiveBufferCallback: ghostty_surface_receive_buffer_cb = { userdata, ptr, len in
-        guard let userdata, let ptr else { return }
+        let bufferPointer: UnsafePointer<UInt8>? = ptr
+        guard let userdata, let bufferPointer else { return }
         let session = Unmanaged<InMemoryTerminalSession>
             .fromOpaque(userdata)
             .takeUnretainedValue()
-        let data = Data(bytes: ptr, count: len)
+        let data = Data(bytes: bufferPointer, count: len)
         TerminalDebugLog.log(
             .input,
             "host <- terminal \(TerminalDebugLog.describe(data))",
