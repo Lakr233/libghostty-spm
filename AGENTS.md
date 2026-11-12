@@ -566,6 +566,22 @@ when the delegate does not adopt the protocol. The C side is the
 write-clipboard callback for `.osc52Write`; tests in
 `Tests/GhosttyKitTest/Clipboard/TerminalClipboardConfirmationTests.swift`.
 
+### Opening Links
+
+A cmd-click on a link is `GHOSTTY_ACTION_OPEN_URL`, and the action's return
+value tells Ghostty whether the host took it.
+`TerminalCallbackBridge.handleOpenURL` asks a delegate that adopts
+`TerminalSurfaceOpenURLHandlingDelegate`
+(`terminalShouldHandleOpenURL(_:kind:) -> Bool`) first; a delegate that
+adopts only the older `TerminalSurfaceOpenURLDelegate` takes every link, as
+before. `TerminalViewState` adopts the handling protocol and forwards to
+`onOpenURL`, answering `false` while it is `nil`. An unhandled link falls to
+core's opener (`src/os/open.zig`), which on macOS refuses `.unknown` (a URL
+detected in the text) and `.osc8` with `error.UntrustedLink` and spawns
+`open` for `.text` / `.html` only, and on iOS is unimplemented — so links
+open only when the host takes them. Tests in
+`Tests/GhosttyKitTest/Surface/TerminalOpenURLDelegateTests.swift`.
+
 ### Selection Region
 
 `TerminalSurface.selectionRegion()` (re-exposed as `selectionRegion` on both

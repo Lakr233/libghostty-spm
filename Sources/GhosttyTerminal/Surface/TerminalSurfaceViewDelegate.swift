@@ -223,9 +223,11 @@ public protocol TerminalSurfaceOpenURLDelegate: TerminalSurfaceViewDelegate {
 /// whether it opens it.
 ///
 /// Return `true` when the host opened the link (or chose to drop it).
-/// Return `false` to leave it to Ghostty's own opener, which spawns
-/// `/usr/bin/open` for a detected URL and, on macOS, refuses an OSC 8
-/// hyperlink (`.osc8`): those open only when a host takes them. When a
+/// Return `false` to leave it to Ghostty's own opener, which on macOS
+/// refuses a URL detected in the text (`.unknown`) and an OSC 8 hyperlink
+/// (`.osc8`) alike and opens only the files Ghostty writes itself (`.text`,
+/// `.html`), and on iOS opens nothing: links open only when a host takes
+/// them. When a
 /// delegate adopts both protocols, this one is asked and
 /// ``TerminalSurfaceOpenURLDelegate`` is not called.
 @MainActor

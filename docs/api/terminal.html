@@ -90,7 +90,7 @@ public final class TerminalViewState: ObservableObject {
     public var onClipboardConfirmationRequest: ((TerminalClipboardConfirmationRequest) -&gt; Void)?
 
     /// A cmd-clicked link; true when the host opened it. nil (or false)
-    /// leaves it to Ghostty, which refuses OSC 8 links on macOS.
+    /// leaves it to Ghostty, which opens no terminal link on macOS or iOS.
     public var onOpenURL: ((_ url: String, _ kind: TerminalOpenURLKind) -&gt; Bool)?
 
     public var renderedConfig: String { get }

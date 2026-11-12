@@ -101,12 +101,13 @@ public final class TerminalViewState: ObservableObject {
     public var onClipboardConfirmationRequest: ((TerminalClipboardConfirmationRequest) -> Void)?
 
     /// Host hook for an activated link (cmd-click). Return `true` when the
-    /// host opened it, `false` to leave it to Ghostty's own opener. That
-    /// opener spawns `/usr/bin/open` for a URL detected in the text, but on
-    /// macOS it refuses an OSC 8 hyperlink (`.osc8`), the kind programs
-    /// such as Claude Code print: Ghostty's own app checks those before it
-    /// opens them, and the fallback will not skip that check. A host that
-    /// wants OSC 8 links to open sets this and applies its own policy. While
+    /// host opened it, `false` to leave it to Ghostty's own opener. On
+    /// macOS that opener refuses every link found in the terminal, a URL
+    /// detected in the text (`.unknown`) as much as an OSC 8 hyperlink
+    /// (`.osc8`): Ghostty's own app checks those before it opens them, and
+    /// the fallback will not skip that check. It opens only the files
+    /// Ghostty writes itself (`.text`, `.html`), and on iOS nothing. A host
+    /// that wants links to open sets this and applies its own policy. While
     /// it is `nil`, every link goes to Ghostty's opener.
     public var onOpenURL: ((_ url: String, _ kind: TerminalOpenURLKind) -> Bool)?
 

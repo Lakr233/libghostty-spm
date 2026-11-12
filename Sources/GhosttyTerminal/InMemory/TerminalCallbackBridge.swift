@@ -214,10 +214,11 @@ final class TerminalCallbackBridge {
     /// took it.
     ///
     /// The answer goes back to Ghostty as the action's return value. A link
-    /// reported unhandled falls to core's own opener, which spawns
-    /// `/usr/bin/open` for a detected URL and, on macOS, refuses an OSC 8
-    /// hyperlink outright (`error.UnsafeOSC8Link`): a host that wants OSC 8
-    /// links to open must take them.
+    /// reported unhandled falls to core's own opener (`src/os/open.zig`),
+    /// which on macOS refuses `.unknown` and `.osc8` outright
+    /// (`error.UntrustedLink`), spawns `open` for `.text` and `.html` alone,
+    /// and is unimplemented on iOS: a host that wants links to open must
+    /// take them.
     @discardableResult
     func handleOpenURL(_ payload: ghostty_action_open_url_s) -> Bool {
         let kind = TerminalOpenURLKind(payload.kind)
