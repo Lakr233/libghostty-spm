@@ -171,10 +171,13 @@
             #expect(tap.contains("\u{1B}[<0;1;1M"))
             #expect(tap.contains("\u{1B}[<0;1;1m"))
 
-            #expect(rig.view.handleDirectTouchHold(at: CGPoint(x: 4, y: 4)) == false)
-            let hold = String(decoding: await rig.take(), as: UTF8.self)
-            #expect(hold.contains("\u{1B}[<2;1;1M"))
-            #expect(hold.contains("\u{1B}[<2;1;1m"))
+            rig.view.handleDirectTouchHoldBegan(at: CGPoint(x: 4, y: 4))
+            let held = String(decoding: await rig.take(), as: UTF8.self)
+            #expect(held.contains("\u{1B}[<2;1;1M"))
+            #expect(!held.contains("\u{1B}[<2;1;1m"))
+            #expect(rig.view.handleDirectTouchHoldEnded(at: CGPoint(x: 4, y: 4)) == false)
+            let lifted = String(decoding: await rig.take(), as: UTF8.self)
+            #expect(lifted.contains("\u{1B}[<2;1;1m"))
         }
 
         @Test(.timeLimit(.minutes(1)))
@@ -186,8 +189,11 @@
 
             rig.receive("hello world")
             #expect(rig.view.performBindingAction("select_all"))
-            #expect(rig.view.handleDirectTouchHold(at: CGPoint(x: 4, y: 4)))
+            rig.view.handleDirectTouchHoldBegan(at: CGPoint(x: 4, y: 4))
+            #expect(rig.view.handleDirectTouchHoldEnded(at: CGPoint(x: 4, y: 4)))
             #expect(rig.view.surface?.hasSelection() == true)
+            // The menu was asked for once: a second lift has nothing pending.
+            #expect(rig.view.pointer.pendingSelectionMenuPoint == nil)
         }
 
         /// The recognizer reports in the view's own coordinates, y up; the

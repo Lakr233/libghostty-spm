@@ -135,23 +135,44 @@
         }
 
         @objc func handleDirectTouchHoldGesture(_ gesture: NSPressGestureRecognizer) {
-            guard gesture.state == .began else { return }
-            if handleDirectTouchHold(at: terminalPoint(of: gesture)) {
-                selectionContextMenu().popUp(positioning: nil, at: gesture.location(in: self), in: self)
+            switch gesture.state {
+            case .began:
+                handleDirectTouchHoldBegan(at: terminalPoint(of: gesture))
+            case .ended, .cancelled:
+                // The finger is up: a menu's tracking loop no longer runs
+                // under a recognizer that is still mid-gesture.
+                if handleDirectTouchHoldEnded(at: terminalPoint(of: gesture)) {
+                    selectionContextMenu().popUp(positioning: nil, at: gesture.location(in: self), in: self)
+                }
+            default:
+                break
             }
         }
 
-        /// A hold is the secondary click: over a selection it asks for the
-        /// copy menu (true), otherwise the terminal gets a right press and
-        /// release, as `rightMouseDown` / `rightMouseUp` send them.
-        func handleDirectTouchHold(at point: CGPoint) -> Bool {
+        /// A hold is the secondary click, split as `rightMouseDown` and
+        /// `rightMouseUp` split it: over a selection the press is kept back
+        /// for the copy menu, otherwise the terminal gets a right press.
+        /// While it lasts the pan cannot begin — two recognizers on a view
+        /// do not recognize together unless a delegate allows it.
+        func handleDirectTouchHoldBegan(at point: CGPoint) {
             window?.makeFirstResponder(self)
             stopDirectTouchMomentum()
             surface?.sendMousePos(x: point.x, y: point.y, mods: GHOSTTY_MODS_NONE)
-            if selectionMenuPoint(at: point) != nil {
-                return true
+            if let menuPoint = selectionMenuPoint(at: point) {
+                pointer.pendingSelectionMenuPoint = menuPoint
+                return
             }
             surface?.sendMouseButton(state: GHOSTTY_MOUSE_PRESS, button: GHOSTTY_MOUSE_RIGHT, mods: GHOSTTY_MODS_NONE)
+        }
+
+        /// The lift: true when the copy menu is due, otherwise the right
+        /// button is released where the finger left.
+        func handleDirectTouchHoldEnded(at point: CGPoint) -> Bool {
+            surface?.sendMousePos(x: point.x, y: point.y, mods: GHOSTTY_MODS_NONE)
+            if pointer.pendingSelectionMenuPoint != nil {
+                pointer.pendingSelectionMenuPoint = nil
+                return true
+            }
             surface?.sendMouseButton(state: GHOSTTY_MOUSE_RELEASE, button: GHOSTTY_MOUSE_RIGHT, mods: GHOSTTY_MODS_NONE)
             return false
         }
