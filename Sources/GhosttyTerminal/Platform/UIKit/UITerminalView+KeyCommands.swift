@@ -51,24 +51,21 @@
             return command
         }
 
-        /// Tab and Backspace under Control, which Cocoa's key bindings also
-        /// take on Mac Catalyst (`selectNextKeyView:`,
-        /// `selectPreviousKeyView:`, `deleteBackwardByDecomposingPreviousCharacter:`):
-        /// only the Control press reached the surface. Like Escape they are
-        /// withheld while text is marked, since then they are the input
-        /// method's.
-        private static let controlNamedKeyCommands: [UIKeyCommand] = [
-            ("\t", UIKeyModifierFlags.control), ("\t", [.control, .shift]),
-            ("\u{8}", .control), (UIKeyCommand.inputDelete, .control),
-        ].map { input, flags in
-            let command = UIKeyCommand(
-                input: input,
-                modifierFlags: flags,
-                action: #selector(handleControlNamedKeyCommand(_:)),
-            )
-            command.wantsPriorityOverSystemBehavior = true
-            return command
-        }
+        /// Backspace under Control, which the text input system takes too
+        /// (Cocoa's `deleteBackwardByDecomposingPreviousCharacter:` on Mac
+        /// Catalyst): on Catalyst and the iPhone simulator only the Control
+        /// press reached the surface. Like Escape it is withheld while text
+        /// is marked, since then it is the input method's.
+        private static let controlBackspaceKeyCommands: [UIKeyCommand] =
+            ["\u{8}", UIKeyCommand.inputDelete].map { input in
+                let command = UIKeyCommand(
+                    input: input,
+                    modifierFlags: .control,
+                    action: #selector(handleControlBackspaceKeyCommand(_:)),
+                )
+                command.wantsPriorityOverSystemBehavior = true
+                return command
+            }
 
         /// Escape, which the text input system also handles itself: for a
         /// `UITextInput` first responder UIKit's system behaviour for a
@@ -142,7 +139,7 @@
             if !inputHandler.hasMarkedText {
                 commands.append(contentsOf: Self.escapeKeyCommands)
                 commands.append(contentsOf: Self.modifiedReturnKeyCommands)
-                commands.append(contentsOf: Self.controlNamedKeyCommands)
+                commands.append(contentsOf: Self.controlBackspaceKeyCommands)
             }
             return commands
         }
@@ -187,27 +184,17 @@
             ))
         }
 
-        /// The Control Tab and Backspace commands' action: the key with the
-        /// command's modifiers, on the key path. Claimed under the input
-        /// `pressesBegan` would report for the key (`keyCommandInput`).
-        @objc private func handleControlNamedKeyCommand(_ command: UIKeyCommand) {
-            let key: TerminalKey
-            let input: String
-            switch command.input ?? "" {
-            case "\t":
-                (key, input) = (.tab, "\t")
-            case "\u{8}", UIKeyCommand.inputDelete:
-                (key, input) = (.backspace, "\u{8}")
-            default:
-                return
-            }
-            guard claimKeyCommandDelivery(input: input, modifierFlags: command.modifierFlags) else { return }
+        /// The Control Backspace command's action: Backspace with the
+        /// command's modifiers, on the key path. Claimed as \u{8}, the input
+        /// `keyCommandInput` reports for the press.
+        @objc private func handleControlBackspaceKeyCommand(_ command: UIKeyCommand) {
+            guard claimKeyCommandDelivery(input: "\u{8}", modifierFlags: command.modifierFlags) else { return }
             TerminalDebugLog.log(
                 .input,
-                "uikit key command input=\(key) mods=0x\(String(command.modifierFlags.rawValue, radix: 16))",
+                "uikit key command input=backspace mods=0x\(String(command.modifierFlags.rawValue, radix: 16))",
             )
             _ = sendInputKey(TerminalKeyPress(
-                key,
+                .backspace,
                 modifiers: TerminalInputModifiers(from: command.modifierFlags),
             ))
         }

@@ -933,12 +933,15 @@ import XCTest
                 ("'", .control, "keycode=39 mods=0x2 "),
                 ("'", [.control, .shift], "keycode=39 mods=0x3 "),
                 ("/", .control, "keycode=44 mods=0x2 "),
-                (XCUIKeyboardKey.tab.rawValue, .control, "keycode=48 mods=0x2 "),
                 (XCUIKeyboardKey.delete.rawValue, .control, "keycode=51 mods=0x2 "),
             ]
             #if !targetEnvironment(macCatalyst)
-                // On a Mac, Ctrl+arrows belong to Mission Control.
+                // On a Mac, Ctrl+arrows belong to Mission Control, and
+                // Ctrl+Tab never reached the view on the Catalyst runner,
+                // even registered as a key command with priority over the
+                // system's behavior: something above the view keeps it.
                 chords += [
+                    (XCUIKeyboardKey.tab.rawValue, .control, "keycode=48 mods=0x2 "),
                     (XCUIKeyboardKey.leftArrow.rawValue, .control, "keycode=123 mods=0x2 "),
                     (XCUIKeyboardKey.rightArrow.rawValue, .control, "keycode=124 mods=0x2 "),
                     (XCUIKeyboardKey.upArrow.rawValue, .control, "keycode=126 mods=0x2 "),
