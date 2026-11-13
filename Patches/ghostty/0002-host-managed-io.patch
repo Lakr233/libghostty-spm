@@ -1,8 +1,8 @@
 diff --git a/include/ghostty.h b/include/ghostty.h
-index 9a12b9cad..f1e7be879 100644
+index 439195c75..a02664d71 100644
 --- a/include/ghostty.h
 +++ b/include/ghostty.h
-@@ -505,10 +505,26 @@ typedef enum {
+@@ -521,10 +521,26 @@ typedef enum {
    GHOSTTY_SURFACE_CONTEXT_SPLIT = 2,
  } ghostty_surface_context_e;
  
@@ -11,8 +11,8 @@ index 9a12b9cad..f1e7be879 100644
 +  GHOSTTY_SURFACE_IO_BACKEND_HOST_MANAGED = 1,
 +} ghostty_surface_io_backend_e;
 +
-+typedef void (*ghostty_surface_receive_buffer_cb)(void*, const uint8_t*, size_t);
-+typedef void (*ghostty_surface_receive_resize_cb)(void*,
++typedef void (*ghostty_surface_receive_buffer_cb)(void* GHOSTTY_NULLABLE, const uint8_t*, size_t);
++typedef void (*ghostty_surface_receive_resize_cb)(void* GHOSTTY_NULLABLE,
 +                                               uint16_t,
 +                                               uint16_t,
 +                                               uint32_t,
@@ -21,15 +21,15 @@ index 9a12b9cad..f1e7be879 100644
  typedef struct {
    ghostty_platform_e platform_tag;
    ghostty_platform_u platform;
-   void* userdata;
+   void* GHOSTTY_NULLABLE userdata;
 +  ghostty_surface_io_backend_e backend;
-+  void* receive_userdata;
-+  ghostty_surface_receive_buffer_cb receive_buffer;
-+  ghostty_surface_receive_resize_cb receive_resize;
++  void* GHOSTTY_NULLABLE receive_userdata;
++  ghostty_surface_receive_buffer_cb GHOSTTY_NULLABLE receive_buffer;
++  ghostty_surface_receive_resize_cb GHOSTTY_NULLABLE receive_resize;
    double scale_factor;
    float font_size;
-   const char* working_directory;
-@@ -1184,6 +1200,8 @@ GHOSTTY_API ghostty_surface_config_s ghostty_surface_inherited_config(ghostty_su
+   const char* GHOSTTY_NULLABLE working_directory;
+@@ -1210,6 +1226,8 @@ GHOSTTY_API ghostty_surface_config_s ghostty_surface_inherited_config(ghostty_su
  GHOSTTY_API void ghostty_surface_update_config(ghostty_surface_t, ghostty_config_t);
  GHOSTTY_API bool ghostty_surface_needs_confirm_quit(ghostty_surface_t);
  GHOSTTY_API bool ghostty_surface_process_exited(ghostty_surface_t);

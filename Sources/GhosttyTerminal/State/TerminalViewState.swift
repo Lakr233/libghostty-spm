@@ -108,13 +108,22 @@ public final class TerminalViewState: ObservableObject {
     /// ``sendMousePos(x:y:modifiers:)`` on the main thread hears about the
     /// link there before the call returns. Ghostty reports a matched URL
     /// only while `link-previews` allows it, which by default it does.
+    ///
+    /// Ghostty calls this while it works on the surface. Keep what the
+    /// closure does to the URL it was given; to read the surface back
+    /// (its selection, its text), wait for the next main-queue turn.
     public var onHoverLink: ((String?) -> Void)?
 
-    /// Host hook for a link the user activated, a Cmd-click by default.
-    /// While this is set the host opens the URL and Ghostty's own opener
-    /// does not run; while it is `nil`, Ghostty opens the URL itself, which
-    /// on macOS spawns `/usr/bin/open` and elsewhere does nothing.
-    public var onOpenURL: ((String, TerminalOpenURLKind) -> Void)?
+    /// Host hook for an activated link (cmd-click). Return `true` when the
+    /// host opened it, `false` to leave it to Ghostty's own opener. On
+    /// macOS that opener refuses every link found in the terminal, a URL
+    /// detected in the text (`.unknown`) as much as an OSC 8 hyperlink
+    /// (`.osc8`): Ghostty's own app checks those before it opens them, and
+    /// the fallback will not skip that check. It opens only the files
+    /// Ghostty writes itself (`.text`, `.html`), and on iOS nothing. A host
+    /// that wants links to open sets this and applies its own policy. While
+    /// it is `nil`, every link goes to Ghostty's opener.
+    public var onOpenURL: ((_ url: String, _ kind: TerminalOpenURLKind) -> Bool)?
 
     /// Hands keyboard focus to the attached terminal view, imperatively.
     ///

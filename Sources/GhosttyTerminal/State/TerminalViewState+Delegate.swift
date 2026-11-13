@@ -20,10 +20,10 @@ extension TerminalViewState:
     TerminalSurfaceCommandFinishedDelegate,
     TerminalSurfaceLifecycleDelegate,
     TerminalSurfaceClipboardConfirmationDelegate,
+    TerminalSurfaceOpenURLHandlingDelegate,
     TerminalSurfaceColorChangeDelegate,
     TerminalSurfaceFontSizeDelegate,
-    TerminalSurfaceHoverLinkDelegate,
-    TerminalSurfaceOpenURLDelegate
+    TerminalSurfaceHoverLinkDelegate
 {
     /// Applies a change to this state on the main queue's next turn.
     ///
@@ -182,16 +182,15 @@ extension TerminalViewState:
         onClipboardConfirmationRequest(request)
     }
 
+    /// Not routed through `publishSoon`: a host that moved the pointer
+    /// itself reads the link before its `sendMousePos` returns.
     public func terminalDidUpdateHoverLink(_ url: String?) {
         onHoverLink?(url)
     }
 
-    public var handlesOpenURL: Bool {
-        onOpenURL != nil
-    }
-
-    public func terminalDidRequestOpenURL(_ url: String, kind: TerminalOpenURLKind) {
-        onOpenURL?(url, kind)
+    /// Not routed through `publishSoon`: Ghostty waits for the answer.
+    public func terminalShouldHandleOpenURL(_ url: String, kind: TerminalOpenURLKind) -> Bool {
+        onOpenURL?(url, kind) ?? false
     }
 
     public func terminalDidAttachSurface(_ surface: TerminalSurface) {

@@ -236,7 +236,7 @@ Files in `Platform/UIKit/`:
 - `InputAccessory/UITerminalView+InputAccessory.swift` — input accessory bar integration (iOS only), key actions, sticky modifier dispatch, `sendSyntheticKey` / `sendControlByte` / `sendModifiedTextKey`
 - `UITerminalView+Interaction.swift` — tap-to-click and keyboard toggle, touch scrolling, momentum scroll via CADisplayLink, scroll-wheel recognizer, indirect-pointer selection, long-press menu, copy/paste actions; `PointerInteractionState`, `MomentumScrollState`
 - `UITerminalView+Drop.swift` — drag and drop: files staged to paths, text and links as text (see "Key Path vs Text Path")
-- `UITerminalView+PinchZoom.swift` — pinch changes font size via `increase_font_size` / `decrease_font_size` bindings (iOS only); `FontZoomState` (the gesture's scale only — the size itself is tracked by the coordinator, see "Font Size")
+- `UITerminalView+PinchZoom.swift` — pinch changes font size via `increase_font_size` / `decrease_font_size` bindings (on Mac Catalyst from fingers on a touch display only); `FontZoomState` (the gesture's scale only — the size itself is tracked by the coordinator, see "Font Size")
 - `UITerminalView+PublicInput.swift` — public `acquireProgrammaticFocus`, `paste(text:)`, `sendKey`, `performBindingAction`, `jumpToPrompt(by:)`, `scrollToRow`, `fontSize`
 - `InputAccessory/UITerminalView+PublicSticky.swift` — public sticky-modifier API (`TerminalPublicStickyModifier` / `TerminalPublicStickyActivation`) for hosts with their own accessory UI (iOS only)
 - `UITerminalView+Snapshot.swift` — public `snapshotImage()`: render-server snapshot (`drawHierarchy`) of the surface, Metal layer included; the AppKit twin (`AppTerminalView+Snapshot.swift`, `cacheDisplay`) is best-effort for Metal content. Reached from state via `TerminalViewState.attachedPlatformView`
@@ -260,6 +260,7 @@ Files in `Platform/Shared/` (both platforms; the Foundation-only ones have unit 
 - `TerminalInputDocument.swift` — UITextInput document positions (empty anchor + marked text) ↔ marked-text offsets
 - `TerminalKeyRepeat.swift` — which held hardware keys the view repeats (iOS and Mac Catalyst), and the repeat timing
 - `TerminalFontSize.swift` — a surface's font size under Ghostty's own rules (steps, clamps, reset, config reload); `TerminalFontSizeAction.swift` — the four font-size actions from a binding-action string or a Cmd key's characters (see "Font Size")
+- `TerminalPinchFontZoom.swift` — a pinch as font-size steps and its 4…64 range; `TerminalScrollMomentum.swift` — the glide after a finger lifts, for a view that produces it itself (AppKit's touch pan)
 - `TerminalMainActor.swift` — `terminalRunOnMain` for C callbacks
 - `TerminalView+Process.swift` — `foregroundPid` / `ttyName` on `TerminalView`
 
@@ -475,7 +476,9 @@ so in the code — "it's just text" is the mistake this section exists to preven
   Ghostty reads a precision delta as device pixels and applies no content
   scale to it, so the finger, the momentum and the wheel all send
   `TerminalScrollDistance.scrollPixels`: points times
-  `resolvedDisplayScale()`. The wheel path sends the last pointer position (view points; Ghostty
+  `resolvedDisplayScale()` (AppKit's `scrollWheel` does the same with a
+  precise delta and the backing scale factor; a wheel notch there is a line
+  count and is sent as is). The wheel path sends the last pointer position (view points; Ghostty
   applies content scale) before `sendMouseScroll` so a captured TUI can
   associate the wheel with the cell under the pointer. Pointer mods come
   from a live hover recognizer, else `GCKeyboard.coalesced` on iOS, else
@@ -489,11 +492,70 @@ so in the code — "it's just text" is the mistake this section exists to preven
   hover recognizer must run simultaneously with the others and must not
   cancel touches. Do not wrap the view in a host `ScrollView` that steals
   wheel or pan events.
-- A pinch (`+PinchZoom`, iOS only) steps the font size through the
+- A pinch (`+PinchZoom`) steps the font size through the
   `increase_font_size:1` / `decrease_font_size:1` bindings, one step per
-  0.1 of scale, and stops at `minFontSize`…`maxFontSize` (4…64), checked
-  against the tracked size (see "Font Size"). Cmd+`=`/`-`/`0` on a
+  0.1 of scale, and stops at 4…64, checked against the tracked size (see
+  "Font Size"); the arithmetic is `TerminalPinchFontZoom`
+  (`Platform/Shared`) and the stepping `core.applyPinchFontZoom`, shared
+  with the Mac's touch display (see "Touch on a Mac"). On iOS the
+  recognizer also takes a trackpad pinch. Cmd+`=`/`-`/`0` on a
   hardware keyboard are Ghostty's own keybinds on every platform.
+
+### Touch on a Mac
+
+A Mac with a touch display (macOS 27; a Sidecar iPad on iPadOS 27 is the
+same input and the way to test without one) sends fingers to gesture
+recognizers and nowhere else: not the responder chain, not `sendEvent`,
+not an event monitor. Apple's sources are "Adopting gesture recognizers in
+your app", TN3212 and TN3216; read them before changing any of this, and
+note which emulation applies to us — it is not the one most write-ups
+quote.
+
+- **AppKit.** For a view that overrides `mouseDown(with:)`, as
+  `AppTerminalView` does, AppKit emulates the mouse from one finger: a tap
+  is a click and a drag is `mouseDown` / `mouseDragged` / `mouseUp`, which
+  here selects text. Two fingers reach nothing. (The "immediate pan becomes
+  a trackpad scroll, a pinch becomes magnify" emulation is the extra one
+  for apps that embed a non-AppKit UI framework.) So neither scrolling nor
+  zooming worked with a finger. `+DirectTouch` adds the two recognizers
+  Apple's recipe names: an `NSPanGestureRecognizer` with `buttonMask = 0`
+  for one finger — precision scroll in device pixels
+  (`TerminalScrollDistance`), a glide after the lift from
+  `TerminalScrollMomentum` on a timer, none for a program tracking the
+  mouse — and an `NSMagnificationGestureRecognizer` for the pinch. The
+  emulation does not survive a direct-touch recognizer on the view:
+  `-[NSView _gestureRecognizersForMouseEmulation]` returns three
+  recognizers (pan → left drag, press → context click, click) for a view
+  that overrides `mouseDown`, and nil once ours are attached (probed on
+  macOS 27.0; TN3216 hints at it). So the tap and the hold are ours too:
+  an `NSClickGestureRecognizer` sends focus and a left click, an
+  `NSPressGestureRecognizer` the secondary click — the copy menu over a
+  selection, a right press and release otherwise. A finger no longer
+  drag-selects; selection stays with the mouse. Three things keep a Mac without touch
+  input exactly as it was, and `AppTerminalViewDirectTouchTests` holds
+  them: all four are installed on macOS 27 and later only; none takes a
+  mouse button; and their delegate (`TerminalDirectTouchGestureDelegate`,
+  a separate object because a host subclass may be an
+  `NSGestureRecognizerDelegate` itself) refuses every `NSEvent`, with
+  `delaysMagnificationEvents` off — it is on by default for that class —
+  so a trackpad pinch still reaches a host's `magnify(with:)` at once and
+  only once. `scrollWheel(with:)` is not involved. No macOS 27-only symbol
+  is used (`minimumNumberOfTouches` and friends), so the file builds with
+  an older SDK.
+- **Mac Catalyst.** A finger is a `.direct` `UITouch`; the mouse and the
+  trackpad are `.indirectPointer` touches and scroll events (given
+  `UIApplicationSupportsIndirectInputEvents`, which the pointer paths
+  already need). Catalyst had no direct-touch recognizer at all — the
+  touch pan and the pinch were compiled for iOS alone.
+  `setupDirectTouchInput` (`+Interaction`) adds the iOS touch pan
+  (`handleTouchScrollGesture`, with its momentum) and the pinch, as
+  `TerminalDirectTouchPinchGestureRecognizer`, which refuses the
+  `.transform` event a trackpad pinch arrives as. Inline touch selection,
+  the tap's click and the keyboard toggle stay iOS-only.
+- None of this has run on the hardware: no touch display or Sidecar iPad
+  was at hand when it was written. The handlers are tested with the values
+  a recognizer reports; what AppKit does between a finger and the
+  recognizer is taken from the documentation above.
 
 ### Font Size
 
@@ -563,6 +625,34 @@ when the delegate does not adopt the protocol. The C side is the
 → `TerminalCallbacks.confirmReadClipboard`) for reads and pastes, and the
 write-clipboard callback for `.osc52Write`; tests in
 `Tests/GhosttyKitTest/Clipboard/TerminalClipboardConfirmationTests.swift`.
+
+### Opening Links
+
+A cmd-click on a link is `GHOSTTY_ACTION_OPEN_URL`, and the action's return
+value tells Ghostty whether the host took it.
+`TerminalCallbackBridge.handleOpenURL` asks a delegate that adopts
+`TerminalSurfaceOpenURLHandlingDelegate`
+(`terminalShouldHandleOpenURL(_:kind:) -> Bool`) first; a delegate that
+adopts only the older `TerminalSurfaceOpenURLDelegate` takes every link, as
+before. `TerminalViewState` adopts the handling protocol and forwards to
+`onOpenURL`, answering `false` while it is `nil`. An unhandled link falls to
+core's opener (`src/os/open.zig`), which on macOS refuses `.unknown` (a URL
+detected in the text) and `.osc8` with `error.UntrustedLink` and spawns
+`open` for `.text` / `.html` only, and on iOS is unimplemented — so links
+open only when the host takes them. Tests in
+`Tests/GhosttyKitTest/Surface/TerminalOpenURLDelegateTests.swift`.
+
+The link under the pointer is `GHOSTTY_ACTION_MOUSE_OVER_LINK`
+(`TerminalSurfaceHoverLinkDelegate`), and `TerminalViewState` forwards it to
+`onHoverLink`: the URL while a highlighted link is under the pointer, nil
+when it leaves. Like `onOpenURL` it is not routed through `publishSoon` — a
+host that moves the pointer with `sendMousePos` reads the link before the
+call returns. Both actions are emitted from inside Ghostty's mouse handling
+(`mouseRefreshLinks`, the click release), which upstream comments as holding
+the renderer lock, so the doc comments tell a host to wait a main-queue turn
+before reading the surface back from either closure; that a synchronous
+read hangs is read off the source, not reproduced. `TerminalViewStateLinkTests`
+runs the hover and a Cmd-click on a real surface.
 
 ### Selection Region
 
@@ -634,7 +724,7 @@ away from `pivot`. `usesTouchSelectionLoupe` turns it off and
 tracks; both are `open` in the class body. The default menu titles (Copy,
 Paste, Select, Select All, and AppKit's Copy) come from
 `Resources/Localization/<lang>.lproj/Localizable.strings` through
-`String(localized:bundle: .module)`,
+`String(localized:bundle: .ghosttyTerminal)`,
 in the 18 languages `TerminalLocalizationTests` lists; a new title gets every
 one of them. A host app must declare its localizations or set
 `CFBundleAllowMixedLocalizations` for the titles to follow the user's
@@ -784,7 +874,7 @@ Two release tracks, decoupled since 1.4.0:
   `+Interaction`, `FontZoomState` in `+PinchZoom`, `FocusBridgeState` in
   `+Lifecycle`, `TextInputBridgeState` in `+UITextInput`; AppKit:
   `KeyEchoState` and `PointerSelectionState` in `+Input`, `FocusBridgeState`
-  in `+Lifecycle`); the root class declares only `var xxx: XxxState = .init()`
+  in `+Lifecycle`, `DirectTouchState` in `+DirectTouch`); the root class declares only `var xxx: XxxState = .init()`
   lines — the storage must live in the class because extensions cannot add
   stored properties. Lazy objects that need `self` (`inputHandler`,
   `terminalInputAccessory`) and reference-type helpers

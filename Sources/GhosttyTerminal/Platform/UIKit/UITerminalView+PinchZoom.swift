@@ -4,97 +4,92 @@
 //
 
 #if canImport(UIKit)
-    #if !targetEnvironment(macCatalyst)
-        import UIKit
+    import UIKit
 
-        /// Pinch gesture state; behavior lives in +PinchZoom. The font size the
-        /// pinch steps is not kept here: the coordinator tracks it for every
-        /// platform and every path that zooms (`fontSize`).
-        struct FontZoomState {
-            var lastPinchScale: CGFloat = 1.0
+    /// Pinch gesture state; behavior lives in +PinchZoom. The font size the
+    /// pinch steps is not kept here: the coordinator tracks it for every
+    /// platform and every path that zooms (`fontSize`).
+    struct FontZoomState {
+        var pinch = TerminalPinchFontZoom()
+    }
+
+    #if targetEnvironment(macCatalyst)
+        /// A pinch of two fingers on a Mac's touch display, and nothing
+        /// else. A trackpad pinch reaches a pinch recognizer as a
+        /// `.transform` event, not as touches; refusing it keeps every Mac
+        /// without a touch display exactly where it was.
+        final class TerminalDirectTouchPinchGestureRecognizer: UIPinchGestureRecognizer {
+            override init(target: Any?, action: Selector?) {
+                super.init(target: target, action: action)
+                allowedTouchTypes = [NSNumber(value: UITouch.TouchType.direct.rawValue)]
+            }
+
+            override func shouldReceive(_ event: UIEvent) -> Bool {
+                event.type == .touches
+            }
         }
+    #endif
 
-        extension UITerminalView {
-            static let minFontSize: Float = 4
-            static let maxFontSize: Float = 64
-            private static let scaleStepThreshold: CGFloat = 0.1
-
-            func setupPinchZoomGesture() {
+    extension UITerminalView {
+        func setupPinchZoomGesture() {
+            #if targetEnvironment(macCatalyst)
+                let pinch = TerminalDirectTouchPinchGestureRecognizer(
+                    target: self,
+                    action: #selector(handlePinchGesture(_:)),
+                )
+            #else
                 let pinch = UIPinchGestureRecognizer(
                     target: self,
                     action: #selector(handlePinchGesture(_:)),
                 )
-                addGestureRecognizer(pinch)
-            }
+            #endif
+            addGestureRecognizer(pinch)
+        }
 
-            @objc func handlePinchGesture(_ gesture: UIPinchGestureRecognizer) {
-                switch gesture.state {
-                case .began:
+        @objc func handlePinchGesture(_ gesture: UIPinchGestureRecognizer) {
+            switch gesture.state {
+            case .began:
+                #if !targetEnvironment(macCatalyst)
                     softwareKeyboard.tapCandidateArmed = false
-                    stopMomentumScrolling()
-                    dismissTouchSelection()
-                    fontZoom.lastPinchScale = gesture.scale
+                #endif
+                stopMomentumScrolling()
+                dismissTouchSelection()
+                fontZoom.pinch.begin(scale: gesture.scale)
+                TerminalDebugLog.log(
+                    .actions,
+                    "pinch began scale=\(String(format: "%.3f", gesture.scale)) fontSize=\(fontSizeDescription)",
+                )
+
+            case .changed:
+                let steps = fontZoom.pinch.takeSteps(at: gesture.scale)
+                guard steps != 0 else { return }
+                TerminalDebugLog.log(
+                    .actions,
+                    "pinch changed scale=\(String(format: "%.3f", gesture.scale)) steps=\(steps)",
+                )
+
+                if core.applyPinchFontZoom(steps: steps) {
+                    refreshTextInputGeometry(reason: "pinch-zoom")
                     TerminalDebugLog.log(
                         .actions,
-                        "pinch began scale=\(String(format: "%.3f", gesture.scale)) fontSize=\(fontSizeDescription)",
+                        "pinch applied fontSize=\(fontSizeDescription)",
                     )
-
-                case .changed:
-                    let delta = gesture.scale - fontZoom.lastPinchScale
-
-                    let steps = Int(delta / Self.scaleStepThreshold)
-                    guard steps != 0 else { return }
-
-                    fontZoom.lastPinchScale += CGFloat(steps) * Self.scaleStepThreshold
-                    TerminalDebugLog.log(
-                        .actions,
-                        "pinch changed scale=\(String(format: "%.3f", gesture.scale)) delta=\(String(format: "%.3f", delta)) steps=\(steps)",
-                    )
-
-                    // Each step goes through the binding, which moves the
-                    // tracked size as it lands; the pinch's own 4…64 range is
-                    // checked against that size before every step.
-                    var changed = false
-                    if steps > 0 {
-                        for _ in 0 ..< steps {
-                            guard let size = fontSize, size < Self.maxFontSize,
-                                  surface?.performBindingAction("increase_font_size:1") == true
-                            else { break }
-                            changed = true
-                        }
-                    } else {
-                        for _ in 0 ..< abs(steps) {
-                            guard let size = fontSize, size > Self.minFontSize,
-                                  surface?.performBindingAction("decrease_font_size:1") == true
-                            else { break }
-                            changed = true
-                        }
-                    }
-
-                    if changed {
-                        core.synchronizeMetrics()
-                        refreshTextInputGeometry(reason: "pinch-zoom")
-                        TerminalDebugLog.log(
-                            .actions,
-                            "pinch applied fontSize=\(fontSizeDescription)",
-                        )
-                    }
-
-                case .ended, .cancelled, .failed:
-                    fontZoom.lastPinchScale = 1.0
-                    TerminalDebugLog.log(
-                        .actions,
-                        "pinch ended state=\(gesture.state.rawValue) fontSize=\(fontSizeDescription)",
-                    )
-
-                default:
-                    break
                 }
-            }
 
-            private var fontSizeDescription: String {
-                fontSize.map { "\($0)" } ?? "nil"
+            case .ended, .cancelled, .failed:
+                fontZoom.pinch.end()
+                TerminalDebugLog.log(
+                    .actions,
+                    "pinch ended state=\(gesture.state.rawValue) fontSize=\(fontSizeDescription)",
+                )
+
+            default:
+                break
             }
         }
-    #endif
+
+        private var fontSizeDescription: String {
+            fontSize.map { "\($0)" } ?? "nil"
+        }
+    }
 #endif

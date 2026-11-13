@@ -60,6 +60,38 @@ struct GhosttyRuntimeResourcesTests {
         ])
     }
 
+    /// An app assembled from `swift build` output carries the bundle in
+    /// `Contents/Resources` under the consumer's package prefix; SwiftPM's
+    /// `Bundle.module` never looks there.
+    @Test
+    func `resource bundle is found by suffix in a resources directory`() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("GhosttyTerminalBundleTests-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        #expect(Bundle.ghosttyTerminalBundle(in: directory) == nil)
+        #expect(Bundle.ghosttyTerminalBundle(in: nil) == nil)
+        #expect(Bundle.ghosttyTerminalBundle(in: directory.appendingPathComponent("missing")) == nil)
+
+        try FileManager.default.createDirectory(
+            at: directory.appendingPathComponent("Other_GhosttyTheme.bundle"),
+            withIntermediateDirectories: true,
+        )
+        #expect(Bundle.ghosttyTerminalBundle(in: directory) == nil)
+
+        let expected = directory.appendingPathComponent("SomePackage_GhosttyTerminal.bundle")
+        try FileManager.default.createDirectory(at: expected, withIntermediateDirectories: true)
+        let found = try #require(Bundle.ghosttyTerminalBundle(in: directory))
+        #expect(found.bundleURL.standardizedFileURL == expected.standardizedFileURL)
+    }
+
+    /// Outside an app the lookup misses and `Bundle.module` answers.
+    @Test
+    func `resource bundle falls back to the module bundle`() {
+        #expect(Bundle.ghosttyTerminal.bundleURL == Bundle.module.bundleURL)
+    }
+
     /// Main actor: `setenv`/`unsetenv` must not run while `ghostty_init` on
     /// the main thread is reading the environment.
     @Test @MainActor

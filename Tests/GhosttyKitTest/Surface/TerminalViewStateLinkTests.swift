@@ -3,36 +3,12 @@ import GhosttyKit
 @testable import GhosttyTerminal
 import Testing
 
-/// The view state's link closures: the link under the pointer, and a link
-/// the user activated, which Ghostty opens itself only while the host has
-/// no closure for it.
+/// The view state's link closures on a live surface: the link under the
+/// pointer, and a Cmd-click's way from Ghostty to `onOpenURL`. What the
+/// closure's answer means is in `TerminalOpenURLDelegateTests`.
 @Suite("TerminalViewStateLink", .serialized)
 @MainActor
 struct TerminalViewStateLinkTests {
-    @Test
-    func `Ghostty opens a URL itself until the host takes it`() {
-        let state = TerminalViewState()
-        let bridge = TerminalCallbackBridge(delegate: state)
-        #expect(!bridge.handlesOpenURL)
-
-        state.onOpenURL = { _, _ in }
-        #expect(bridge.handlesOpenURL)
-
-        state.onOpenURL = nil
-        #expect(!bridge.handlesOpenURL)
-    }
-
-    @Test
-    func `an activated link reaches the host`() {
-        let state = TerminalViewState()
-        var opened: [String] = []
-        state.onOpenURL = { url, _ in opened.append(url) }
-
-        Self.openURL("https://example.com/pull/1", through: TerminalCallbackBridge(delegate: state))
-
-        #expect(opened == ["https://example.com/pull/1"])
-    }
-
     @Test
     func `a link under the pointer reaches the host, and its end as nil`() {
         let state = TerminalViewState()
@@ -71,7 +47,10 @@ struct TerminalViewStateLinkTests {
         defer { harness.tearDown() }
         let state = TerminalViewState()
         var opened: [String] = []
-        state.onOpenURL = { url, _ in opened.append(url) }
+        state.onOpenURL = { url, _ in
+            opened.append(url)
+            return true
+        }
         harness.coordinator.delegate = state
         harness.receive("\u{1B}]8;;https://example.com/pull/1\u{1B}\\the pull request\u{1B}]8;;\u{1B}\\ end")
         _ = await harness.drain()
@@ -82,16 +61,6 @@ struct TerminalViewStateLinkTests {
         surface?.sendMouseButton(state: GHOSTTY_MOUSE_RELEASE, button: GHOSTTY_MOUSE_LEFT, modifiers: .super_)
 
         #expect(opened == ["https://example.com/pull/1"])
-    }
-
-    private static func openURL(_ url: String, through bridge: TerminalCallbackBridge) {
-        url.withCString { pointer in
-            var action = ghostty_action_s()
-            action.tag = GHOSTTY_ACTION_OPEN_URL
-            action.action.open_url.url = pointer
-            action.action.open_url.len = numericCast(url.utf8.count)
-            bridge.handleAction(action)
-        }
     }
 
     private static func hover(_ url: String, through bridge: TerminalCallbackBridge) {
