@@ -100,7 +100,14 @@
             switch gesture.state {
             case .began:
                 guard pointer.session.reported == nil else { return }
-                #if !targetEnvironment(macCatalyst)
+                #if targetEnvironment(macCatalyst)
+                    // The pointer is somewhere else on a Mac: a program
+                    // tracking the mouse gets its wheel reports for the
+                    // cell under the finger, not under the pointer.
+                    if surface?.isMouseCaptured == true {
+                        sendPointerPosition(at: gesture.location(in: self), remember: false)
+                    }
+                #else
                     softwareKeyboard.tapCandidateArmed = false
                 #endif
                 if !usesInlineTextSelection {
@@ -130,7 +137,15 @@
                     .input,
                     "touch scroll ended velocity=\(String(format: "%.2f", velocity.x))x\(String(format: "%.2f", velocity.y))",
                 )
-                if !usesInlineTextSelection || momentumScroll.scrollsLocally || surface?.isMouseCaptured != true {
+                #if targetEnvironment(macCatalyst)
+                    // A program tracking the mouse reads each report as a
+                    // wheel notch; a glide would keep sending them.
+                    let glides = surface?.isMouseCaptured != true
+                #else
+                    let glides = !usesInlineTextSelection || momentumScroll.scrollsLocally
+                        || surface?.isMouseCaptured != true
+                #endif
+                if glides {
                     startMomentumScrolling(velocity: velocity)
                 }
 
@@ -176,9 +191,19 @@
                 target: self,
                 selector: #selector(momentumScrollFrame(_:)),
             )
+            // A link with no preferred range runs at 60 Hz on a ProMotion
+            // display. The surface draws at 120, so every position was
+            // shown for two frames and the glide moved in visible steps.
+            link.preferredFrameRateRange = Self.momentumFrameRateRange
             link.add(to: .main, forMode: .common)
             momentumScroll.displayLink = link
         }
+
+        static let momentumFrameRateRange = CAFrameRateRange(
+            minimum: 80,
+            maximum: 120,
+            preferred: 120,
+        )
 
         @objc func momentumScrollFrame(_ link: CADisplayLink) {
             let dt = link.targetTimestamp - link.timestamp

@@ -100,6 +100,17 @@ public final class TerminalViewState: ObservableObject {
     /// read the clipboard, or wants a say on unsafe pastes, sets it.
     public var onClipboardConfirmationRequest: ((TerminalClipboardConfirmationRequest) -> Void)?
 
+    /// Host hook for an activated link (cmd-click). Return `true` when the
+    /// host opened it, `false` to leave it to Ghostty's own opener. On
+    /// macOS that opener refuses every link found in the terminal, a URL
+    /// detected in the text (`.unknown`) as much as an OSC 8 hyperlink
+    /// (`.osc8`): Ghostty's own app checks those before it opens them, and
+    /// the fallback will not skip that check. It opens only the files
+    /// Ghostty writes itself (`.text`, `.html`), and on iOS nothing. A host
+    /// that wants links to open sets this and applies its own policy. While
+    /// it is `nil`, every link goes to Ghostty's opener.
+    public var onOpenURL: ((_ url: String, _ kind: TerminalOpenURLKind) -> Bool)?
+
     /// Hands keyboard focus to the attached terminal view, imperatively.
     ///
     /// The SwiftUI `terminalFocused` bridge is best-effort: with no native

@@ -89,6 +89,10 @@ public final class TerminalViewState: ObservableObject {
     /// program's request silently and allows a user paste.
     public var onClipboardConfirmationRequest: ((TerminalClipboardConfirmationRequest) -&gt; Void)?
 
+    /// A cmd-clicked link; true when the host opened it. nil (or false)
+    /// leaves it to Ghostty, which opens no terminal link on macOS or iOS.
+    public var onOpenURL: ((_ url: String, _ kind: TerminalOpenURLKind) -&gt; Bool)?
+
     public var renderedConfig: String { get }
     public var effectiveColorScheme: TerminalColorScheme { get }
     public var theme: TerminalTheme { get }
@@ -196,6 +200,8 @@ public final class TerminalController {
     public func readViewportText() -&gt; String?
     public func receive(_ data: Data)
     public func receive(_ string: String)
+    public func receiveReplay(_ data: Data)
+    @discardableResult public func discardPendingOutput() -&gt; Int
     public func sendInput(_ data: Data)
     public func finish(exitCode: UInt32, runtimeMilliseconds: UInt64)
 }
@@ -221,6 +227,16 @@ public final class TerminalController {
 @MainActor public protocol TerminalSurfaceLifecycleDelegate {
     func terminalDidAttachSurface(_ surface: TerminalSurface)
     func terminalDidDetachSurface()
+}
+
+// Takes every link: Ghostty is told the host opened it.
+@MainActor public protocol TerminalSurfaceOpenURLDelegate {
+    func terminalDidRequestOpenURL(_ url: String, kind: TerminalOpenURLKind)
+}
+
+// Decides per link; false leaves it to Ghostty's opener.
+@MainActor public protocol TerminalSurfaceOpenURLHandlingDelegate {
+    func terminalShouldHandleOpenURL(_ url: String, kind: TerminalOpenURLKind) -&gt; Bool
 }
 </code></pre>
 

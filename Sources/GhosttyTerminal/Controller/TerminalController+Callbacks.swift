@@ -49,12 +49,14 @@ private enum TerminalCallbacks {
             return false
         }
         return MainActor.assumeIsolated {
+            // Core falls back to its own opener for an open_url reported
+            // unhandled, so the bridge's answer goes back as the result.
+            // Both open_url emitters run on the main thread.
+            if action.tag == GHOSTTY_ACTION_OPEN_URL {
+                return bridge.handleOpenURL(action.action.open_url)
+            }
             bridge.handleAction(action)
-            // Core spawns /usr/bin/open for an open_url reported unhandled,
-            // so a host delegate that took the URL is reported as handling
-            // it. Both open_url emitters run on the main thread.
-            return action.tag == GHOSTTY_ACTION_OPEN_URL
-                && bridge.delegate is any TerminalSurfaceOpenURLDelegate
+            return false
         }
     }
 
@@ -160,7 +162,7 @@ private enum TerminalCallbacks {
         userdata: UnsafeMutableRawPointer?,
         clipboard _: ghostty_clipboard_e,
         statePtr: UnsafeMutableRawPointer?,
-        mimes: UnsafePointer<UnsafePointer<CChar>?>?,
+        mimes: () -> [String],
         mimesLen: Int,
         listAvailable: Bool,
     ) -> ghostty_clipboard_read_result_e {
@@ -171,7 +173,7 @@ private enum TerminalCallbacks {
             .takeUnretainedValue()
         guard bridge.rawSurface != nil else { return GHOSTTY_CLIPBOARD_READ_UNSUPPORTED }
 
-        let requestedMimes = copyMimeList(mimes, count: mimesLen)
+        let requestedMimes = mimes()
         // A mode 5522 "list" request must not read any clipboard data — it
         // only wants the type listing.
         let wantsListOnly = mimesLen == 0 && listAvailable
@@ -301,9 +303,11 @@ private func copyClipboardContents(
     guard let ptr, count > 0 else { return [] }
     let buffer = UnsafeBufferPointer(start: ptr, count: count)
     return buffer.compactMap { item in
-        guard let mimePtr = item.mime else { return nil }
+        let mimePointer: UnsafePointer<CChar>? = item.mime
+        guard let mimePtr = mimePointer else { return nil }
         let mime = String(cString: mimePtr)
-        guard let dataPtr = item.data, item.len > 0 else {
+        let dataPointer: UnsafePointer<CChar>? = item.data
+        guard let dataPtr = dataPointer, item.len > 0 else {
             return TerminalClipboardContent(mime: mime, data: Data())
         }
         let data = Data(bytes: UnsafeRawPointer(dataPtr), count: item.len)
@@ -320,6 +324,37 @@ private func copyMimeList(
     return buffer.compactMap { $0.map { String(cString: $0) } }
 }
 
+private func copyMimeList(
+    _ ptr: UnsafePointer<UnsafePointer<CChar>>?,
+    count: Int,
+) -> [String] {
+    guard let ptr, count > 0 else { return [] }
+    return UnsafeBufferPointer(start: ptr, count: count).map { String(cString: $0) }
+}
+
+private func allocateCString(_ value: String) -> UnsafeMutablePointer<CChar> {
+    let bytes = value.utf8CString
+    let pointer = UnsafeMutablePointer<CChar>.allocate(capacity: bytes.count)
+    for (index, byte) in bytes.enumerated() {
+        pointer.advanced(by: index).initialize(to: byte)
+    }
+    return pointer
+}
+
+private func withAvailableMimePointers<R>(
+    _ pointers: [UnsafePointer<CChar>],
+    _ body: (UnsafePointer<UnsafePointer<CChar>>?, Int) -> R,
+) -> R {
+    pointers.withUnsafeBufferPointer { body($0.baseAddress, $0.count) }
+}
+
+private func withAvailableMimePointers<R>(
+    _ pointers: [UnsafePointer<CChar>],
+    _ body: (UnsafePointer<UnsafePointer<CChar>?>?, Int) -> R,
+) -> R {
+    pointers.map(Optional.some).withUnsafeBufferPointer { body($0.baseAddress, $0.count) }
+}
+
 /// Builds a `ghostty_clipboard_complete_s` over freshly allocated,
 /// caller-owned buffers and frees them after `body` returns. libghostty
 /// only borrows the payload for the duration of the call (mirroring the
@@ -332,25 +367,17 @@ func withClipboardCompletePayload<R>(
     remember: Bool,
     _ body: (UnsafePointer<ghostty_clipboard_complete_s>) -> R,
 ) -> R {
-    var mimeCStrings: [UnsafeMutablePointer<CChar>?] = []
+    var mimeCStrings: [UnsafeMutablePointer<CChar>] = []
     var dataBuffers: [UnsafeMutableRawPointer] = []
-    var availableCStrings: [UnsafeMutablePointer<CChar>?] = []
+    var availableCStrings: [UnsafeMutablePointer<CChar>] = []
     defer {
-        for mimeCString in mimeCStrings {
-            if let p = mimeCString {
-                free(p)
-            }
-        }
-        dataBuffers.forEach { free($0) }
-        for availableCString in availableCStrings {
-            if let p = availableCString {
-                free(p)
-            }
-        }
+        mimeCStrings.forEach { $0.deallocate() }
+        dataBuffers.forEach { $0.deallocate() }
+        availableCStrings.forEach { $0.deallocate() }
     }
 
     let cContents: [ghostty_clipboard_content_s] = contents.map { content in
-        let mimePtr = strdup(content.mime)
+        let mimePtr = allocateCString(content.mime)
         mimeCStrings.append(mimePtr)
         let byteCount = content.data.count
         let dataPtr = UnsafeMutableRawPointer.allocate(
@@ -366,22 +393,22 @@ func withClipboardCompletePayload<R>(
         }
         dataBuffers.append(dataPtr)
         return ghostty_clipboard_content_s(
-            mime: mimePtr.map { UnsafePointer($0) },
+            mime: UnsafePointer(mimePtr),
             data: dataPtr.assumingMemoryBound(to: CChar.self),
             len: byteCount,
         )
     }
 
-    availableCStrings = available.map { strdup($0) }
-    let availablePtrs: [UnsafePointer<CChar>?] = availableCStrings.map { $0.map { UnsafePointer($0) } }
+    availableCStrings = available.map(allocateCString)
+    let availablePtrs = availableCStrings.map { UnsafePointer($0) }
 
     return cContents.withUnsafeBufferPointer { contentsBuf in
-        availablePtrs.withUnsafeBufferPointer { availableBuf in
+        withAvailableMimePointers(availablePtrs) { availableBase, availableCount in
             var complete = ghostty_clipboard_complete_s(
                 contents: contentsBuf.baseAddress,
                 contents_len: contentsBuf.count,
-                available: availableBuf.baseAddress,
-                available_len: availableBuf.count,
+                available: availableBase,
+                available_len: availableCount,
                 confirmed: confirmed,
                 remember: remember,
             )
@@ -459,7 +486,25 @@ func terminalControllerReadClipboardCallback(
         userdata: userdata,
         clipboard: clipboard,
         statePtr: statePtr,
-        mimes: mimes,
+        mimes: { copyMimeList(mimes, count: mimesLen) },
+        mimesLen: mimesLen,
+        listAvailable: listAvailable,
+    )
+}
+
+func terminalControllerReadClipboardCallback(
+    userdata: UnsafeMutableRawPointer?,
+    clipboard: ghostty_clipboard_e,
+    statePtr: UnsafeMutableRawPointer,
+    mimes: UnsafePointer<UnsafePointer<CChar>>,
+    mimesLen: Int,
+    listAvailable: Bool,
+) -> ghostty_clipboard_read_result_e {
+    TerminalCallbacks.readClipboard(
+        userdata: userdata,
+        clipboard: clipboard,
+        statePtr: statePtr,
+        mimes: { copyMimeList(mimes, count: mimesLen) },
         mimesLen: mimesLen,
         listAvailable: listAvailable,
     )

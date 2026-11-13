@@ -41,18 +41,21 @@ public final class InMemoryTerminalSession: @unchecked Sendable {
         self.suppressesPixelOnlyResizes = suppressesPixelOnlyResizes
         surfaceAccess = InMemoryTerminalSurfaceAccess(
             write: Self.writeToSurface,
+            replay: Self.replayToSurface,
             processExit: Self.reportProcessExit,
             tick: Self.tickApp,
         )
     }
 
     /// Test seam: the surface handed to `setSurface` is a stand-in, so every
-    /// C call on it is injected, and the tick defaults to a no-op.
+    /// C call on it is injected, and the tick defaults to a no-op. A replay
+    /// goes to `surfaceWrite` unless `surfaceReplay` is given.
     init(
         write: @escaping @Sendable (Data) -> Void,
         resize: @escaping @Sendable (InMemoryTerminalViewport) -> Void,
         suppressesPixelOnlyResizes: Bool = false,
         surfaceWrite: @escaping InMemoryTerminalSurfaceAccess.Write,
+        surfaceReplay: InMemoryTerminalSurfaceAccess.Write? = nil,
         processExit: @escaping InMemoryTerminalSurfaceAccess.ProcessExit =
             InMemoryTerminalSession.reportProcessExit,
         tick: @escaping InMemoryTerminalSurfaceAccess.Tick = { _ in },
@@ -62,6 +65,7 @@ public final class InMemoryTerminalSession: @unchecked Sendable {
         self.suppressesPixelOnlyResizes = suppressesPixelOnlyResizes
         surfaceAccess = InMemoryTerminalSurfaceAccess(
             write: surfaceWrite,
+            replay: surfaceReplay ?? surfaceWrite,
             processExit: processExit,
             tick: tick,
         )
@@ -180,7 +184,61 @@ public final class InMemoryTerminalSession: @unchecked Sendable {
         )
     }
 
-    /// Bytes passed to ``receive(_:)`` that the terminal has not parsed yet.
+    /// Enqueue reconstructed history: bytes the terminal has seen before, fed
+    /// again to rebuild its state — a snapshot restored into a new surface, a
+    /// session reattached to a daemon, a screen brought up to date after the
+    /// host held output back.
+    ///
+    /// The bytes take the same serial queue as ``receive(_:)`` and keep their
+    /// place among the live output around them. They are parsed exactly as
+    /// live output is; only the replies they would trigger — device
+    /// attributes, status and cursor reports, OSC 10/11 colour queries,
+    /// title reports — are dropped where they are produced
+    /// (`ghostty_surface_write_buffer_replay`). Those queries were answered
+    /// when the bytes were live; a second answer reaches the shell as typed
+    /// input. The replies are generated on Ghostty's IO thread some time
+    /// after the write returns, so a host cannot filter them reliably in its
+    /// `write` closure, which is why this is a separate entry point.
+    ///
+    /// One call is one write to the surface, parsed with the terminal lock
+    /// held (the parser lets go of it only to hand a message to a full
+    /// mailbox), so a replay that starts with a reset goes from the old
+    /// screen to the new one without the renderer drawing the blank state
+    /// between. Pass a whole screen in one call.
+    ///
+    /// A replay received with no surface attached waits for the next one
+    /// like any other output, and is exempt from the 1 MiB cap that bounds
+    /// live output there: cutting the front off a reconstruction leaves a
+    /// state that never existed.
+    public func receiveReplay(_ data: Data) {
+        guard !data.isEmpty else { return }
+        surfaceAccess.enqueueReplay(data)
+        TerminalDebugLog.log(
+            .output,
+            "terminal <- host replay bytes=\(data.count)",
+        )
+    }
+
+    /// Drops every byte passed to ``receive(_:)`` or ``receiveReplay(_:)``
+    /// that the terminal has not started parsing, and returns how many.
+    ///
+    /// For a host that keeps the terminal's state somewhere else and is
+    /// about to replace the screen with a replay of it: output queued for a
+    /// surface that is not drawing (the app is in the background, the view
+    /// is hidden) would otherwise be parsed first, every title and bell in
+    /// it going through the app mailbox a tick at a time, only to be
+    /// overwritten. The write a surface is parsing when this is called runs
+    /// to its end, and a queued ``finish(exitCode:runtimeMilliseconds:)``
+    /// stays queued. Queries in the dropped bytes are never answered.
+    @discardableResult
+    public func discardPendingOutput() -> Int {
+        let dropped = surfaceAccess.discardPendingOutput()
+        TerminalDebugLog.log(.output, "pending output discarded bytes=\(dropped)")
+        return dropped
+    }
+
+    /// Bytes passed to ``receive(_:)`` or ``receiveReplay(_:)`` that the
+    /// terminal has not parsed yet.
     ///
     /// `receive(_:)` never blocks, so a transport faster than the parser
     /// queues output here without limit while a surface is attached. A host
@@ -247,11 +305,12 @@ public final class InMemoryTerminalSession: @unchecked Sendable {
     // MARK: - C Callbacks
 
     static let receiveBufferCallback: ghostty_surface_receive_buffer_cb = { userdata, ptr, len in
-        guard let userdata, let ptr else { return }
+        let bufferPointer: UnsafePointer<UInt8>? = ptr
+        guard let userdata, let bufferPointer else { return }
         let session = Unmanaged<InMemoryTerminalSession>
             .fromOpaque(userdata)
             .takeUnretainedValue()
-        let data = Data(bytes: ptr, count: len)
+        let data = Data(bytes: bufferPointer, count: len)
         TerminalDebugLog.log(
             .input,
             "host <- terminal \(TerminalDebugLog.describe(data))",
@@ -368,6 +427,15 @@ public final class InMemoryTerminalSession: @unchecked Sendable {
                 return
             }
             ghostty_surface_write_buffer(surface, ptr, UInt(buffer.count))
+        }
+    }
+
+    private static func replayToSurface(_ surface: ghostty_surface_t, _ data: Data) {
+        data.withUnsafeBytes { buffer in
+            guard let ptr = buffer.baseAddress?.assumingMemoryBound(to: UInt8.self) else {
+                return
+            }
+            ghostty_surface_write_buffer_replay(surface, ptr, UInt(buffer.count))
         }
     }
 
