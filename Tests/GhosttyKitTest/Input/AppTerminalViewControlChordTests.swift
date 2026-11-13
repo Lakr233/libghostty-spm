@@ -125,7 +125,8 @@
         func `every chord reaches the program as Ghostty's own view sends it`() async throws {
             let harness = await GhosttySurfaceHarness.make()
             defer { harness.tearDown() }
-            let rig = AppKitInputRig()
+            let view = RoutingRecorderView(frame: NSRect(x: 0, y: 0, width: 800, height: 500))
+            let rig = AppKitInputRig(view: view)
             defer { rig.tearDown() }
             let surface = try #require(rig.view.surface)
 
@@ -141,13 +142,15 @@
                     let code = UInt16(TerminalHardwareKeyRouter.appKitKeyCode(for: key.ghosttyKey))
                     for (flags, modifiers) in Self.modifierSets {
                         let chord = Key.typed(code: code, flags: flags)
+                        view.route = []
                         rig.press(chord)
+                        let route = view.route
                         let pressed = await rig.take()
                         Self.sendAsGhosttysView(chord.event(window: rig.window), to: surface)
                         let expected = await rig.take()
                         if pressed != expected {
                             mismatches.append(
-                                "\(mode.name) \(key) mods=\(modifiers.rawValue): view \(pressed.visible) ghostty \(expected.visible)",
+                                "\(mode.name) \(key) mods=\(modifiers.rawValue): view \(pressed.visible) ghostty \(expected.visible) route \(route)",
                             )
                         }
                     }
@@ -229,6 +232,29 @@
             var release = event.buildKeyInput(action: GHOSTTY_ACTION_RELEASE)
             release.text = nil
             _ = surface.sendKeyEvent(release)
+        }
+
+        /// The view under test, noting how AppKit routed each press, for
+        /// the failure message: a chord that never reached `keyDown` is a
+        /// routing question, not an encoding one.
+        final class RoutingRecorderView: AppTerminalView {
+            var route: [String] = []
+
+            override func performKeyEquivalent(with event: NSEvent) -> Bool {
+                let handled = super.performKeyEquivalent(with: event)
+                route.append("performKeyEquivalent=\(handled)")
+                return handled
+            }
+
+            override func keyDown(with event: NSEvent) {
+                route.append("keyDown")
+                super.keyDown(with: event)
+            }
+
+            override func doCommand(by selector: Selector) {
+                route.append("doCommand(\(selector))")
+                super.doCommand(by: selector)
+            }
         }
 
         static let typingKeys: [TerminalKey] = TerminalKey.allCases.filter {
