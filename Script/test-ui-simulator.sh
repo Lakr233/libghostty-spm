@@ -32,6 +32,7 @@ DERIVED_DATA="${LIBGHOSTTY_DERIVED_DATA:-$(pwd)/build/UITestDerivedData}"
 HARDWARE_KEY_TESTS=(
     testInlineLongPressSelectionCopiesWithKeyboard
     testInlineSelectionSwitchesBetweenTouchPointerAndKeyboard
+    testHardwareControlChordsReachTheTerminal
 )
 
 case "$LABEL" in

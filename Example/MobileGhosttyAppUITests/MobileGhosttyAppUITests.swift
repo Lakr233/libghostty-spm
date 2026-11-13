@@ -906,6 +906,67 @@ import XCTest
 
         #endif
 
+        /// Hardware Control chords reach the surface, Shift included. The
+        /// text input system takes a plain Ctrl+letter before `pressesBegan`
+        /// (hence the Control key commands), and Cocoa's key bindings, which
+        /// Mac Catalyst runs, give Ctrl+Shift+A, E and V selection commands
+        /// of their own. `terminal.keyLog` lists what the view sent to the
+        /// surface; the encoding after that is Ghostty's.
+        func testHardwareControlChordsReachTheTerminal() throws {
+            let terminal = try requireTerminalInteractionTarget()
+            typeTerminalText("clear\n", in: terminal)
+            let log = app.descendants(matching: .any)["terminal.keyLog"].firstMatch
+            XCTAssertTrue(log.waitForExistence(timeout: 4))
+
+            // Cocoa binds Ctrl+Shift+A, B, E, F, N, P and V; Ctrl+Shift+Q is
+            // a letter it leaves alone.
+            var chords: [(key: String, flags: XCUIElement.KeyModifierFlags, sent: String)] = [
+                ("a", .control, "keycode=0 mods=0x2 "),
+                ("a", [.control, .shift], "keycode=0 mods=0x3 "),
+                ("b", [.control, .shift], "keycode=11 mods=0x3 "),
+                ("e", [.control, .shift], "keycode=14 mods=0x3 "),
+                ("f", [.control, .shift], "keycode=3 mods=0x3 "),
+                ("n", [.control, .shift], "keycode=45 mods=0x3 "),
+                ("p", [.control, .shift], "keycode=35 mods=0x3 "),
+                ("v", [.control, .shift], "keycode=9 mods=0x3 "),
+                ("q", [.control, .shift], "keycode=12 mods=0x3 "),
+                ("'", .control, "keycode=39 mods=0x2 "),
+                ("'", [.control, .shift], "keycode=39 mods=0x3 "),
+                ("/", .control, "keycode=44 mods=0x2 "),
+            ]
+            #if targetEnvironment(macCatalyst)
+                // On the iPhone simulator Ctrl+Backspace reaches neither
+                // `pressesBegan` nor its key command: the text input system
+                // keeps it there, and that is not understood yet.
+                chords.append((XCUIKeyboardKey.delete.rawValue, .control, "keycode=51 mods=0x2 "))
+            #else
+                // On a Mac, Ctrl+arrows belong to Mission Control, and
+                // Ctrl+Tab never reached the view on the Catalyst runner,
+                // even registered as a key command with priority over the
+                // system's behavior: something above the view keeps it.
+                chords += [
+                    (XCUIKeyboardKey.tab.rawValue, .control, "keycode=48 mods=0x2 "),
+                    (XCUIKeyboardKey.leftArrow.rawValue, .control, "keycode=123 mods=0x2 "),
+                    (XCUIKeyboardKey.rightArrow.rawValue, .control, "keycode=124 mods=0x2 "),
+                    (XCUIKeyboardKey.upArrow.rawValue, .control, "keycode=126 mods=0x2 "),
+                    (XCUIKeyboardKey.leftArrow.rawValue, [.control, .shift], "keycode=123 mods=0x3 "),
+                ]
+            #endif
+            var missing: [String] = []
+            for chord in chords {
+                app.typeKey(chord.key, modifierFlags: chord.flags)
+                let arrived = XCTNSPredicateExpectation(
+                    predicate: NSPredicate(format: "value CONTAINS %@", chord.sent),
+                    object: log,
+                )
+                if XCTWaiter.wait(for: [arrived], timeout: 6) != .completed {
+                    missing.append("\(chord.flags.rawValue)+\(chord.key)")
+                }
+            }
+            capture("hardware-control-chords")
+            XCTAssertEqual(missing, [], "\(log.value as? String ?? "")")
+        }
+
         func testTerminalUserOperations() throws {
             let terminal = try requireTerminalInteractionTarget()
 

@@ -26,12 +26,44 @@
             return inputs
         }()
 
+        /// Ctrl+Shift+letter goes the same way: on Mac Catalyst the text
+        /// input system runs Cocoa's key bindings, which make Ctrl+Shift+A,
+        /// B, E, F, N, P and V selection commands of their own, and only the
+        /// modifier presses reached the surface. Every letter is claimed so
+        /// the chords behave alike; the command keeps Shift, so the press
+        /// carries the uppercase letter, as on the Mac. Ctrl+Shift+' is
+        /// Cocoa's `insertDoubleQuoteIgnoringSubstitution:`, and arrived as
+        /// a typed `"` with no modifiers.
         private static let controlKeyCommands: [UIKeyCommand] =
             controlKeyCommandInputs.map { input in
+                controlKeyCommand(input: input, modifierFlags: .control)
+            } + ((UInt8(ascii: "a") ... UInt8(ascii: "z")).map { String(UnicodeScalar($0)) } + ["'"]).map { input in
+                controlKeyCommand(input: input, modifierFlags: [.control, .shift])
+            }
+
+        private static func controlKeyCommand(input: String, modifierFlags: UIKeyModifierFlags) -> UIKeyCommand {
+            let command = UIKeyCommand(
+                input: input,
+                modifierFlags: modifierFlags,
+                action: #selector(handleControlKeyCommand(_:)),
+            )
+            command.wantsPriorityOverSystemBehavior = true
+            return command
+        }
+
+        /// Backspace under Control, which the text input system takes too
+        /// (Cocoa's `deleteBackwardByDecomposingPreviousCharacter:` on Mac
+        /// Catalyst): only the Control press reached the surface. The
+        /// command brings it through on Catalyst; on the iPhone simulator
+        /// neither the press nor the command arrives. Like Escape it is
+        /// withheld while text is marked, since then it is the input
+        /// method's.
+        private static let controlBackspaceKeyCommands: [UIKeyCommand] =
+            ["\u{8}", UIKeyCommand.inputDelete].map { input in
                 let command = UIKeyCommand(
                     input: input,
                     modifierFlags: .control,
-                    action: #selector(handleControlKeyCommand(_:)),
+                    action: #selector(handleControlBackspaceKeyCommand(_:)),
                 )
                 command.wantsPriorityOverSystemBehavior = true
                 return command
@@ -109,6 +141,7 @@
             if !inputHandler.hasMarkedText {
                 commands.append(contentsOf: Self.escapeKeyCommands)
                 commands.append(contentsOf: Self.modifiedReturnKeyCommands)
+                commands.append(contentsOf: Self.controlBackspaceKeyCommands)
             }
             return commands
         }
@@ -149,6 +182,21 @@
             )
             _ = sendInputKey(TerminalKeyPress(
                 .escape,
+                modifiers: TerminalInputModifiers(from: command.modifierFlags),
+            ))
+        }
+
+        /// The Control Backspace command's action: Backspace with the
+        /// command's modifiers, on the key path. Claimed as \u{8}, the input
+        /// `keyCommandInput` reports for the press.
+        @objc private func handleControlBackspaceKeyCommand(_ command: UIKeyCommand) {
+            guard claimKeyCommandDelivery(input: "\u{8}", modifierFlags: command.modifierFlags) else { return }
+            TerminalDebugLog.log(
+                .input,
+                "uikit key command input=backspace mods=0x\(String(command.modifierFlags.rawValue, radix: 16))",
+            )
+            _ = sendInputKey(TerminalKeyPress(
+                .backspace,
                 modifiers: TerminalInputModifiers(from: command.modifierFlags),
             ))
         }

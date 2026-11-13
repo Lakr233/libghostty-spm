@@ -422,6 +422,11 @@
                 return "\r"
             }
             guard filteredModifierFlags.contains(.control) else { return nil }
+            // Backspace reports \u{8} or \u{7F} depending on the system;
+            // the Control Backspace command claims it as \u{8}.
+            if key.keyCode == .keyboardDeleteOrBackspace {
+                return "\u{8}"
+            }
             return TerminalInputText.filteredFunctionKeyText(key.charactersIgnoringModifiers)
         }
 
