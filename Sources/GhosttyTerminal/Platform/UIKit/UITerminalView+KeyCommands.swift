@@ -26,16 +26,28 @@
             return inputs
         }()
 
+        /// Ctrl+Shift+letter goes the same way: on Mac Catalyst the text
+        /// input system runs Cocoa's key bindings, which make Ctrl+Shift+A,
+        /// B, E, F, N, P and V selection commands of their own, and only the
+        /// modifier presses reached the surface. Every letter is claimed so
+        /// the chords behave alike; the command keeps Shift, so the press
+        /// carries the uppercase letter, as on the Mac.
         private static let controlKeyCommands: [UIKeyCommand] =
             controlKeyCommandInputs.map { input in
-                let command = UIKeyCommand(
-                    input: input,
-                    modifierFlags: .control,
-                    action: #selector(handleControlKeyCommand(_:)),
-                )
-                command.wantsPriorityOverSystemBehavior = true
-                return command
+                controlKeyCommand(input: input, modifierFlags: .control)
+            } + (UInt8(ascii: "a") ... UInt8(ascii: "z")).map { letter in
+                controlKeyCommand(input: String(UnicodeScalar(letter)), modifierFlags: [.control, .shift])
             }
+
+        private static func controlKeyCommand(input: String, modifierFlags: UIKeyModifierFlags) -> UIKeyCommand {
+            let command = UIKeyCommand(
+                input: input,
+                modifierFlags: modifierFlags,
+                action: #selector(handleControlKeyCommand(_:)),
+            )
+            command.wantsPriorityOverSystemBehavior = true
+            return command
+        }
 
         /// Escape, which the text input system also handles itself: for a
         /// `UITextInput` first responder UIKit's system behaviour for a

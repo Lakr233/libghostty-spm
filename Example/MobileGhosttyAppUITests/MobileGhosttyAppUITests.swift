@@ -918,13 +918,33 @@ import XCTest
             let log = app.descendants(matching: .any)["terminal.keyLog"].firstMatch
             XCTAssertTrue(log.waitForExistence(timeout: 4))
 
-            let chords: [(key: String, flags: XCUIElement.KeyModifierFlags, sent: String)] = [
+            // Cocoa binds Ctrl+Shift+A, B, E, F, N, P and V; Ctrl+Shift+Q is
+            // a letter it leaves alone.
+            var chords: [(key: String, flags: XCUIElement.KeyModifierFlags, sent: String)] = [
                 ("a", .control, "keycode=0 mods=0x2 "),
                 ("a", [.control, .shift], "keycode=0 mods=0x3 "),
+                ("b", [.control, .shift], "keycode=11 mods=0x3 "),
                 ("e", [.control, .shift], "keycode=14 mods=0x3 "),
+                ("f", [.control, .shift], "keycode=3 mods=0x3 "),
+                ("n", [.control, .shift], "keycode=45 mods=0x3 "),
+                ("p", [.control, .shift], "keycode=35 mods=0x3 "),
                 ("v", [.control, .shift], "keycode=9 mods=0x3 "),
+                ("q", [.control, .shift], "keycode=12 mods=0x3 "),
                 ("'", .control, "keycode=39 mods=0x2 "),
+                ("'", [.control, .shift], "keycode=39 mods=0x3 "),
+                ("/", .control, "keycode=44 mods=0x2 "),
+                (XCUIKeyboardKey.tab.rawValue, .control, "keycode=48 mods=0x2 "),
+                (XCUIKeyboardKey.delete.rawValue, .control, "keycode=51 mods=0x2 "),
             ]
+            #if !targetEnvironment(macCatalyst)
+                // On a Mac, Ctrl+arrows belong to Mission Control.
+                chords += [
+                    (XCUIKeyboardKey.leftArrow.rawValue, .control, "keycode=123 mods=0x2 "),
+                    (XCUIKeyboardKey.rightArrow.rawValue, .control, "keycode=124 mods=0x2 "),
+                    (XCUIKeyboardKey.upArrow.rawValue, .control, "keycode=126 mods=0x2 "),
+                    (XCUIKeyboardKey.leftArrow.rawValue, [.control, .shift], "keycode=123 mods=0x3 "),
+                ]
+            #endif
             var missing: [String] = []
             for chord in chords {
                 app.typeKey(chord.key, modifierFlags: chord.flags)
