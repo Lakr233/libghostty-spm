@@ -106,22 +106,43 @@
             rig.receive(Self.kittyOff)
         }
 
-        /// A key that AppKit resolves to a real command stays a key: the
-        /// encoder builds it, and the event's text must not reach it.
+        /// A key AppKit resolves to a command keeps its text, as in Ghostty's
+        /// own view, except under Command: that chord is the host's.
         @Test
-        func `an interpreted command replays without the event's text`() {
-            let noop = Selector(("noop:"))
-            let control = NSEvent.ModifierFlags.control
+        func `an interpreted command keeps the event's text unless Command is held`() {
+            #expect(TerminalKeyEventHandler.interpretedCommandKeepsText(modifierFlags: []))
+            #expect(TerminalKeyEventHandler.interpretedCommandKeepsText(modifierFlags: .control))
+            #expect(TerminalKeyEventHandler.interpretedCommandKeepsText(modifierFlags: [.control, .shift]))
+            #expect(TerminalKeyEventHandler.interpretedCommandKeepsText(modifierFlags: [.control, .option]))
+            #expect(!TerminalKeyEventHandler.interpretedCommandKeepsText(modifierFlags: .command))
+            #expect(!TerminalKeyEventHandler.interpretedCommandKeepsText(modifierFlags: [.control, .command]))
+        }
 
-            #expect(TerminalKeyEventHandler.shouldReplayInterpretedCommand(noop, modifierFlags: control) == false)
-            #expect(TerminalKeyEventHandler.shouldReplayInterpretedCommand(noop, modifierFlags: [control, .shift]) == false)
-            #expect(TerminalKeyEventHandler.shouldReplayInterpretedCommand(noop, modifierFlags: [control, .command]))
-            #expect(TerminalKeyEventHandler.shouldReplayInterpretedCommand(noop, modifierFlags: .command))
-            #expect(TerminalKeyEventHandler.shouldReplayInterpretedCommand(noop, modifierFlags: []))
-            #expect(TerminalKeyEventHandler.shouldReplayInterpretedCommand(
-                #selector(NSResponder.moveToBeginningOfParagraph(_:)),
-                modifierFlags: control,
-            ))
+        /// Cocoa binds Ctrl+Shift+A to a selection command; a script stands
+        /// in for the system's key bindings, so this holds whatever the Mac
+        /// has in `DefaultKeyBinding.dict`.
+        @Test
+        func `a chord bound to a command still reaches the program`() async {
+            let harness = await GhosttySurfaceHarness.make()
+            defer { harness.tearDown() }
+            let view = ScriptedInputView(frame: NSRect(x: 0, y: 0, width: 800, height: 500))
+            view.script = { _, view in
+                view.doCommand(by: #selector(NSResponder.moveToBeginningOfParagraphAndModifySelection(_:)))
+            }
+            let rig = AppKitInputRig(view: view)
+            defer { rig.tearDown() }
+            let controlShift = NSEvent.ModifierFlags(rawValue: Key.leftControl.rawValue | Key.leftShift.rawValue)
+
+            rig.press(Key(code: 0, characters: "\u{01}", ignoringModifiers: "A", flags: controlShift))
+            #expect(await rig.take().visible == "\\e[97;6u")
+
+            // Tab and Return are commands too, and their C0 text stays out.
+            rig.press(Key(code: 48, characters: "\t", ignoringModifiers: "\t"))
+            #expect(await rig.take() == Data("\t".utf8))
+            rig.press(Key(code: 48, characters: "\u{19}", ignoringModifiers: "\u{19}", flags: Key.leftShift))
+            #expect(await rig.take().visible == "\\e[Z")
+            rig.press(.returnKey)
+            #expect(await rig.take() == Data("\r".utf8))
         }
 
         @Test
