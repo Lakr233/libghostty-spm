@@ -65,6 +65,7 @@ libraries = info.get("AvailableLibraries")
 if not isinstance(libraries, list) or not libraries:
     raise SystemExit("[!] AvailableLibraries is empty or missing")
 
+first_notices = None
 for library in libraries:
     identifier = library.get("LibraryIdentifier")
     library_path = library.get("LibraryPath")
@@ -92,6 +93,16 @@ for library in libraries:
     for required_path in (archive_path, header_path, modulemap_path):
         if not os.path.exists(required_path):
             raise SystemExit(f"[!] {identifier} missing required file: {required_path}")
+
+    notices = os.path.join(headers_dir, "Licenses")
+    framework_root = os.path.realpath(xcframework)
+    if os.path.commonpath([framework_root, os.path.realpath(notices)]) != framework_root:
+        raise SystemExit(f"[!] {identifier} notices escape the xcframework through an alias")
+    collector = os.path.join(os.getcwd(), "Script", "stage-source-notices.sh")
+    subprocess.run([collector, "--check", notices], check=True)
+    if first_notices is not None:
+        subprocess.run([collector, "--compare", first_notices, notices], check=True)
+    first_notices = notices
 
     actual_architectures = set(
         subprocess.check_output(["lipo", "-archs", archive_path], text=True).split()

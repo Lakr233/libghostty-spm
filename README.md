@@ -339,6 +339,29 @@ MIT License. See [LICENSE](LICENSE) for details.
 
 The bundled `libghostty` binary is built from [Ghostty](https://ghostty.org), MIT License, Copyright (c) 2024 Mitchell Hashimoto, Ghostty contributors.
 
+XCFramework builds made with these scripts carry notices in each slice's
+`Headers/Licenses/`: Ghostty's license and root notice files in `ghostty/`,
+this package's MIT license in `libghostty-spm/`, and a `manifest.json` that
+names each one's origin, commit, tree and file hashes. Assets published
+before that are left as they are.
+
+- `ghostty/source.patch` is the difference between the pinned commit and the
+  Ghostty checkout that was compiled: the `Patches/ghostty` stack as applied,
+  with added files, minus anything Ghostty's own `.gitignore` covers. That
+  leaves out the edits `0017` makes to the Zig packages under `zig-pkg/`, and
+  the std patch in `Patches/zig` is applied to a copy of Zig's library, not
+  to Ghostty; both are in this repository at the commit the manifest names.
+- This package is named by its commit alone. Nothing from its checkout is
+  copied in.
+- The notices cover Ghostty and this package. The libraries and fonts Ghostty
+  itself bundles (`src/build/SharedDeps.zig` at the pinned commit) are not
+  covered; see their own licenses.
+- A build fails if the Ghostty checkout changes while it compiles, and
+  assembly refuses slices whose notices differ. A build on GitHub Actions
+  also requires a public GitHub origin and a commit for both; a local build
+  from a mirror or an extracted tarball records `null` for what it cannot
+  name.
+
 `Sources/GhosttyTerminal/Resources/terminfo/` is the `xterm-ghostty` terminfo entry compiled from Ghostty's `src/terminfo/ghostty.zig` (same MIT License and copyright).
 
 `Sources/GhosttyTerminal/Resources/Ghostty/shell-integration/` is this package's own bash and zsh integration, MIT License, written from scratch — Ghostty's own bash and zsh integration scripts are GPLv3 and are not shipped. `bash/bash-preexec.sh` is vendored from [bash-preexec](https://github.com/rcaloras/bash-preexec), MIT License; see [LICENSE-bash-preexec.md](Sources/GhosttyTerminal/Resources/Ghostty/shell-integration/bash/LICENSE-bash-preexec.md).
