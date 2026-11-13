@@ -53,9 +53,11 @@
 
         /// Backspace under Control, which the text input system takes too
         /// (Cocoa's `deleteBackwardByDecomposingPreviousCharacter:` on Mac
-        /// Catalyst): on Catalyst and the iPhone simulator only the Control
-        /// press reached the surface. Like Escape it is withheld while text
-        /// is marked, since then it is the input method's.
+        /// Catalyst): only the Control press reached the surface. The
+        /// command brings it through on Catalyst; on the iPhone simulator
+        /// neither the press nor the command arrives. Like Escape it is
+        /// withheld while text is marked, since then it is the input
+        /// method's.
         private static let controlBackspaceKeyCommands: [UIKeyCommand] =
             ["\u{8}", UIKeyCommand.inputDelete].map { input in
                 let command = UIKeyCommand(
