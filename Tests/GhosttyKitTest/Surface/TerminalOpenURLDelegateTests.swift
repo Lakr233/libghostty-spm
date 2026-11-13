@@ -75,10 +75,13 @@ struct TerminalOpenURLDelegateTests {
         on bridge: TerminalCallbackBridge,
     ) -> Bool {
         target.withCString { pointer in
-            var payload = ghostty_action_open_url_s()
-            payload.kind = kind
-            payload.url = pointer
-            payload.len = .init(target.utf8.count)
+            // Memberwise: the header marks `url` nonnull from the cf5519b
+            // pin on, which takes the zero initializer away.
+            let payload = ghostty_action_open_url_s(
+                kind: kind,
+                url: pointer,
+                len: .init(target.utf8.count),
+            )
             return bridge.handleOpenURL(payload)
         }
     }
