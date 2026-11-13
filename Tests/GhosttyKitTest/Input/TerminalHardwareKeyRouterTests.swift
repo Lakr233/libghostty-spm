@@ -37,28 +37,6 @@ struct TerminalHardwareKeyRouterTests {
         #expect(TerminalHardwareKeyRouter.ghosttyKey(forAppKitKeyCode: 0x4A) == GHOSTTY_KEY_AUDIO_VOLUME_MUTE)
     }
 
-    @Test
-    func `app kit interpreted commands are replayed as key events`() {
-        #expect(
-            TerminalKeyEventHandler.shouldReplayInterpretedCommand(
-                #selector(NSResponder.insertTab(_:)),
-                modifierFlags: [],
-            ),
-        )
-        #expect(
-            TerminalKeyEventHandler.shouldReplayInterpretedCommand(
-                NSSelectorFromString("insertBacktab:"),
-                modifierFlags: [],
-            ),
-        )
-        #expect(
-            TerminalKeyEventHandler.shouldReplayInterpretedCommand(
-                #selector(NSResponder.moveUp(_:)),
-                modifierFlags: [],
-            ),
-        )
-    }
-
     /// Quote HID 0x34 must translate to AppKit keycode 0x27, not fall
     /// through to `0` (which is AppKit's keycode for the `A` key) nor to
     /// `GHOSTTY_KEY_QUOTE.rawValue` (which happens to equal AppKit's

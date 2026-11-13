@@ -343,6 +343,21 @@ Neither the AppKit path nor the sample app can catch a regression here:
   no bracketed paste at all. **Only a real shell over a pty shows the bug**, so
   verify iOS input against one (`zsh` on device), not against the sample app.
 
+Cocoa's key bindings run inside that `keyDown` (`interpretKeyEvents`), and a
+terminal must not let them change what a key sends. `TerminalKeyEventHandler`
+keeps a key's text when AppKit answers it with a command, as Ghostty's own
+view does (`interpretedCommandKeepsText`; not under Command). Without the text,
+Ctrl+Shift+A (`moveToBeginningOfParagraphAndModifySelection:`) and Ctrl+'
+reached the program as nothing, and under modifyOtherKeys Ctrl+A was 0x01
+instead of `CSI 27;5;97~`. `TerminalInputText.keyEventText` still keeps C0
+text out, so Tab, Return and Escape stay keys. The quoted-keystroke binding
+(`NSQuotedKeystrokeBinding`, Ctrl+Q) never reaches `interpretKeyEvents`
+outside a composition: it swallowed the key after it.
+`AppTerminalViewControlChordTests` presses every US key under every
+Shift/Control/Option mix through the window and compares the bytes with what
+Ghostty's view sends for the same event, in the legacy encoding, under
+modifyOtherKeys and under the kitty protocol.
+
 Where this lives today, in `Platform/UIKit`:
 
 - `TerminalTextInputHandler@UIKit.swift` → `sendTypedText(_:)` — typing, IME
