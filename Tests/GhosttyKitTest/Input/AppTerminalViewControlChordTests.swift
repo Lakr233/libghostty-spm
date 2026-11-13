@@ -136,6 +136,7 @@
                 ("kitty", Self.kittyOn, Self.kittyOff),
             ]
             var mismatches: [String] = []
+            var windowTook: [String] = []
             for mode in modes {
                 rig.receive(mode.on)
                 for key in Self.typingKeys + Self.commandKeys {
@@ -148,7 +149,11 @@
                         let pressed = await rig.take()
                         Self.sendAsGhosttysView(chord.event(window: rig.window), to: surface)
                         let expected = await rig.take()
-                        if pressed != expected {
+                        if pressed != expected, !route.contains("keyDown"),
+                           Self.windowMayTake(key, modifiers)
+                        {
+                            windowTook.append("\(mode.name) \(key) mods=\(modifiers.rawValue) route \(route)")
+                        } else if pressed != expected {
                             mismatches.append(
                                 "\(mode.name) \(key) mods=\(modifiers.rawValue): view \(pressed.visible) ghostty \(expected.visible) route \(route)",
                             )
@@ -158,6 +163,23 @@
                 rig.receive(mode.off)
             }
             #expect(mismatches.isEmpty, "\(mismatches.count) chords differ:\n\(mismatches.joined(separator: "\n"))")
+            // On the macOS 26 runner the window keeps Ctrl+Escape and
+            // Ctrl+Option+Tab: the view declines them in
+            // `performKeyEquivalent`, as Ghostty's does, and `keyDown` never
+            // runs. On macOS 27 they arrive. That routing sits above this
+            // view and is untouched here; whether a key window in a running
+            // app on macOS 26 loses them too is not known.
+            withKnownIssue("the macOS 26 window keeps Ctrl+Escape and Ctrl+Option+Tab", isIntermittent: true) {
+                #expect(windowTook.isEmpty, "\(windowTook.joined(separator: "\n"))")
+            }
+        }
+
+        static func windowMayTake(_ key: TerminalKey, _ modifiers: TerminalInputModifiers) -> Bool {
+            switch key {
+            case .escape: modifiers.contains(.ctrl)
+            case .tab: modifiers.isSuperset(of: [.ctrl, .alt])
+            default: false
+            }
         }
 
         /// The reference: `SurfaceView_AppKit.keyDown` at the pinned Ghostty,
