@@ -552,10 +552,15 @@ quote.
   `TerminalDirectTouchPinchGestureRecognizer`, which refuses the
   `.transform` event a trackpad pinch arrives as. Inline touch selection,
   the tap's click and the keyboard toggle stay iOS-only.
-- None of this has run on the hardware: no touch display or Sidecar iPad
-  was at hand when it was written. The handlers are tested with the values
-  a recognizer reports; what AppKit does between a finger and the
-  recognizer is taken from the documentation above.
+- The maintainer checked it by hand on touch input before it merged
+  (2026-11-13); it was written without a touch display or a Sidecar iPad
+  at hand. No automated test reaches the hardware: the handlers are tested
+  with the values a recognizer reports, and what AppKit does between a
+  finger and the recognizer is taken from the documentation above. A
+  change here needs the same hand check: a tap clicks once, a one-finger
+  drag scrolls and selects nothing, a hold over a selection opens the copy
+  menu at the lift and scrolling still works after it closes, a pinch
+  zooms, a flick glides.
 
 ### Font Size
 
