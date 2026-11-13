@@ -24,6 +24,9 @@ refuses() {
     fi
 }
 
+# Published assets are held to the strict rules whatever runs this test.
+export SOURCE_NOTICES_STRICT=1
+
 ./Script/stage-source-notices.sh "$source" "$temporary/original"
 ./Script/stage-source-notices.sh --verify-source "$source" "$temporary/original"
 cmp "$source/LICENSE" "$temporary/original/ghostty/LICENSE"
@@ -56,6 +59,61 @@ refuses ./Script/stage-source-notices.sh --check "$temporary/missing"
 cp -R "$temporary/original" "$temporary/extra"
 print unrecorded > "$temporary/extra/unrecorded.txt"
 refuses ./Script/stage-source-notices.sh --check "$temporary/extra"
+
+# The wrapper is named by its commit alone. What a build leaves in the
+# checkout (Zig's cache lands at .zig-cache in CI) or a developer keeps there
+# must neither reach the archive nor fail the post-build check.
+wrapper="$temporary/wrapper"
+mkdir -p "$wrapper/Script"
+cp .root LICENSE "$wrapper/"
+cp Script/stage-source-notices.sh "$wrapper/Script/"
+git -C "$wrapper" init -q
+git -C "$wrapper" add -A
+git -C "$wrapper" -c user.name=fixture -c user.email=fixture@example.invalid commit -q -m fixture
+git -C "$wrapper" remote add origin https://github.com/Lakr233/libghostty-spm
+"$wrapper/Script/stage-source-notices.sh" "$source" "$temporary/wrapper-clean"
+mkdir -p "$wrapper/.zig-cache/p"
+print 'private build byproduct' > "$wrapper/.zig-cache/p/a.bin"
+print 'private note' > "$wrapper/untracked-note.txt"
+print 'uncommitted edit' >> "$wrapper/.root"
+"$wrapper/Script/stage-source-notices.sh" --verify-source "$source" "$temporary/wrapper-clean"
+"$wrapper/Script/stage-source-notices.sh" "$source" "$temporary/wrapper-dirty"
+diff -r "$temporary/wrapper-clean" "$temporary/wrapper-dirty"
+[[ ! -e "$temporary/wrapper-dirty/libghostty-spm/source.patch" ]]
+if grep -rq 'private' "$temporary/wrapper-dirty"; then
+    echo "[-] wrapper checkout contents reached the notices"; exit 1
+fi
+
+# A local build takes a mirror, a local clone or an extracted tarball and
+# records what it knows; none of them may pass as a published asset.
+mirror="$temporary/mirror"
+cp -R "$source" "$mirror"
+git -C "$mirror" remote set-url origin https://builder:secret@git.example.com/mirror/ghostty.git
+refuses ./Script/stage-source-notices.sh "$mirror" "$temporary/mirror-strict"
+SOURCE_NOTICES_STRICT=0 ./Script/stage-source-notices.sh "$mirror" "$temporary/mirror-notices"
+SOURCE_NOTICES_STRICT=0 ./Script/stage-source-notices.sh --verify-source "$mirror" "$temporary/mirror-notices"
+[[ $(jq -r '.components[0].origin' "$temporary/mirror-notices/manifest.json") == https://git.example.com/mirror/ghostty ]]
+if grep -rq 'secret' "$temporary/mirror-notices"; then
+    echo "[-] origin credentials reached the notices"; exit 1
+fi
+refuses ./Script/stage-source-notices.sh --check "$temporary/mirror-notices"
+git -C "$mirror" remote set-url origin "$source"
+SOURCE_NOTICES_STRICT=0 ./Script/stage-source-notices.sh "$mirror" "$temporary/local-notices"
+[[ $(jq -r '.components[0].origin' "$temporary/local-notices/manifest.json") == null ]]
+git -C "$mirror" remote remove origin
+SOURCE_NOTICES_STRICT=0 ./Script/stage-source-notices.sh "$mirror" "$temporary/no-origin-notices"
+[[ $(jq -r '.components[0].origin' "$temporary/no-origin-notices/manifest.json") == null ]]
+mkdir -p "$temporary/tarball/include"
+cp "$source/LICENSE" "$temporary/tarball/"
+cp "$source/include/ghostty.h" "$temporary/tarball/include/"
+refuses ./Script/stage-source-notices.sh "$temporary/tarball" "$temporary/tarball-strict"
+GIT_CEILING_DIRECTORIES="$temporary" SOURCE_NOTICES_STRICT=0 \
+    ./Script/stage-source-notices.sh "$temporary/tarball" "$temporary/tarball-notices"
+GIT_CEILING_DIRECTORIES="$temporary" SOURCE_NOTICES_STRICT=0 \
+    ./Script/stage-source-notices.sh --verify-source "$temporary/tarball" "$temporary/tarball-notices"
+[[ $(jq -c '.components[0] | [.origin, .revision, .tree]' "$temporary/tarball-notices/manifest.json") == '[null,null,null]' ]]
+cmp "$source/LICENSE" "$temporary/tarball-notices/ghostty/LICENSE"
+refuses ./Script/stage-source-notices.sh --check "$temporary/tarball-notices"
 
 # Exercise the production merge and final zip checks with synthetic archives.
 mkdir -p "$temporary/tools" "$temporary/variants/iphoneos/lib" "$temporary/variants/iphoneos/include/libghostty"
@@ -158,4 +216,4 @@ cp -R "$temporary/variants/iphoneos" "$temporary/variants/mismatched"
 rm -r "$temporary/variants/mismatched/include/Licenses"
 cp -R "$temporary/changed" "$temporary/variants/mismatched/include/Licenses"
 refuses ./Script/merge-xcframework.sh "$temporary/variants" "$temporary/refused.xcframework"
-echo '[+] source notices survive staging and packaging; changed, missing and mixed contexts are refused'
+echo '[+] source notices survive staging and packaging; changed, missing and mixed contexts are refused; a wrapper checkout adds nothing; local sources are recorded as such'

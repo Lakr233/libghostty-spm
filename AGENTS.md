@@ -119,7 +119,26 @@ swift test
 
 # Refuse GPL license text anywhere in the tree (pr.yml and release.yml run it)
 ./Script/check-licenses.sh
+
+# Stage / check the notices each XCFramework slice carries in Headers/Licenses
+# (build-ghostty.sh stages before compiling and verifies after; pr.yml runs
+# the test against a sparse checkout of the pinned Ghostty)
+./Script/stage-source-notices.sh <ghostty_source> <destination>
+./Script/test-source-notices.sh <pinned_ghostty_checkout>
 ```
+
+`Headers/Licenses/` holds Ghostty's LICENSE, ours, a `manifest.json`
+(origin, commit, tree, hashes) and `ghostty/source.patch`, the patch stack
+as applied to the pinned commit. The wrapper is recorded by commit only:
+its checkout is where CI's Zig cache (`.zig-cache/`) and a developer's
+stray files live, and an earlier draft that diffed it failed every slice
+and would have published those files. `SOURCE_NOTICES_STRICT` (1 on GitHub
+Actions, 0 elsewhere) decides whether a component must name a public GitHub
+origin and a commit; a local build from a mirror or a tarball records
+`null`. The notices do not cover the dependencies Ghostty bundles
+(`SharedDeps.zig`). `merge-xcframework.sh` and `verify-xcframework.sh`
+refuse an archive whose slices lack them or disagree, so they apply to
+assets built from here on — not to the ones already published.
 
 ## Architecture
 
