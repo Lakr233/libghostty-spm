@@ -28,9 +28,9 @@
         var focusBridge: FocusBridgeState = .init()
         var textInputBridge: TextInputBridgeState = .init()
         var touchSelection: TouchSelectionState = .init()
+        var fontZoom: FontZoomState = .init()
         #if !targetEnvironment(macCatalyst)
             var softwareKeyboard: SoftwareKeyboardState = .init()
-            var fontZoom: FontZoomState = .init()
         #endif
 
         lazy var selectionContextMenuInteraction = UIContextMenuInteraction(delegate: self)

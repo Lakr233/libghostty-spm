@@ -100,7 +100,14 @@
             switch gesture.state {
             case .began:
                 guard pointer.session.reported == nil else { return }
-                #if !targetEnvironment(macCatalyst)
+                #if targetEnvironment(macCatalyst)
+                    // The pointer is somewhere else on a Mac: a program
+                    // tracking the mouse gets its wheel reports for the
+                    // cell under the finger, not under the pointer.
+                    if surface?.isMouseCaptured == true {
+                        sendPointerPosition(at: gesture.location(in: self), remember: false)
+                    }
+                #else
                     softwareKeyboard.tapCandidateArmed = false
                 #endif
                 if !usesInlineTextSelection {
@@ -130,7 +137,15 @@
                     .input,
                     "touch scroll ended velocity=\(String(format: "%.2f", velocity.x))x\(String(format: "%.2f", velocity.y))",
                 )
-                if !usesInlineTextSelection || momentumScroll.scrollsLocally || surface?.isMouseCaptured != true {
+                #if targetEnvironment(macCatalyst)
+                    // A program tracking the mouse reads each report as a
+                    // wheel notch; a glide would keep sending them.
+                    let glides = surface?.isMouseCaptured != true
+                #else
+                    let glides = !usesInlineTextSelection || momentumScroll.scrollsLocally
+                        || surface?.isMouseCaptured != true
+                #endif
+                if glides {
                     startMomentumScrolling(velocity: velocity)
                 }
 
