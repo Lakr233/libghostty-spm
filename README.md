@@ -205,6 +205,14 @@ state.onOpenURL = { url, _ in
 }
 ```
 
+`TerminalViewState.onHoverLink` hears the link before the click: the URL of
+the highlighted link under the pointer (Cmd held, by default), an OSC 8
+hyperlink's URI whatever text it shows, and `nil` as the pointer leaves it.
+It is called before the `sendMousePos` that found the link returns, so a host
+that moves the pointer itself can ask which link is under a point. Ghostty
+calls it while it works on the surface: use the URL it hands over, and wait
+for the next main-queue turn before reading the surface back.
+
 ### Surface Snapshots and Host View Subclasses
 
 `TerminalView.snapshotImage()` renders the surface's current on-screen

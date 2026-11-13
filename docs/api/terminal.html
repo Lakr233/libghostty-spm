@@ -88,6 +88,9 @@ public final class TerminalViewState: ObservableObject {
     /// Presents OSC 52 reads/writes and flagged pastes; nil denies a
     /// program's request silently and allows a user paste.
     public var onClipboardConfirmationRequest: ((TerminalClipboardConfirmationRequest) -&gt; Void)?
+    /// The URL of the highlighted link under the pointer, nil as it leaves;
+    /// called before the sendMousePos that found it returns.
+    public var onHoverLink: ((String?) -&gt; Void)?
 
     /// A cmd-clicked link; true when the host opened it. nil (or false)
     /// leaves it to Ghostty, which opens no terminal link on macOS or iOS.

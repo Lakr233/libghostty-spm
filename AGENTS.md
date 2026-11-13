@@ -647,6 +647,18 @@ detected in the text) and `.osc8` with `error.UntrustedLink` and spawns
 open only when the host takes them. Tests in
 `Tests/GhosttyKitTest/Surface/TerminalOpenURLDelegateTests.swift`.
 
+The link under the pointer is `GHOSTTY_ACTION_MOUSE_OVER_LINK`
+(`TerminalSurfaceHoverLinkDelegate`), and `TerminalViewState` forwards it to
+`onHoverLink`: the URL while a highlighted link is under the pointer, nil
+when it leaves. Like `onOpenURL` it is not routed through `publishSoon` — a
+host that moves the pointer with `sendMousePos` reads the link before the
+call returns. Both actions are emitted from inside Ghostty's mouse handling
+(`mouseRefreshLinks`, the click release), which upstream comments as holding
+the renderer lock, so the doc comments tell a host to wait a main-queue turn
+before reading the surface back from either closure; that a synchronous
+read hangs is read off the source, not reproduced. `TerminalViewStateLinkTests`
+runs the hover and a Cmd-click on a real surface.
+
 ### Selection Region
 
 `TerminalSurface.selectionRegion()` (re-exposed as `selectionRegion` on both
