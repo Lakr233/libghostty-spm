@@ -31,12 +31,14 @@
         /// B, E, F, N, P and V selection commands of their own, and only the
         /// modifier presses reached the surface. Every letter is claimed so
         /// the chords behave alike; the command keeps Shift, so the press
-        /// carries the uppercase letter, as on the Mac.
+        /// carries the uppercase letter, as on the Mac. Ctrl+Shift+' is
+        /// Cocoa's `insertDoubleQuoteIgnoringSubstitution:`, and arrived as
+        /// a typed `"` with no modifiers.
         private static let controlKeyCommands: [UIKeyCommand] =
             controlKeyCommandInputs.map { input in
                 controlKeyCommand(input: input, modifierFlags: .control)
-            } + (UInt8(ascii: "a") ... UInt8(ascii: "z")).map { letter in
-                controlKeyCommand(input: String(UnicodeScalar(letter)), modifierFlags: [.control, .shift])
+            } + ((UInt8(ascii: "a") ... UInt8(ascii: "z")).map { String(UnicodeScalar($0)) } + ["'"]).map { input in
+                controlKeyCommand(input: input, modifierFlags: [.control, .shift])
             }
 
         private static func controlKeyCommand(input: String, modifierFlags: UIKeyModifierFlags) -> UIKeyCommand {
@@ -44,6 +46,25 @@
                 input: input,
                 modifierFlags: modifierFlags,
                 action: #selector(handleControlKeyCommand(_:)),
+            )
+            command.wantsPriorityOverSystemBehavior = true
+            return command
+        }
+
+        /// Tab and Backspace under Control, which Cocoa's key bindings also
+        /// take on Mac Catalyst (`selectNextKeyView:`,
+        /// `selectPreviousKeyView:`, `deleteBackwardByDecomposingPreviousCharacter:`):
+        /// only the Control press reached the surface. Like Escape they are
+        /// withheld while text is marked, since then they are the input
+        /// method's.
+        private static let controlNamedKeyCommands: [UIKeyCommand] = [
+            ("\t", UIKeyModifierFlags.control), ("\t", [.control, .shift]),
+            ("\u{8}", .control), (UIKeyCommand.inputDelete, .control),
+        ].map { input, flags in
+            let command = UIKeyCommand(
+                input: input,
+                modifierFlags: flags,
+                action: #selector(handleControlNamedKeyCommand(_:)),
             )
             command.wantsPriorityOverSystemBehavior = true
             return command
@@ -121,6 +142,7 @@
             if !inputHandler.hasMarkedText {
                 commands.append(contentsOf: Self.escapeKeyCommands)
                 commands.append(contentsOf: Self.modifiedReturnKeyCommands)
+                commands.append(contentsOf: Self.controlNamedKeyCommands)
             }
             return commands
         }
@@ -161,6 +183,31 @@
             )
             _ = sendInputKey(TerminalKeyPress(
                 .escape,
+                modifiers: TerminalInputModifiers(from: command.modifierFlags),
+            ))
+        }
+
+        /// The Control Tab and Backspace commands' action: the key with the
+        /// command's modifiers, on the key path. Claimed under the input
+        /// `pressesBegan` would report for the key (`keyCommandInput`).
+        @objc private func handleControlNamedKeyCommand(_ command: UIKeyCommand) {
+            let key: TerminalKey
+            let input: String
+            switch command.input ?? "" {
+            case "\t":
+                (key, input) = (.tab, "\t")
+            case "\u{8}", UIKeyCommand.inputDelete:
+                (key, input) = (.backspace, "\u{8}")
+            default:
+                return
+            }
+            guard claimKeyCommandDelivery(input: input, modifierFlags: command.modifierFlags) else { return }
+            TerminalDebugLog.log(
+                .input,
+                "uikit key command input=\(key) mods=0x\(String(command.modifierFlags.rawValue, radix: 16))",
+            )
+            _ = sendInputKey(TerminalKeyPress(
+                key,
                 modifiers: TerminalInputModifiers(from: command.modifierFlags),
             ))
         }

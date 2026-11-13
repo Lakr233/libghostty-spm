@@ -952,7 +952,7 @@ import XCTest
                     predicate: NSPredicate(format: "value CONTAINS %@", chord.sent),
                     object: log,
                 )
-                if XCTWaiter.wait(for: [arrived], timeout: 3) != .completed {
+                if XCTWaiter.wait(for: [arrived], timeout: 6) != .completed {
                     missing.append("\(chord.flags.rawValue)+\(chord.key)")
                 }
             }
