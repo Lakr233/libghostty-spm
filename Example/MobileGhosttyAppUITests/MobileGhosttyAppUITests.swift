@@ -906,6 +906,40 @@ import XCTest
 
         #endif
 
+        /// Hardware Control chords reach the surface, Shift included. The
+        /// text input system takes a plain Ctrl+letter before `pressesBegan`
+        /// (hence the Control key commands), and Cocoa's key bindings, which
+        /// Mac Catalyst runs, give Ctrl+Shift+A, E and V selection commands
+        /// of their own. `terminal.keyLog` lists what the view sent to the
+        /// surface; the encoding after that is Ghostty's.
+        func testHardwareControlChordsReachTheTerminal() throws {
+            let terminal = try requireTerminalInteractionTarget()
+            typeTerminalText("clear\n", in: terminal)
+            let log = app.descendants(matching: .any)["terminal.keyLog"].firstMatch
+            XCTAssertTrue(log.waitForExistence(timeout: 4))
+
+            let chords: [(key: String, flags: XCUIElement.KeyModifierFlags, sent: String)] = [
+                ("a", .control, "keycode=0 mods=0x2 "),
+                ("a", [.control, .shift], "keycode=0 mods=0x3 "),
+                ("e", [.control, .shift], "keycode=14 mods=0x3 "),
+                ("v", [.control, .shift], "keycode=9 mods=0x3 "),
+                ("'", .control, "keycode=39 mods=0x2 "),
+            ]
+            var missing: [String] = []
+            for chord in chords {
+                app.typeKey(chord.key, modifierFlags: chord.flags)
+                let arrived = XCTNSPredicateExpectation(
+                    predicate: NSPredicate(format: "value CONTAINS %@", chord.sent),
+                    object: log,
+                )
+                if XCTWaiter.wait(for: [arrived], timeout: 3) != .completed {
+                    missing.append("\(chord.flags.rawValue)+\(chord.key)")
+                }
+            }
+            capture("hardware-control-chords")
+            XCTAssertEqual(missing, [], "\(log.value as? String ?? "")")
+        }
+
         func testTerminalUserOperations() throws {
             let terminal = try requireTerminalInteractionTarget()
 

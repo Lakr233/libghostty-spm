@@ -155,7 +155,14 @@ final class ViewController: UIViewController {
                 view.addSubview(grid)
                 output.translatesAutoresizingMaskIntoConstraints = false
                 view.addSubview(output)
+                let keys = TerminalKeyLogAccessibilityView()
+                keys.translatesAutoresizingMaskIntoConstraints = false
+                view.addSubview(keys)
                 NSLayoutConstraint.activate([
+                    keys.topAnchor.constraint(equalTo: view.topAnchor),
+                    keys.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+                    keys.widthAnchor.constraint(equalToConstant: 1),
+                    keys.heightAnchor.constraint(equalToConstant: 1),
                     output.topAnchor.constraint(equalTo: view.topAnchor),
                     output.leadingAnchor.constraint(equalTo: view.leadingAnchor),
                     output.widthAnchor.constraint(equalToConstant: 1),
@@ -414,6 +421,31 @@ final class ViewController: UIViewController {
                 guard let cellSize else { return "" }
                 return "cell=\(cellSize.width),\(cellSize.height) padding=\(Self.padding)"
             }
+            set {}
+        }
+    }
+
+    /// The key events the view last handed to the surface, from the
+    /// library's debug log (`surface key action=press keycode=… mods=0x…`):
+    /// what a hardware chord became, before the encoder, for tests that
+    /// check a chord reached the terminal at all.
+    private final class TerminalKeyLogAccessibilityView: UIView {
+        override init(frame: CGRect) {
+            super.init(frame: frame)
+            isAccessibilityElement = true
+            accessibilityIdentifier = "terminal.keyLog"
+            accessibilityLabel = "Terminal Key Log"
+            isUserInteractionEnabled = false
+            alpha = 0.01
+        }
+
+        @available(*, unavailable)
+        required init?(coder _: NSCoder) {
+            fatalError("init(coder:) has not been implemented")
+        }
+
+        override var accessibilityValue: String? {
+            get { UITestKeyLog.shared.lines.joined(separator: "\n") }
             set {}
         }
     }
