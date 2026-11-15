@@ -340,6 +340,7 @@ The bundled `libghostty` is a trimmed build optimized for sandboxed, embedded us
 | libc++ availability              | No               | **Added**        | Zig's libc++ headers built with Apple availability annotations; `__libcpp_verbose_abort` shipped in the archive so apps launch below iOS 16.3 / macOS 13.3. |
 | Scroll remainder fix             | No               | **Added**        | Wheel scrolling keeps its sub-row remainder instead of zeroing it.                                                                                   |
 | History replay                   | No               | **Added**        | `ghostty_surface_write_buffer_replay` feeds reconstructed history through the parser with terminal protocol responses suppressed.                     |
+| Pixel smooth scrolling           | No               | **Added**        | Opt-in per surface: a precision scroll moves the picture by the pixel instead of a row at a time; the views settle on a whole row when it stops.      |
 
 ## License
 

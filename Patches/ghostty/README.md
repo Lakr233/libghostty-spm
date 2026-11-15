@@ -264,6 +264,53 @@ to move back.
   libintl did for `setLangFromCocoa` moved to GhosttyTerminal's
   `TerminalLocaleEnvironment`, which sets `LANG` first so that code never
   runs.
+- `0022-pixel-smooth-scrolling.sh` — a precision scroll moves the picture
+  by the pixel, on a surface that opts in. Upstream's
+  `Surface.scrollCallback` collects the pixels of a precision scroll and
+  moves the viewport once a whole row has come in, so content under a
+  finger or a trackpad jumps a row at a time. With
+  `ghostty_surface_set_smooth_scroll(surface, true)` the viewport still
+  moves by whole rows and the remainder becomes a fraction in
+  `[0, cell height)` (`renderer.State.scroll_frac`): the renderer draws the
+  grid that many pixels higher and captures one overscan row below the
+  viewport (`RenderState.overscan_request`, upstream) to fill the bottom
+  edge. Off by default, so a host that never calls it — any embedder of
+  libghostty, or a GhosttyTerminal host driving a `TerminalSurface` of its
+  own — keeps upstream's behaviour; GhosttyTerminal's views turn it on for
+  the surfaces they build and bring the viewport back to a row. Only a
+  precision scroll of a screen with scrollback and no mouse reporting
+  takes the path; wheel notches, mouse reporting and alternate scroll are
+  unchanged, and the fraction is zero at the top of the scrollback and on
+  the active area. The fraction is stored with the viewport it belongs to
+  — active screen, scrollbar offset, `PageList.viewport_moves` (a count
+  every `PageList.scroll` bumps), cell height and grid size — and cleared
+  on its first read after any of them changed: a keybinding, output
+  scrolling to the bottom, a resize, a font size change, a switch of
+  screens. The move count is what keeps page up then page down from
+  bringing an old fraction back at the same row. Two more C functions:
+  `ghostty_surface_smooth_scroll` reads the first row, the last reachable
+  row, the fraction, the cell height and whether a precision scroll would
+  move the viewport by the pixel now, under the renderer lock (so the
+  views never go by a scrollbar report that is a frame behind, and the
+  precision multiplier and `mouse-reporting` are the engine's to apply);
+  `ghostty_surface_smooth_scroll_by` moves it by raw pixels, without the
+  multiplier, which is what the views snap with and what iOS system
+  scrolling tracks a finger with. All three are also the capability check
+  between GhosttyTerminal and the binary: a libghostty without them does
+  not link. The renderer gets a `content_offset` uniform applied to cell
+  backgrounds, glyphs (decorations, cursor and selection are glyph
+  instances) and Kitty images, and a `viewport_rows` uniform in the
+  padding after `grid_size`; while the offset is not zero, text and images
+  are discarded outside the viewport and the background keeps its
+  unshifted padding mapping. With no offset every path is what it was.
+  `Surface.posToViewport` is untouched: hit testing counts whole rows, and
+  the views settle before a click and once scrolling stops. The OpenGL
+  shaders get the offset but no clipping, and are neither built nor tested
+  here. Anchored edits throughout; the renderer ones sit in `generic.zig`
+  after 0015's. Upstream is working toward smooth scrolling itself
+  (ghostty-org/ghostty#14400's overscan API is "the first step"); once it
+  has a renderer offset of its own, drop this patch and keep only the
+  views' settling on top of upstream's.
 
 Dropped once upstream carried them: `0014-free-text-signature.patch`
 (`ghostty_surface_free_text` taking the surface, upstream `4803d58b`). A
