@@ -125,6 +125,18 @@ public final class TerminalViewState: ObservableObject {
     /// it is `nil`, every link goes to Ghostty's opener.
     public var onOpenURL: ((_ url: String, _ kind: TerminalOpenURLKind) -> Bool)?
 
+    /// Host hook for Ghostty's scrollback search. The search is driven
+    /// with binding actions on the surface — `search:<needle>` (an empty
+    /// needle stops it), `navigate_search:next` / `:previous`,
+    /// `end_search`, `start_search`, `search_selection` — and everything it
+    /// reports arrives here (``TerminalSearchEvent``). Each report is
+    /// passed on as it comes, one call per report and in order, never
+    /// coalesced: a count or selection can still belong to the previous
+    /// needle after a new `search:`, and a host that matches them up needs
+    /// every one. Counts come from Ghostty's search thread, so they arrive
+    /// on a later main-queue turn than the action that started the search.
+    public var onSearch: ((TerminalSearchEvent) -> Void)?
+
     /// Hands keyboard focus to the attached terminal view, imperatively.
     ///
     /// The SwiftUI `terminalFocused` bridge is best-effort: with no native
