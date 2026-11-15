@@ -235,6 +235,8 @@ Files in `Platform/UIKit/`:
 - `UITerminalView+Keyboard.swift` — hardware key handling via UIPress, Ctrl `UIKeyCommand`s, input-method key deferral, modifier translation; `HardwareKeyboardState`, `SoftwareKeyboardState`
 - `InputAccessory/UITerminalView+InputAccessory.swift` — input accessory bar integration (iOS only), key actions, sticky modifier dispatch, `sendSyntheticKey` / `sendControlByte` / `sendModifiedTextKey`
 - `UITerminalView+Interaction.swift` — tap-to-click and keyboard toggle, touch scrolling, momentum scroll via CADisplayLink, scroll-wheel recognizer, indirect-pointer selection, long-press menu, copy/paste actions; `PointerInteractionState`, `MomentumScrollState`
+- `UITerminalView+ScrollSettle.swift` — bringing a viewport left between rows to a row when a scroll stops: through the system scroll view when it drives the viewport, else through the coordinator's `TerminalSmoothScrollSettler`
+- `UITerminalView+SystemScroll.swift` — one-finger scrolling over scrollback through a hidden `UIScrollView` (`TerminalScrollDriverView`; iOS and visionOS, not Catalyst): whether it takes a drag, installing it; `SystemScrollState`. `+SystemScrollDelegate` (`TerminalScrollDriverDelegate`, a separate object) maps its offset onto the engine's position (`TerminalScrollOffsetMapping` in `Metrics/`, unit-tested), `+SystemScrollAlign` stops it and aligns it to a row, `+SystemScrollSync` brings it to the engine at rest and shows the rubber band
 - `UITerminalView+Drop.swift` — drag and drop: files staged to paths, text and links as text (see "Key Path vs Text Path")
 - `UITerminalView+PinchZoom.swift` — pinch changes font size via `increase_font_size` / `decrease_font_size` bindings (on Mac Catalyst from fingers on a touch display only); `FontZoomState` (the gesture's scale only — the size itself is tracked by the coordinator, see "Font Size")
 - `UITerminalView+PublicInput.swift` — public `acquireProgrammaticFocus`, `paste(text:)`, `sendKey`, `performBindingAction`, `jumpToPrompt(by:)`, `scrollToRow`, `fontSize`
@@ -507,6 +509,68 @@ so in the code — "it's just text" is the mistake this section exists to preven
   hover recognizer must run simultaneously with the others and must not
   cancel touches. Do not wrap the view in a host `ScrollView` that steals
   wheel or pan events.
+- With `0022-pixel-smooth-scrolling.sh` a surface that opted in moves its
+  viewport by the pixel under a precision scroll, and it can stop between
+  rows, where Ghostty's hit testing and `TerminalSelectionGrid`, both
+  counting whole rows, are a row off. The opt-in is
+  `TerminalSurface.setSmoothScrolling` (`Surface/TerminalSurface+SmoothScroll.swift`),
+  and only the coordinator calls it, for the surfaces the views build: a
+  host driving a surface of its own keeps upstream's row-at-a-time scroll.
+  The views never keep a copy of the position: `smoothScrollPosition()`
+  reads the engine's (row, last row, fraction, cell height, and whether a
+  precision scroll would move it by the pixel now — Ghostty's decision,
+  with `mouse-scroll-multiplier` and `mouse-reporting` in hand) under the
+  renderer lock, and `smoothScroll(byPixels:)` moves it by raw pixels.
+  `TerminalSmoothScrollSettler` (`Surface/`, one per coordinator) brings
+  it back to a row: every precision scroll reaches it through
+  `TerminalSurface.onPrecisionScroll` — trackpad, Magic Mouse, wheel on
+  iPadOS and Catalyst, a finger, a glide, a host's `sendMouseScroll` — and
+  one with no gesture around it (a wheel, a phaseless event, a host's
+  call) is settled `idleDelay` (120 ms) after the last. A view holds the
+  settler while a gesture or its glide moves the viewport and releases it
+  at the end: on the way it was going when momentum ends or the fingers
+  lift with the viewport still moving (never back against the travel, or a
+  string of flicks jumps back and forth), to the nearer row when it was
+  dragged to a stop. The snap is eased over 180 ms and re-reads the engine
+  every frame, so a multiplier or output arriving meanwhile cannot put it
+  off; it stops if the viewport is moved away. A click (AppKit
+  `mouseDown` and friends, the touch display's tap and hold, UIKit's
+  pointer and `settleScrollNow`) settles at once first. AppKit:
+  `AppTerminalView+SmoothScroll.swift` tells the settler about the
+  trackpad's phases (a lift waits 80 ms for momentum, momentum's end
+  settles at once), `+DirectTouch` about the finger and its glide. UIKit:
+  `+Scroll` for the wheel, the touch pan and its momentum, `+ScrollSettle`
+  for the rest. A wheel notch, a program tracking the mouse and a screen
+  with no scrollback go to the surface as before.
+- On iOS and visionOS one finger over scrollback is the system's scroll
+  (`+SystemScroll`): the view holds a `UIScrollView` that draws nothing,
+  hit-tests to nil, is hidden from accessibility, leaves `scrollsToTop` to
+  the host, and attaches its `panGestureRecognizer` to itself. Its
+  delegate is a separate object (`TerminalScrollDriverDelegate`), so the
+  open `UITerminalView` declares no `UIScrollViewDelegate` methods a host
+  subclass could collide with. No transparent layer sits over the
+  terminal, so taps, long presses and the selection handles reach the same
+  recognizers as before. `contentSize.height` is the view's height plus the
+  scrollback in points, `contentOffset` maps one to one onto the engine's
+  position (`TerminalScrollOffsetMapping` in `Metrics/`), and
+  `scrollViewDidScroll` moves the engine to the place the offset stands
+  for, read fresh each time; the part of the offset out of range, UIKit's
+  rubber band, is shown by translating the view's sublayers
+  (`applyOverscroll`), so the renderer draws no frame for it, with the
+  uncovered strip filled with the terminal's background.
+  `scrollViewWillEndDragging` rounds the landing place to a row. A lift
+  with no deceleration and a tap that stops a moving scroll align with the
+  view's own display-link animation, never `setContentOffset(_:animated:)`:
+  that one cannot be cancelled, and under a finger that drags again both
+  write the offset every frame. While anything moves the scroll view
+  (`systemScrollIsBusy`) nothing here writes the offset; it is brought to
+  the engine at rest (`systemScrollSyncFromEngine`). Output arriving at the
+  bottom under a finger or a bounce is absorbed in
+  `SystemScrollState.shiftPixels`. The view's own pan
+  (`gestureRecognizerShouldBegin` stands it down otherwise) keeps a
+  program tracking the mouse, a screen with nothing to scroll back to, two
+  fingers and a drag that extends a selection. The rule about a host
+  `ScrollView` above still holds: this one takes no touches.
 - A pinch (`+PinchZoom`) steps the font size through the
   `increase_font_size:1` / `decrease_font_size:1` bindings, one step per
   0.1 of scale, and stops at 4…64, checked against the tracked size (see
@@ -891,7 +955,8 @@ Two release tracks, decoupled since 1.4.0:
   state is a struct defined in the `+Xxx` extension file that owns the
   behavior (UIKit: `HardwareKeyboardState` and `SoftwareKeyboardState` in
   `+Keyboard`, `PointerInteractionState` and `MomentumScrollState` in
-  `+Interaction`, `FontZoomState` in `+PinchZoom`, `FocusBridgeState` in
+  `+Interaction`, `SystemScrollState` in `+SystemScroll`, `FontZoomState` in
+  `+PinchZoom`, `FocusBridgeState` in
   `+Lifecycle`, `TextInputBridgeState` in `+UITextInput`; AppKit:
   `KeyEchoState` and `PointerSelectionState` in `+Input`, `FocusBridgeState`
   in `+Lifecycle`, `DirectTouchState` in `+DirectTouch`); the root class declares only `var xxx: XxxState = .init()`
@@ -943,7 +1008,11 @@ Two release tracks, decoupled since 1.4.0:
   `ghostty_config_load_recursive_files` (the controller only calls
   `ghostty_config_load_file` on its rendered config; `ghostty_config_get`
   is bound for `background` alone — `TerminalController.backgroundColor`)
-  and `ghostty_surface_quicklook_font` have no Swift wrapper yet
+  and `ghostty_surface_quicklook_font` have no Swift wrapper yet. The
+  smooth-scroll functions `0022` adds are bound internally only
+  (`TerminalSurface+SmoothScroll.swift`): a surface that moves by the pixel
+  needs something to bring it back to a row, and that is the views'
+  settler
 
 ### Example App Requirements
 

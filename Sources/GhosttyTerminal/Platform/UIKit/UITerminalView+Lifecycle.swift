@@ -190,6 +190,9 @@
             updateSublayerFrames()
             core.fitToSize()
             refreshTouchSelection()
+            #if !targetEnvironment(macCatalyst)
+                systemScrollSyncFromEngine()
+            #endif
         }
 
         /// The scale used when neither the window nor the trait collection can
