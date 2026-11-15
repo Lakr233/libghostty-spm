@@ -42,6 +42,9 @@ final class TerminalSurfaceCoordinator {
     /// `.exec` would otherwise free a surface the old session still uses.
     private var surfaceSession: InMemoryTerminalSession?
     let bridge = TerminalCallbackBridge()
+    /// Brings a viewport that smooth scrolling left between rows back to a
+    /// row (Patches/ghostty/0022); the views hold it during their gestures.
+    lazy var scrollSettler = TerminalSmoothScrollSettler { [weak self] in self?.surface }
 
     // MARK: - Platform Hooks
 
@@ -248,6 +251,12 @@ final class TerminalSurfaceCoordinator {
         )
         TerminalDebugLog.log(.lifecycle, "surface rebuild succeeded")
         startFontSizeTracking(on: newSurface, controller: controller)
+        // The views settle every precision scroll on a row, so the surfaces
+        // they build may move by the pixel; nothing else turns it on.
+        newSurface.setSmoothScrolling(true)
+        newSurface.onPrecisionScroll = { [weak self] y in
+            self?.scrollSettler.didScroll(up: y)
+        }
         (delegate as? any TerminalSurfaceLifecycleDelegate)?
             .terminalDidAttachSurface(newSurface)
         synchronizeMetrics()
@@ -623,6 +632,7 @@ final class TerminalSurfaceCoordinator {
         bridge.rawSurface = nil
         bridge.scrollbar = nil
         let hadSurface = surface != nil
+        scrollSettler.cancel()
         surface?.setFocus(false)
         surface?.free()
         surface = nil

@@ -46,6 +46,9 @@
     extension AppTerminalView {
         /// How often a glide moves the viewport.
         static let directTouchMomentumInterval: TimeInterval = 1.0 / 120.0
+        /// How long a finger that caught a glide may rest before the
+        /// viewport is brought to a row.
+        static let directTouchCatchSettleDelay: TimeInterval = 0.12
 
         /// On a Mac with a touch display AppKit turns a finger into mouse
         /// events for a view that overrides `mouseDown(with:)`, as this one
@@ -128,6 +131,7 @@
         /// a left press and release where the finger was.
         func handleDirectTouchTap(at point: CGPoint) {
             window?.makeFirstResponder(self)
+            core.scrollSettler.settleNow()
             pointer.pendingSelectionMenuPoint = nil
             surface?.sendMousePos(x: point.x, y: point.y, mods: GHOSTTY_MODS_NONE)
             surface?.sendMouseButton(state: GHOSTTY_MOUSE_PRESS, button: GHOSTTY_MOUSE_LEFT, mods: GHOSTTY_MODS_NONE)
@@ -157,6 +161,7 @@
         func handleDirectTouchHoldBegan(at point: CGPoint) {
             window?.makeFirstResponder(self)
             stopDirectTouchMomentum()
+            core.scrollSettler.settleNow()
             surface?.sendMousePos(x: point.x, y: point.y, mods: GHOSTTY_MODS_NONE)
             if let menuPoint = selectionMenuPoint(at: point) {
                 pointer.pendingSelectionMenuPoint = menuPoint
@@ -203,6 +208,8 @@
             switch state {
             case .began:
                 stopDirectTouchMomentum()
+                // Nothing settles under the finger (`TerminalSmoothScrollSettler`).
+                core.scrollSettler.hold()
                 // The pointer is somewhere else: a program tracking the
                 // mouse gets its wheel reports for the cell under the
                 // finger, not under the pointer.
@@ -212,6 +219,7 @@
                 scrollDirectTouch(by: translation, momentum: .none)
 
             case .changed:
+                core.scrollSettler.hold()
                 scrollDirectTouch(by: translation, momentum: .none)
 
             case .ended:
@@ -221,9 +229,15 @@
                 if surface?.isMouseCaptured != true {
                     startDirectTouchMomentum(velocity: velocity)
                 }
+                // With a glide the settler waits for it to run out;
+                // dragged to a stop, the viewport goes to the nearer row.
+                if directTouch.momentum == nil {
+                    core.scrollSettler.release(followingTravel: false)
+                }
 
             case .cancelled, .failed:
                 stopDirectTouchMomentum()
+                core.scrollSettler.release(followingTravel: false)
 
             default:
                 break
@@ -293,6 +307,8 @@
         func advanceDirectTouchMomentum(by interval: TimeInterval) {
             guard surface != nil, let delta = directTouch.momentum?.advance(by: interval) else {
                 stopDirectTouchMomentum()
+                // Run out: on to the row ahead.
+                core.scrollSettler.release(followingTravel: true)
                 return
             }
             scrollDirectTouch(by: delta, momentum: .changed)
@@ -304,6 +320,10 @@
             directTouch.momentumTimer?.invalidate()
             directTouch.momentumTimer = nil
             directTouch.momentum = nil
+            // A touch caught the glide: the viewport stays where it stopped
+            // and goes to the nearer row unless a drag follows (its `.began`
+            // holds the settler again).
+            core.scrollSettler.release(after: Self.directTouchCatchSettleDelay, followingTravel: false)
         }
     }
 #endif
