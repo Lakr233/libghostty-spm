@@ -35,6 +35,11 @@ final class TerminalSmoothScrollSettler {
     static let heldIdleDelay: TimeInterval = 1.0
     static let snapDuration: TimeInterval = 0.18
     static let snapInterval: TimeInterval = 1.0 / 120
+    /// Once less than this is left of the eased curve, the snap takes the
+    /// rest in one step. The engine keeps its fraction in a `Float`: eased
+    /// up to within a millionth of a pixel of the next row, it rounded to
+    /// a whole row and was dropped, and the viewport fell back a row.
+    static let snapFinishPixels: Double = 0.01
 
     private let surface: () -> TerminalSurface?
 
@@ -46,9 +51,8 @@ final class TerminalSmoothScrollSettler {
     private var settleToken = 0
 
     private(set) var snapTimer: Timer?
-    /// The snap's goal in pixels from the top of the scrollback, and the
-    /// scroll it set out to make.
-    private var snapTarget: Double = 0
+    /// The row the snap lands on, and the scroll it set out to make.
+    private var snapRow = 0
     private var snapTotal: Double = 0
     private var snapStart: CFTimeInterval = 0
 
@@ -120,7 +124,8 @@ final class TerminalSmoothScrollSettler {
         let total = position.pixelsToRow(following: followingTravel ? lastTravel : 0)
         guard total != 0 else { return }
         snapTotal = total
-        snapTarget = position.pixels - total
+        // Back up to the row it is in, or down to the next one.
+        snapRow = position.row + (total > 0 ? 0 : 1)
         snapStart = CACurrentMediaTime()
         TerminalDebugLog.log(.input, "smooth scroll snap \(String(format: "%.2f", total)) px")
         // The timer holds the settler weakly and stops itself once the
@@ -145,7 +150,11 @@ final class TerminalSmoothScrollSettler {
             cancelSnap()
             return
         }
-        let remaining = position.pixels - snapTarget
+        let remaining = position.pixels(to: snapRow * position.cellHeight)
+        guard remaining != 0 else {
+            cancelSnap()
+            return
+        }
         // Moved by something else — output, a keybinding, a resize: the
         // row aimed at is no longer the one to land on.
         if abs(remaining) > abs(snapTotal) + 0.5 || remaining * snapTotal < 0 {
@@ -154,11 +163,15 @@ final class TerminalSmoothScrollSettler {
         }
         let progress = min(1, (CACurrentMediaTime() - snapStart) / Self.snapDuration)
         let wanted = snapTotal * pow(1 - progress, 3)
-        let step = progress >= 1 ? remaining : remaining - wanted
-        if step != 0 {
+        let finishing = progress >= 1 || abs(wanted) < Self.snapFinishPixels
+        let step = finishing ? remaining : remaining - wanted
+        // Ahead of the curve, it waits for it rather than step back: a step
+        // back across the row puts the engine just under a whole row
+        // behind it, which it drops.
+        if step * remaining > 0 {
             surface.smoothScroll(byPixels: step)
         }
-        if progress >= 1 {
+        if finishing {
             cancelSnap()
         }
     }

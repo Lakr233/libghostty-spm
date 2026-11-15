@@ -552,7 +552,14 @@ so in the code — "it's just text" is the mistake this section exists to preven
   string of flicks jumps back and forth), to the nearer row when it was
   dragged to a stop. The snap is eased over 180 ms and re-reads the engine
   every frame, so a multiplier or output arriving meanwhile cannot put it
-  off; it stops if the viewport is moved away. A click (AppKit
+  off; it stops if the viewport is moved away. A scroll meant to land on
+  a row is counted from the viewport's first row
+  (`TerminalSmoothScrollPosition.pixels(to:)`), never as a difference of
+  absolute pixels: the engine floors what is left of its `Float` fraction
+  into rows, and a last step a hair past a tiny fraction, rounded against
+  `row * cellHeight`, landed a row too far. For the same reason the snap
+  never steps back across its row and takes the last hundredth of a pixel
+  in one step. A click (AppKit
   `mouseDown` and friends, the touch display's tap and hold, UIKit's
   pointer and `settleScrollNow`) settles at once first. AppKit:
   `AppTerminalView+SmoothScroll.swift` tells the settler about the

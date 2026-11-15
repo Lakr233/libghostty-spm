@@ -28,6 +28,21 @@ struct TerminalSmoothScrollPosition: Equatable {
         Double(row * cellHeight) + fraction
     }
 
+    /// The scroll, in pixels toward the scrollback, that puts the top of
+    /// the viewport `target` pixels from the top of the scrollback.
+    ///
+    /// Counted from the first row, never as `pixels - target`: the engine
+    /// takes the scroll off its own fraction (a `Float`) and floors what is
+    /// left into rows, so a scroll meant to land on a row must cancel the
+    /// fraction exactly. Next to `row * cellHeight`, thousands of pixels
+    /// down the scrollback, a fraction of a millionth of a pixel loses its
+    /// low bits; a last step that came out a hair past it left the engine
+    /// just under a whole row, which it then dropped, and the viewport
+    /// ended a row past the row it was brought to.
+    func pixels(to target: Int) -> Double {
+        fraction + Double(row * cellHeight - target)
+    }
+
     /// The bottom of the scrollback, in pixels from its top.
     var maxPixels: Int {
         maxRow * cellHeight

@@ -55,7 +55,7 @@
                 // The scroll view is then under half a pixel out.
                 let targetPoints = targetPixels / mapping.scale
                 if TerminalScrollOffsetMapping.rounds(targetPoints, onto: driver.contentOffset.y, unit: contentOffsetUnit) {
-                    surface?.smoothScroll(byPixels: position.pixels - Double(aligned))
+                    surface?.smoothScroll(byPixels: position.pixels(to: aligned))
                     return
                 }
                 systemScrollCancelAlign()

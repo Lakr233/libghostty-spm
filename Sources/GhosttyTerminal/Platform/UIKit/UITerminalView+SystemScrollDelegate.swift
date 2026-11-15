@@ -62,8 +62,7 @@
                 // the viewport since — output, a scroll multiplier, the
                 // engine stopping at an end — the step brings it to the
                 // place the offset stands for.
-                let target = Double(mapping.enginePixels(offsetPixels: offsetPixels))
-                let delta = position.pixels - target
+                let delta = position.pixels(to: mapping.enginePixels(offsetPixels: offsetPixels))
                 guard position.isAvailable, abs(delta) > 0.001 else { return }
                 surface?.smoothScroll(byPixels: delta)
             }

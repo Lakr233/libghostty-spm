@@ -56,4 +56,21 @@ struct TerminalSmoothScrollPositionTests {
             }
         }
     }
+
+    /// The last frame of a snap, read off a run that ended a row too far:
+    /// a millionth of a pixel past row 271 of 18 px rows. The scroll back
+    /// to the row has to be that fraction bit for bit, or the engine floors
+    /// what is left into the row above.
+    @Test
+    func `the scroll to a pixel cancels the fraction exactly far down the scrollback`() {
+        let fraction = Double(Float(1.1414863365644123e-06))
+        let start = TerminalSmoothScrollPosition(
+            isAvailable: true, row: 271, maxRow: 400, fraction: fraction, cellHeight: 18,
+        )
+        #expect(start.pixels(to: 271 * 18) == fraction)
+        #expect(fraction - start.pixels(to: 272 * 18) == 18)
+        #expect(start.pixels(to: 270 * 18) == fraction + 18)
+        // What the snap sent before: a hair more than the fraction.
+        #expect(start.pixels - Double(271 * 18) > fraction)
+    }
 }
