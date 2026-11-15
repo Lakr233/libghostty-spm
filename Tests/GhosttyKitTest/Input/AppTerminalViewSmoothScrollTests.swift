@@ -158,8 +158,10 @@
             defer { rig.tearDown() }
             let before = try #require(rig.firstVisibleLine)
 
-            for _ in 0 ..< 6 {
-                try rig.scroll(pixels: rig.cellHeight * 11 / 20)
+            // Three rows and a third, so no cell height sums to whole rows.
+            let total = rig.cellHeight * 10 / 3
+            for step in 0 ..< 6 {
+                try rig.scroll(pixels: total * (step + 1) / 6 - total * step / 6)
             }
             try #require(rig.fraction != 0, "\(rig.sentPixels) px over \(rig.cellHeight) px rows")
             #expect(await rig.settles())
