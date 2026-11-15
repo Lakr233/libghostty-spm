@@ -213,6 +213,35 @@ that moves the pointer itself can ask which link is under a point. Ghostty
 calls it while it works on the surface: use the URL it hands over, and wait
 for the next main-queue turn before reading the surface back.
 
+### Searching Scrollback
+
+Ghostty's own search covers the screen and the scrollback. Drive it with
+binding actions — `search:<needle>` (an empty needle stops it),
+`navigate_search:next` and `:previous`, `end_search` — and hear what it finds
+through `TerminalViewState.onSearch` (a delegate adopts
+`TerminalSurfaceSearchDelegate`). Matching is a substring that ignores ASCII
+case. Ghostty's own bindings for `start_search`, `search_selection` and
+`end_search` arrive as `.started` and `.ended`, for the host to show or put
+away its find bar.
+
+```swift
+state.onSearch = { event in
+    switch event {
+    case let .started(needle): findBar.show(needle)
+    case .ended: findBar.hide()
+    case let .total(count): findBar.total = count
+    case let .selected(index): findBar.selected = index
+    }
+}
+_ = state.performBindingAction("search:\(query)")
+_ = state.performBindingAction("navigate_search:next")
+```
+
+Counts and selections come from Ghostty's search thread, on a later
+main-queue turn, one call per report. For a moment after a new `search:` they
+can still belong to the previous needle; the new search reports
+`.selected(nil)` before it counts again.
+
 ### Surface Snapshots and Host View Subclasses
 
 `TerminalView.snapshotImage()` renders the surface's current on-screen

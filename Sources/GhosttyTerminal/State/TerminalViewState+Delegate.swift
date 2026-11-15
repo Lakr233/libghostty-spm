@@ -23,7 +23,8 @@ extension TerminalViewState:
     TerminalSurfaceOpenURLHandlingDelegate,
     TerminalSurfaceColorChangeDelegate,
     TerminalSurfaceFontSizeDelegate,
-    TerminalSurfaceHoverLinkDelegate
+    TerminalSurfaceHoverLinkDelegate,
+    TerminalSurfaceSearchDelegate
 {
     /// Applies a change to this state on the main queue's next turn.
     ///
@@ -191,6 +192,26 @@ extension TerminalViewState:
     /// Not routed through `publishSoon`: Ghostty waits for the answer.
     public func terminalShouldHandleOpenURL(_ url: String, kind: TerminalOpenURLKind) -> Bool {
         onOpenURL?(url, kind) ?? false
+    }
+
+    /// The search reports below are not routed through `publishSoon`
+    /// either: they are events, not state. Coalesced newest-per-key, the nil
+    /// selection a restarted search reports would be lost behind the next
+    /// one, and the host could not tell the two searches apart.
+    public func terminalDidStartSearch(needle: String?) {
+        onSearch?(.started(needle: needle))
+    }
+
+    public func terminalDidEndSearch() {
+        onSearch?(.ended)
+    }
+
+    public func terminalDidUpdateSearchTotal(_ total: Int?) {
+        onSearch?(.total(total))
+    }
+
+    public func terminalDidUpdateSearchSelected(_ selected: Int?) {
+        onSearch?(.selected(selected))
     }
 
     public func terminalDidAttachSurface(_ surface: TerminalSurface) {

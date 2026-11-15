@@ -693,6 +693,28 @@ before reading the surface back from either closure; that a synchronous
 read hangs is read off the source, not reproduced. `TerminalViewStateLinkTests`
 runs the hover and a Cmd-click on a real surface.
 
+### Scrollback Search
+
+Ghostty's search runs on a thread of its own over the screen and the
+scrollback. Binding actions drive it — `search:<needle>` (an empty needle
+stops it), `navigate_search:next` / `:previous`, `end_search`,
+`start_search`, `search_selection` — and it reports through
+`TerminalSurfaceSearchDelegate`. `TerminalViewState` adopts that protocol
+and forwards each report to `onSearch` as a `TerminalSearchEvent`
+(`.started(needle:)`, `.ended`, `.total`, `.selected`): one call per report,
+in order, and not through `publishSoon`. After a new `search:` the old
+search's reports can still land, and what marks the new one is the
+`selected(nil)` it reports before counting again; coalesced newest per key,
+that would be gone. What `TerminalViewStateSearchTests` measures on a live
+surface (Ghostty cf5519b): matching ignores ASCII case;
+`navigate_search:next` with nothing selected selects index 0; an empty
+needle reports `total(nil)` and `selected(nil)` and no end; `end_search`
+reports `.ended` before the call returns, whether or not a search was
+running. iGhostVT's find bar is the consumer, and until this hook it
+declared the conformance itself (`@retroactive`) — the release that adopts
+it breaks that build, so the app moves to `onSearch` when it takes the
+release.
+
 ### Selection Region
 
 `TerminalSurface.selectionRegion()` (re-exposed as `selectionRegion` on both
