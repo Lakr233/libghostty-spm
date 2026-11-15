@@ -34,6 +34,16 @@ jobs:
       - name: Check Licenses
         run: ./Script/check-licenses.sh
 
+      - name: Check Binary Source Notices
+        run: |
+          source=$(mktemp -d)
+          git init -q "$source"
+          git -C "$source" remote add origin https://github.com/ghostty-org/ghostty
+          git -C "$source" fetch --depth=1 --filter=blob:none origin "$(tr -d '[:space:]' < Ghostty.ref)"
+          git -C "$source" sparse-checkout set --no-cone /LICENSE '/NOTICE*' /include/ghostty.h
+          git -C "$source" checkout --detach FETCH_HEAD
+          ./Script/test-source-notices.sh "$source"
+
       - name: Check Localizations
         run: ./Script/generate-localizations.sh --check
 

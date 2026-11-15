@@ -166,6 +166,9 @@ jobs:
               LIBS+=("$target_dir/lib/libghostty.a")
               if [ -z "$FIRST_HEADERS" ]; then
                 FIRST_HEADERS="$target_dir/include"
+              else
+                ./Script/stage-source-notices.sh --compare \
+                  "$FIRST_HEADERS/Licenses" "$target_dir/include/Licenses"
               fi
             done
 

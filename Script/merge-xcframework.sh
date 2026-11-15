@@ -24,6 +24,7 @@ fi
 
 XCFRAMEWORK_COMMAND=()
 FOUND_VARIANTS=0
+FIRST_NOTICES=
 
 verify_headers() {
     local header_dir="$1"
@@ -55,6 +56,12 @@ add_library() {
     fi
 
     verify_headers "$header_dir"
+    ./Script/stage-source-notices.sh --check "$header_dir/Licenses"
+    if [ -n "$FIRST_NOTICES" ]; then
+        ./Script/stage-source-notices.sh --compare "$FIRST_NOTICES" "$header_dir/Licenses"
+    else
+        FIRST_NOTICES="$header_dir/Licenses"
+    fi
     XCFRAMEWORK_COMMAND+=("-library" "$library_path" "-headers" "$header_dir")
     FOUND_VARIANTS=$((FOUND_VARIANTS + 1))
 }
