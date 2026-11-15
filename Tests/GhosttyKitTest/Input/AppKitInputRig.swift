@@ -20,12 +20,16 @@
         init(
             view: AppTerminalView = AppTerminalView(frame: NSRect(x: 0, y: 0, width: 800, height: 500)),
             optionAsAlt: String? = "left",
+            config: [(key: String, value: String)] = [],
         ) {
             let outbound = outbound
             session = InMemoryTerminalSession(write: { outbound.append($0) }, resize: { _ in })
             self.view = view
             view.controller = TerminalController {
                 if let optionAsAlt { $0.withCustom("macos-option-as-alt", optionAsAlt) }
+                for entry in config {
+                    $0.withCustom(entry.key, entry.value)
+                }
             }
             view.configuration = TerminalSurfaceOptions(backend: .inMemory(session))
             window = NSWindow(contentRect: view.frame, styleMask: [.titled], backing: .buffered, defer: false)

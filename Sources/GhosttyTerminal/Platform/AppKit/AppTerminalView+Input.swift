@@ -138,6 +138,9 @@
 
         override open func mouseDown(with event: NSEvent) {
             window?.makeFirstResponder(self)
+            // Hit testing counts whole rows: a viewport smooth scrolling
+            // left between two is brought to one before the click lands.
+            core.scrollSettler.settleNow()
             let (x, y) = mousePoint(from: event)
             let mods = TerminalInputModifiers(from: event.modifierFlags)
             pointer.pendingSelectionMenuPoint = nil
@@ -162,6 +165,7 @@
 
         override open func rightMouseDown(with event: NSEvent) {
             window?.makeFirstResponder(self)
+            core.scrollSettler.settleNow()
             let (x, y) = mousePoint(from: event)
             let mods = TerminalInputModifiers(from: event.modifierFlags)
             surface?.sendMousePos(x: x, y: y, mods: mods.ghosttyMods)
@@ -202,6 +206,7 @@
 
         override open func otherMouseDown(with event: NSEvent) {
             window?.makeFirstResponder(self)
+            core.scrollSettler.settleNow()
             let (x, y) = mousePoint(from: event)
             let mods = TerminalInputModifiers(from: event.modifierFlags)
             surface?.sendMousePos(x: x, y: y, mods: mods.ghosttyMods)
@@ -251,6 +256,8 @@
         }
 
         override open func scrollWheel(with event: NSEvent) {
+            smoothScrollWillScroll(event)
+            defer { smoothScrollDidScroll(event) }
             let scrollMods = TerminalScrollModifiers(
                 precision: event.hasPreciseScrollingDeltas,
                 momentum: TerminalScrollModifiers.momentumFrom(phase: event.momentumPhase),

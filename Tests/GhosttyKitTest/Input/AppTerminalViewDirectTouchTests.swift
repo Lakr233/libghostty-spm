@@ -22,6 +22,32 @@
                 .flatMap { Int($0) }
         }
 
+        /// The grid a view reports as it gets its first size is not yet the
+        /// one it keeps.
+        private func waitForSteadyGrid(_ rig: AppKitInputRig) async {
+            var grid = rig.view.surface?.size()
+            var heldSince = ContinuousClock.now
+            let deadline = ContinuousClock.now + .seconds(5)
+            while ContinuousClock.now - heldSince < .milliseconds(400), ContinuousClock.now < deadline {
+                try? await Task.sleep(for: .milliseconds(20))
+                let now = rig.view.surface?.size()
+                if now != grid {
+                    grid = now
+                    heldSince = ContinuousClock.now
+                }
+            }
+        }
+
+        /// No snap running and the viewport on a row.
+        private func settles(_ rig: AppKitInputRig) async -> Bool {
+            let deadline = ContinuousClock.now + .seconds(3)
+            while rig.view.core.scrollSettler.isSnapping || (rig.view.surface?.smoothScrollPosition()?.fraction ?? 0) != 0 {
+                if ContinuousClock.now > deadline { return false }
+                try? await Task.sleep(for: .milliseconds(5))
+            }
+            return true
+        }
+
         private func pan(_ rig: AppKitInputRig, by points: CGFloat, steps: Int = 4, liftVelocity: CGFloat = 0) {
             let view = rig.view
             let at = CGPoint(x: 40, y: 40)
@@ -44,17 +70,23 @@
             let rig = AppKitInputRig()
             defer { rig.tearDown() }
 
+            // A resize drops the part of a row the viewport is past, so the
+            // grid has to hold still first.
+            await waitForSteadyGrid(rig)
             rig.receive((0 ..< 400).map { "line \($0)\r\n" }.joined())
             let row = try rowPoints(of: rig)
             let before = try #require(firstVisibleLine(of: rig))
 
-            pan(rig, by: 10.5 * row)
+            // The viewport moves by the pixel under the finger
+            // (Patches/ghostty/0022) and, dragged to a stop, settles on the
+            // nearer row.
+            pan(rig, by: 10.4 * row)
+            #expect(await settles(rig))
             let scrolledBack = try #require(firstVisibleLine(of: rig))
             #expect(before - scrolledBack == 10)
 
-            // The half row left over from the way back counts against the
-            // way forward: Ghostty moves whole rows and keeps the rest.
-            pan(rig, by: -4.5 * row)
+            pan(rig, by: -4.4 * row)
+            #expect(await settles(rig))
             let scrolledForward = try #require(firstVisibleLine(of: rig))
             #expect(scrolledForward - scrolledBack == 4)
             #expect(rig.view.directTouch.momentumTimer == nil)

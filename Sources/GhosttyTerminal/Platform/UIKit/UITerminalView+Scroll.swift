@@ -34,6 +34,12 @@
         var velocity: CGPoint = .zero
         var scrollsLocally = false
         var localRow: CGFloat = 0
+
+        /// A finger is dragging: from a pan's `.began` to its end, the
+        /// scroll view's pan included.
+        var panIsActive = false
+        /// Invalidates a pending settle when a gesture or momentum follows.
+        var settleToken = 0
     }
 
     extension UITerminalView {
@@ -42,13 +48,33 @@
             switch gesture.state {
             case .began:
                 dismissTouchSelection(restoringViewport: false)
-                stopMomentumScrolling()
-            case .changed, .ended:
+                stopMomentumScrolling(settle: .none)
+                core.scrollSettler.hold()
+            case .changed:
+                core.scrollSettler.hold()
+            case .ended:
                 // `.ended` still carries whatever moved since the last
                 // `.changed`.
                 break
+            case .cancelled, .failed:
+                core.scrollSettler.release(followingTravel: false)
+                return
             default:
                 return
+            }
+            defer {
+                // Brought to a row once the wheel or the trackpad stops,
+                // on iPadOS and Mac Catalyst alike: the pointer hovers and
+                // clicks in whole rows. A notch can be under half a row, so
+                // a viewport still moving goes on to the row ahead rather
+                // than back; one dragged to a stop goes to the nearer row.
+                if gesture.state == .ended {
+                    let settler = core.scrollSettler
+                    settler.release(
+                        after: TerminalSmoothScrollSettler.idleDelay,
+                        followingTravel: abs(settler.lastTravel) >= Self.scrollMovingDelta,
+                    )
+                }
             }
 
             let translation = gesture.translation(in: self)
@@ -74,12 +100,17 @@
                 for: translation,
                 displayScale: resolvedDisplayScale(),
             )
+            if pixels.x == 0, pixels.y == 0 { return }
             surface?.sendMouseScroll(
                 x: Double(pixels.x),
                 y: Double(pixels.y),
                 mods: scrollMods.rawValue,
             )
         }
+
+        /// Pixels in the last scroll from which the viewport counts as still
+        /// moving when a wheel or trackpad gesture ends.
+        static let scrollMovingDelta: Double = 3
 
         @objc func handleTouchScrollGesture(
             _ gesture: UIPanGestureRecognizer,
@@ -114,7 +145,14 @@
                     dismissTouchSelection(restoringViewport: false)
                 }
                 TerminalDebugLog.log(.input, "touch scroll began")
-                stopMomentumScrolling()
+                // A drag that takes over from momentum goes on from where
+                // it is. The two-finger scroll counts in rows, so it starts
+                // from one.
+                stopMomentumScrolling(settle: momentumScroll.scrollsLocally ? .now : .none)
+                momentumScroll.panIsActive = true
+                momentumScroll.settleToken += 1
+                // Nothing settles under the finger (`TerminalSmoothScrollSettler`).
+                core.scrollSettler.hold()
 
             case .changed:
                 guard pointer.session.reported == nil else { return }
@@ -128,9 +166,11 @@
                 if usesInlineTextSelection, !momentumScroll.scrollsLocally {
                     sendPointerPosition(at: gesture.location(in: self))
                 }
+                core.scrollSettler.hold()
                 scrollTouchContent(by: translation, momentum: .none)
 
             case .ended:
+                momentumScroll.panIsActive = false
                 guard pointer.session.reported == nil else { return }
                 let velocity = gesture.velocity(in: self)
                 TerminalDebugLog.log(
@@ -148,10 +188,19 @@
                 if glides {
                     startMomentumScrolling(velocity: velocity)
                 }
+                // Too slow a lift for momentum: dragged to a stop, to the
+                // nearer row. Otherwise the momentum settles when it stops.
+                if momentumScroll.displayLink == nil {
+                    core.scrollSettler.release(followingTravel: false)
+                }
 
             case .cancelled, .failed:
                 TerminalDebugLog.log(.input, "touch scroll cancelled")
-                stopMomentumScrolling()
+                momentumScroll.panIsActive = false
+                stopMomentumScrolling(settle: .none)
+                // A system gesture took the touch: the viewport may be
+                // between rows all the same.
+                core.scrollSettler.release(followingTravel: false)
 
             default:
                 break
@@ -218,7 +267,9 @@
             let deltaY = momentumScroll.velocity.y * dt
 
             if abs(momentumScroll.velocity.x) < 50, abs(momentumScroll.velocity.y) < 50 {
-                stopMomentumScrolling()
+                stopMomentumScrolling(settle: .none)
+                // Run out: on to the row ahead.
+                core.scrollSettler.release(followingTravel: true)
                 return
             }
 
@@ -230,17 +281,30 @@
             scrollTouchContent(by: CGPoint(x: deltaX, y: deltaY), momentum: .changed)
         }
 
-        func stopMomentumScrolling(sendTerminalEndEvent: Bool = true) {
-            guard momentumScroll.displayLink != nil else { return }
-            TerminalDebugLog.log(.input, "momentum stop")
+        /// `.now` by default: most callers go on to work in whole rows, or
+        /// are taking the view away.
+        func stopMomentumScrolling(sendTerminalEndEvent: Bool = true, settle: ScrollSettle = .now) {
+            #if !targetEnvironment(macCatalyst)
+                if settle != ScrollSettle.none {
+                    systemScrollStop()
+                }
+            #endif
+            if momentumScroll.displayLink != nil {
+                TerminalDebugLog.log(.input, "momentum stop")
 
-            if sendTerminalEndEvent {
-                scrollTouchContent(by: .zero, momentum: .none)
+                if sendTerminalEndEvent {
+                    scrollTouchContent(by: .zero, momentum: .none)
+                }
+
+                momentumScroll.displayLink?.invalidate()
+                momentumScroll.displayLink = nil
+                momentumScroll.velocity = .zero
             }
-
-            momentumScroll.displayLink?.invalidate()
-            momentumScroll.displayLink = nil
-            momentumScroll.velocity = .zero
+            switch settle {
+            case .none: break
+            case .later: settleScrollSoon()
+            case .now: settleScrollNow()
+            }
         }
     }
 #endif
