@@ -109,25 +109,25 @@ component() {
         origin=$(public_origin "$(git -C "$source" remote get-url origin 2>/dev/null || true)")
     fi
     if (( SOURCE_NOTICES_STRICT )); then
-        (( is_git )) || { echo "[-] source is not a git checkout: $source"; return 1; }
+        (( is_git )) || { echo "[-] source is not a git checkout: $source" >&2; return 1; }
         [[ "$origin" == https://github.com/* ]] || {
-            echo "[-] source origin must be a public GitHub URL: $source"; return 1;
+            echo "[-] source origin must be a public GitHub URL: $source" >&2; return 1;
         }
     fi
     mkdir "$destination/$name"
     local notices='[]'
     [[ -s "$source/LICENSE" && ! -L "$source/LICENSE" ]] || {
-        echo "[-] source LICENSE is missing: $source"; return 1;
+        echo "[-] source LICENSE is missing: $source" >&2; return 1;
     }
     for notice in "$source"/LICENSE "$source"/NOTICE*(N); do
         relative=${notice:t}
         if (( is_git )); then
             git -C "$source" ls-files --error-unmatch -- "$relative" >/dev/null 2>&1 || {
-                echo "[-] notice is not tracked by its source: $relative"; return 1;
+                echo "[-] notice is not tracked by its source: $relative" >&2; return 1;
             }
         fi
         [[ -f "$notice" && ! -L "$notice" && -s "$notice" ]] || {
-            echo "[-] notice is empty or a link: $notice"; return 1;
+            echo "[-] notice is empty or a link: $notice" >&2; return 1;
         }
         cp "$notice" "$destination/$name/$relative"
         digest=$(shasum -a 256 "$notice" | awk '{print $1}')
