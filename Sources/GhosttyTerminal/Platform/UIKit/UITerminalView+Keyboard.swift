@@ -45,6 +45,11 @@
         /// round-trip the keyboard daemon), and replaying a key it is still
         /// composing types it twice.
         @MainActor static var inputMethodProvenResponsive = false
+        /// How long a press given to the text input system waits for the
+        /// input method's claim before an unclaimed flush may replay it raw.
+        /// The claim round-trips the keyboard daemon: on iOS 27 (Pinyin, a
+        /// virtual iPhone) it landed 16–21 ms after the press.
+        static let inputMethodClaimWindow: TimeInterval = 0.25
         /// Presses currently loaned to the input method; their release must
         /// not reach the surface (a replay sends its own synthetic pair).
         var pressesLoanedToInputMethod: Set<UIPress> = []
@@ -92,10 +97,17 @@
         /// The physical press, held for the turn so a calibration flush can
         /// still hand it to the text input system instead of leaking raw text.
         weak var press: UIPress?
+        /// The event the press arrived in. A calibration flush hands a press
+        /// that is still down over with it, as `pressesBegan` would have.
+        weak var event: UIPressesEvent?
         /// The press has been given to the text input system (at press
         /// time or by a calibration flush); the next unclaimed flush
         /// replays it raw rather than retrying forever.
         var forwardAttempted: Bool
+        /// When the press was given to the text input system. Its claim is
+        /// waited for until `inputMethodClaimWindow` past this, whatever
+        /// flush comes first — see `replayUnclaimedInputMethodKeys`.
+        var forwardedAt: TimeInterval?
     }
 
     extension UITerminalView {
@@ -128,7 +140,7 @@
                             .input,
                             "uikit key deferred to input method code=\(key.keyCode.rawValue) marked=\(inputHandler.hasMarkedText) lang=\(textInputMode?.primaryLanguage ?? "nil") forwarding=\(HardwareKeyboardState.inputMethodNeedsPressForwarding)",
                         )
-                        deferKeyToInputMethod(key, press: press, action: GHOSTTY_ACTION_PRESS)
+                        deferKeyToInputMethod(key, press: press, event: event, action: GHOSTTY_ACTION_PRESS)
                         hardwareKeyboard.pressesLoanedToInputMethod.insert(press)
                         if HardwareKeyboardState.inputMethodNeedsPressForwarding {
                             hardwareKeyboard.pressesForwardedToInputMethod.insert(press)
@@ -492,8 +504,10 @@
             func deferKeyToInputMethod(
                 _ key: UIKey,
                 press: UIPress?,
+                event: UIPressesEvent?,
                 action: ghostty_input_action_e,
             ) {
+                let forwarding = HardwareKeyboardState.inputMethodNeedsPressForwarding
                 let mods = TerminalInputModifiers(from: filteredModifierFlags(for: key))
                 var consumedFlags = key.modifierFlags
                 consumedFlags.remove(.control)
@@ -513,11 +527,17 @@
                     unshiftedCodepoint: unshifted,
                     text: TerminalInputText.filteredFunctionKeyText(key.characters),
                     press: press,
+                    event: event,
                     // Forwarded at press time whenever calibration already
                     // happened; only then may an unclaimed flush replay raw.
-                    forwardAttempted: HardwareKeyboardState.inputMethodNeedsPressForwarding,
+                    forwardAttempted: forwarding,
+                    forwardedAt: forwarding ? CACurrentMediaTime() : nil,
                 ))
-                scheduleInputMethodKeyFlush()
+                // A forwarded press is the input method's for a claim window;
+                // an unforwarded one is the calibration's question — does
+                // the system hand presses to the input method itself? — and
+                // that answer is due within the turn.
+                scheduleInputMethodKeyFlush(after: forwarding ? HardwareKeyboardState.inputMethodClaimWindow : 0)
             }
 
             /// The text input system spoke — every loaned key was heard.
@@ -558,8 +578,24 @@
 
             private func replayUnclaimedInputMethodKeys() {
                 guard !hardwareKeyboard.pendingInputMethodKeys.isEmpty else { return }
-                let keys = hardwareKeyboard.pendingInputMethodKeys
-                hardwareKeyboard.pendingInputMethodKeys.removeAll()
+                // A press forwarded less than a claim window ago is still the
+                // input method's, whichever key this flush was scheduled for:
+                // a flush due for an earlier key replayed the next one 12 ms
+                // after its forward and 9 ms before the claim, and it typed
+                // twice. Such presses stay pending until their own window
+                // closes; any claim before then takes them as it always did.
+                let now = CACurrentMediaTime()
+                let window = HardwareKeyboardState.inputMethodClaimWindow
+                let isWaiting: (DeferredInputMethodKey) -> Bool = { key in
+                    key.forwardedAt.map { now - $0 < window } ?? false
+                }
+                let waiting = hardwareKeyboard.pendingInputMethodKeys.filter(isWaiting)
+                let keys = hardwareKeyboard.pendingInputMethodKeys.filter { !isWaiting($0) }
+                hardwareKeyboard.pendingInputMethodKeys = waiting
+                if let earliest = waiting.compactMap(\.forwardedAt).min() {
+                    scheduleInputMethodKeyFlush(after: max(0, earliest + window - now))
+                }
+                guard !keys.isEmpty else { return }
 
                 // The system never handed these presses to the input method
                 // on its own — calibrate to forwarding, and give these very
@@ -579,15 +615,19 @@
                     hardwareKeyboard.pendingInputMethodKeys = keys.map { key in
                         var retried = key
                         retried.forwardAttempted = true
+                        retried.forwardedAt = now
                         return retried
-                    }
+                    } + waiting
                     for key in retriable {
                         guard let press = key.press else { continue }
                         if hardwareKeyboard.pressesLoanedToInputMethod.contains(press) {
                             // Still held down: its ended will complete at the
                             // text input system through the forwarded set.
+                            // The event goes with it while it still carries
+                            // the press — it is what the input method reads.
                             hardwareKeyboard.pressesForwardedToInputMethod.insert(press)
-                            forwardPressesToTextInputSystem([press], phase: .began, with: nil)
+                            let event = key.event.flatMap { $0.allPresses.contains(press) ? $0 : nil }
+                            forwardPressesToTextInputSystem([press], phase: .began, with: event)
                         } else {
                             // Already released — hand the text input system
                             // the whole pair so the input method sees a full
@@ -600,7 +640,7 @@
                     // keyboard daemon, so give it real time instead of one
                     // runloop turn. Costs a one-time delay on the process's
                     // first key when no input method is listening at all.
-                    scheduleInputMethodKeyFlush(after: 0.25)
+                    scheduleInputMethodKeyFlush(after: window)
                     return
                 }
 
