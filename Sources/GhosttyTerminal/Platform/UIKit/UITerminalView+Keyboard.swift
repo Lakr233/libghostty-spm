@@ -98,7 +98,10 @@
         /// still hand it to the text input system instead of leaking raw text.
         weak var press: UIPress?
         /// The event the press arrived in. A calibration flush hands a press
-        /// that is still down over with it, as `pressesBegan` would have.
+        /// that is still down over with it, as `pressesBegan` would have:
+        /// handed over with none, the iOS 27 input method never claimed the
+        /// process's first deferred key and it reached the shell raw; with
+        /// its event it was claimed 20 ms later.
         weak var event: UIPressesEvent?
         /// The press has been given to the text input system (at press
         /// time or by a calibration flush); the next unclaimed flush
