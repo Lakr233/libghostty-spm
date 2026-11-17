@@ -168,7 +168,10 @@ to move back.
   which upstream wrote assuming a resize ends the mode, reports the end of
   its render hold only when the mode is actually off afterwards. Exact edits
   also update the upstream tests and comments that expected resize to end the
-  hold; the geometry and callback assertions remain in place.
+  hold; the geometry and callback assertions remain in place. The C API's
+  `set render_hold callback` test was missed until 2026-11-17 and failed
+  under every pin since; no pipeline here runs Ghostty's own tests, so
+  run `zig build test-lib-vt` on the patched source after editing a patch.
 - `0015-hold-frame-for-prompt-redraw.sh` — a resize erases the prompt the
   cursor is on so the shell can redraw it (`clearPromptForRedraw`), and the
   renderer used to present that erased grid for the frames it took the shell
@@ -197,6 +200,11 @@ to move back.
   frame; there is no termio timer to arm and nothing to forget. The
   terminal state is untouched — the erase still happens, so reflow leaves
   no stale prompt behind; `redraw=0` was the alternative and gives that up.
+  What the prompt held is measured before the resize (`promptRedrawSeen`,
+  from the start upstream's `promptRedrawStart` finds): since upstream
+  `8ad3f607` a column reflow writes the prompt's rows blank itself
+  (`PageList.Resize.blank`), so by the time `clearPromptForRedraw` runs
+  there is nothing left on them to see.
 - `0016-maccatalyst.sh` — Zig 0.16 made Mac Catalyst its own OS tag
   (`aarch64-maccatalyst`; 0.15 spelled it `aarch64-ios-macabi`, os `.ios`
   + abi `.macabi`), so the `.ios` arms stopped covering it. `.maccatalyst`

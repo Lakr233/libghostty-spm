@@ -19,6 +19,8 @@ SOURCE_DIR="${1:?Usage: $0 <ghostty-source-dir>}"
 #
 #   - Screen.prompt_redraw records that a *visible* prompt was erased, and
 #     how many non-empty input cells the whole prompt held before the erase.
+#     Both are read before the resize: a column reflow writes the prompt's
+#     rows blank itself (upstream 8ad3f607, PageList.Resize.blank).
 #   - The renderer keeps its last frame while that is set, as it does for
 #     synchronized output.
 #   - OSC 133 B says the prompt is drawn. It says nothing about the input
@@ -68,68 +70,85 @@ src.insert_after(
 
 """,
 )
+src.insert_after(
+    "    defer if (prompt_pin) |p| self.pages.untrackPin(p);\n",
+    """
+    // What the prompt holds before the resize, for `prompt_redraw`. A column
+    // reflow writes the prompt's rows blank (PageList.Resize.blank), so by
+    // the time clearPromptForRedraw runs there is nothing left to measure.
+    const prompt_redraw_seen: ?PromptRedrawSeen = if (prompt_pin) |p|
+        self.promptRedrawSeen(p.*, opts.prompt_redraw)
+    else
+        null;
+""",
+)
+src.replace(
+    "    if (prompt_pin) |p| self.clearPromptForRedraw(p.*, opts.prompt_redraw);\n",
+    """    if (prompt_pin) |p| self.clearPromptForRedraw(p.*, opts.prompt_redraw);
+    if (prompt_redraw_seen) |seen| self.notePromptErased(seen);
+""",
+)
 src.insert_before(
-    "        switch (redraw) {\n            .false => unreachable,\n",
-    """        // The input on the prompt before the erase, counted over the same
-        // rows promptInputCells counts afterwards — the whole prompt, not
-        // just the rows cleared, so a `.last` erase that keeps the rows
-        // above is measured against what they still hold.
-        const input_before = self.promptInputCells();
-        var visible = false;
-        var input_only = redraw == .last;
-        if (input_only) {
-            for (self.cursor.page_pin.node.page().getCells(self.cursor.page_row)) |cell| {
-                if (!cell.isEmpty() and cell.semantic_content != .input) {
-                    input_only = false;
-                    break;
-                }
-            }
+    "/// Set a style attribute for the current cursor.\n",
+    """/// What a prompt about to be erased for a shell redraw holds, measured
+/// before the resize (see `prompt_redraw`).
+const PromptRedrawSeen = struct {
+    /// A row the erase clears has something on it.
+    visible: bool,
+    /// Non-empty input cells on the whole prompt, counted as
+    /// promptInputCells counts them — the whole prompt, not just the rows
+    /// cleared, so a `.last` erase that keeps the rows above is measured
+    /// against what they still hold.
+    input_cells: usize,
+    /// A `.last` erase of a row that held input only: the shell redraws
+    /// that continuation without sending OSC 133 B again.
+    input_only: bool,
+};
+
+/// Measure the rows clearPromptForRedraw will clear from `start` (the
+/// start promptRedrawStart found), before the resize changes them.
+fn promptRedrawSeen(
+    self: *const Screen,
+    start: Pin,
+    redraw: osc.semantic_prompt.Redraw,
+) PromptRedrawSeen {
+    var seen: PromptRedrawSeen = .{
+        .visible = false,
+        .input_cells = self.promptInputCells(),
+        .input_only = redraw == .last,
+    };
+    var it = start.rowIterator(.right_down, null);
+    while (it.next()) |pin| {
+        const page = pin.node.page();
+        const row = pin.rowAndCell().row;
+        for (page.getCells(row)) |cell| {
+            if (cell.isEmpty()) continue;
+            seen.visible = true;
+            if (cell.semantic_content != .input) seen.input_only = false;
         }
 
-""",
-)
-src.replace(
-    """                const cells = page.getCells(row);
-                self.clearCells(page, row, cells);
-            },
-
-            .true => {
-""",
-    """                const cells = page.getCells(row);
-                self.clearPromptCells(page, row, cells, &visible);
-            },
-
-            .true => {
-""",
-)
-src.replace(
-    """                    const cells = page.getCells(row);
-                    self.clearCells(page, row, cells);
-                }
-            },
+        switch (redraw) {
+            .false => unreachable,
+            .last => break,
+            .true => {},
         }
     }
+    return seen;
 }
-""",
-    """                    const cells = page.getCells(row);
-                    self.clearPromptCells(page, row, cells, &visible);
-                }
-            },
-        }
 
-        // An empty prompt changes nothing the user can see, so there is
-        // nothing to hold a frame for. A visible one has to be drawn again
-        // from the start, remembering the most input seen on the prompt.
-        // An input-only continuation does not need a new prompt marker.
-        if (visible) {
-            self.prompt_redraw_generation +%= 1;
-            self.prompt_redraw.state = if (input_only) .input_only else .prompt;
-            self.prompt_redraw.input_cells = @max(
-                self.prompt_redraw.input_cells,
-                input_before,
-            );
-        }
-    }
+/// A resize erased the prompt `seen` measured. An empty prompt changes
+/// nothing the user can see, so there is nothing to hold a frame for. A
+/// visible one has to be drawn again from the start, remembering the most
+/// input seen on the prompt. An input-only continuation does not need a new
+/// prompt marker.
+fn notePromptErased(self: *Screen, seen: PromptRedrawSeen) void {
+    if (!seen.visible) return;
+    self.prompt_redraw_generation +%= 1;
+    self.prompt_redraw.state = if (seen.input_only) .input_only else .prompt;
+    self.prompt_redraw.input_cells = @max(
+        self.prompt_redraw.input_cells,
+        seen.input_cells,
+    );
 }
 
 /// See the `prompt_redraw` field.
@@ -152,23 +171,6 @@ pub const PromptRedraw = struct {
         input_only,
     };
 };
-
-/// Clear one prompt row for a shell redraw, noting whether it had anything
-/// on it.
-fn clearPromptCells(
-    self: *Screen,
-    page: *Page,
-    row: *Row,
-    cells: []Cell,
-    visible: *bool,
-) void {
-    for (cells) |cell| {
-        if (cell.isEmpty()) continue;
-        visible.* = true;
-        break;
-    }
-    self.clearCells(page, row, cells);
-}
 
 /// The shell drew the prompt a resize erased (OSC 133 B). What may still be
 /// missing is the input after it, if the erase removed any.
@@ -198,6 +200,7 @@ pub fn promptInputCells(self: *const Screen) usize {
     }
     return count;
 }
+
 """,
 )
 src.save()

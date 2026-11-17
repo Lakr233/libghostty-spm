@@ -26,7 +26,9 @@ SOURCE_DIR="${1:?Usage: $0 <ghostty-source-dir>}"
 #     when the mode is actually off afterwards.
 #
 # The tests asserting resize ends synchronized output are updated with exact
-# anchors, retaining their geometry and callback checks.
+# anchors, retaining their geometry and callback checks — the C API's
+# render_hold callback test among them, which expected the resize to end the
+# hold and failed on every pin since this patch (no build runs the tests).
 # =============================================================================
 
 PYTHONPATH="$(cd "$(dirname "$0")/../../Script/support" && pwd)" python3 - "$SOURCE_DIR" <<'PY'
@@ -149,6 +151,32 @@ src.replace(
     """    // A resize with unchanged cell dimensions keeps synchronized output.
     try testing.expectEqual(Result.success, resize(t, 80, 24, 9, 18));
     try testing.expect(zt.modes.get(.synchronized_output));
+""",
+)
+# The render_hold callback test expected the resize to end the hold; with
+# the mode kept, the hold runs on until the reset, and the second set
+# lands inside it, so it is ignored.
+src.replace(
+    r"""    // Resize and reset turn the mode off and end the hold.
+    const begin = "\x1b[?2026h";
+    S.len = 0;
+    vt_write(t, begin, begin.len);
+    try testing.expectEqual(Result.success, resize(t, 80, 24, 9, 18));
+    vt_write(t, begin, begin.len);
+    reset(t);
+    reset(t);
+    try testing.expectEqualSlices(bool, &.{ true, false, true, false }, S.events[0..S.len]);
+""",
+    r"""    // A resize keeps the mode, so the hold runs on and the second set
+    // lands inside it; the reset turns the mode off and ends the hold.
+    const begin = "\x1b[?2026h";
+    S.len = 0;
+    vt_write(t, begin, begin.len);
+    try testing.expectEqual(Result.success, resize(t, 80, 24, 9, 18));
+    vt_write(t, begin, begin.len);
+    reset(t);
+    reset(t);
+    try testing.expectEqualSlices(bool, &.{ true, false }, S.events[0..S.len]);
 """,
 )
 src.save()

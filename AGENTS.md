@@ -931,7 +931,7 @@ Two release tracks, decoupled since 1.4.0:
   rebuilds every target on a PR that touches `Ghostty.ref`, `Patches/`,
   `Script/apply-patches.sh`, `Script/build-ghostty.sh`,
   `Script/prepare-zig-lib.sh`, or `Script/support/`. When bumping, keep the Zig version pinned in build.yml
-  *and* source-build.yml (0.17.0 today) in sync with the pinned upstream's
+  *and* source-build.yml (0.17.1 today) in sync with the pinned upstream's
   `minimum_zig_version` (build.zig.zon) — and re-diff `Patches/zig/` against
   the new std, since `prepare-zig-lib.sh` looks the patch up by exact Zig
   version. **`Ghostty.build`** is the asset revision for one pinned
@@ -945,9 +945,10 @@ Two release tracks, decoupled since 1.4.0:
   release.yml refuses to cut a package until it does. The iOS and visionOS slices build against a
   patched Zig std when `Patches/zig/` carries a patch for the Zig on PATH
   (`Script/prepare-zig-lib.sh` — a copy under the build cache exported as
-  `ZIG_LIB_DIR`; the toolchain itself is never edited). Zig 0.17.0 needs
-  one: `Io.Threaded` does not compile for those tags, and upstream no
-  longer builds for iOS, so only our Source Build catches it. Zig 0.16 also renamed Mac Catalyst from
+  `ZIG_LIB_DIR`; the toolchain itself is never edited). Zig 0.17.1 needs
+  none (0.17.0 did: its `Io.Threaded` did not compile for those tags, and
+  upstream no longer builds for iOS, so only our Source Build catches such a
+  regression). Zig 0.16 also renamed Mac Catalyst from
   `*-ios-macabi` to `*-maccatalyst`, its own OS tag — `0016-maccatalyst.sh`
   and `0017-zig-pkg-apple-targets.sh` give it the iOS arms in Ghostty and
   in the Zig packages (libxev, aro) under `<source>/zig-pkg/`.
