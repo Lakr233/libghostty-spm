@@ -45,7 +45,7 @@ MODULE_CACHE_DIR="${CLANG_MODULE_CACHE_ROOT:-$CACHE_ROOT/clang-module-cache}/$ZI
 ZIG_GLOBAL_CACHE_DIR="$GLOBAL_CACHE_DIR" ./Script/apply-patches.sh "$SOURCE_DIR"
 
 # iOS and visionOS are targets some Zigs only half support: 0.17.0's
-# `Io.Threaded` does not compile for them. When Patches/zig/ carries a std
+# `Io.Threaded` did not compile for them (0.17.1's does). When Patches/zig/ carries a std
 # patch for the Zig on PATH, build those targets against a patched copy of
 # the std (staged by prepare-zig-lib.sh) — the toolchain itself is left
 # untouched, and every other target still uses it. With no patch for this

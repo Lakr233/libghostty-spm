@@ -1,12 +1,12 @@
 #!/bin/bash
 
 # Stage a patched copy of the Zig standard library for a target the pinned
-# Zig does not fully support. Zig 0.17.0's `Io.Threaded` does not compile for
-# iOS or visionOS: `processReplace` reaches `getDevNullFd`, and `NullFile`
-# has no `fd` on those tags. Upstream stopped building Ghostty.xcframework
-# for iOS, so nothing there catches it. The patch under Patches/zig/ sets
-# `process.can_replace` false on those tags, as `can_spawn` already is, and
-# nothing else.
+# Zig does not fully support. Zig 0.17.1 needs none; Zig 0.17.0's
+# `Io.Threaded` did not compile for iOS or visionOS (`processReplace`
+# reached `getDevNullFd`, and `NullFile` had no `fd` on those tags), and its
+# patch set `process.can_replace` false there. Upstream stopped building
+# Ghostty.xcframework for iOS, so nothing there catches such a regression;
+# see Patches/zig/README.md.
 #
 # The toolchain itself is never edited: the lib directory is copied under
 # the build cache, the patch is applied there, and the copy's path is

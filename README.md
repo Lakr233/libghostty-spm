@@ -292,7 +292,7 @@ and the trackpad behave as before, and a trackpad pinch is left to the host.
 The package downloads a pre-built XCFramework. To rebuild libghostty from the Ghostty source:
 
 ```bash
-# Requires: zig (CI builds with 0.17.0 — the pinned upstream's minimum_zig_version)
+# Requires: zig (CI builds with 0.17.1 — the pinned upstream's minimum_zig_version)
 ./build.sh
 ./build.sh --platforms macos,ios --source /path/to/ghostty --skip-tests
 ```
@@ -311,7 +311,7 @@ regenerates `Package.swift` from `Package.swift.template` for an uploaded zip.
 The `ios` and `visionos` groups build against a patched copy of the Zig
 standard library when `Patches/zig/` holds a patch for the Zig on PATH (staged
 under `build/cache` by `Script/prepare-zig-lib.sh`; the toolchain itself is
-never modified). Zig 0.17.0 needs one. Xcode 27 needs the Metal toolchain
+never modified). Zig 0.17.1 needs none; 0.17.0 did. Xcode 27 needs the Metal toolchain
 component installed (`xcodebuild -downloadComponent MetalToolchain`). An SDK
 overlay script lived under `Script/support/` for Zig 0.15.2, which could not
 link its build runner against that SDK; 0.16 does it unaided, so the script

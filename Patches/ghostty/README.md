@@ -197,6 +197,11 @@ to move back.
   frame; there is no termio timer to arm and nothing to forget. The
   terminal state is untouched — the erase still happens, so reflow leaves
   no stale prompt behind; `redraw=0` was the alternative and gives that up.
+  What the prompt held is measured before the resize (`promptRedrawSeen`,
+  from the start upstream's `promptRedrawStart` finds): since upstream
+  `8ad3f607` a column reflow writes the prompt's rows blank itself
+  (`PageList.Resize.blank`), so by the time `clearPromptForRedraw` runs
+  there is nothing left on them to see.
 - `0016-maccatalyst.sh` — Zig 0.16 made Mac Catalyst its own OS tag
   (`aarch64-maccatalyst`; 0.15 spelled it `aarch64-ios-macabi`, os `.ios`
   + abi `.macabi`), so the `.ios` arms stopped covering it. `.maccatalyst`
