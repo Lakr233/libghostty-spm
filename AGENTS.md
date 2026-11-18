@@ -804,6 +804,14 @@ coordinates through `TerminalSelectionGrid`, which an AppKit host asks in
 `mouseDown` before `super` to drag the selected text out. The iOS inline
 touch selection is an overlay, not Ghostty's selection, and is not reported.
 
+`TerminalSurface.readCells(_:columns:viewport:)` returns a `TerminalCellText`
+for an inclusive cell range (`row * columns + column`) without touching the
+selection, the mouse state or the program's input; the touch selection reads
+through it too. A hard line break is the `\n` in `text`, a soft wrap no
+separator, and a wide glyph appears once. `columns` must be the width the
+terminal wraps at, which `size()` can lag during a resize. A range below the
+grid reads as empty text, not nil. `TerminalReadCellsTests` covers it.
+
 ### iOS Touch Text Selection
 
 Inline touch selection is the iOS default: `UITerminalView.usesInlineTextSelection`
