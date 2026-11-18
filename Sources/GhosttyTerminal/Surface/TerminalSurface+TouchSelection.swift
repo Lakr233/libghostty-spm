@@ -6,15 +6,37 @@
 import Foundation
 import GhosttyKit
 
-extension TerminalSurface {
-    struct CellText {
-        let text: String
-        let firstBaseline: CGPoint
-    }
+/// Text read from a range of cells, as Ghostty returns it.
+public struct TerminalCellText: Equatable, Sendable {
+    /// The text in the range. Ghostty joins a soft-wrapped row to the next
+    /// without a separator and puts `"\n"` between rows only at a hard line
+    /// break; a wide character appears once, not once per cell. Trailing
+    /// blanks of a row are not part of the read.
+    public let text: String
+    /// Where the first cell of the range sits, in pixels from the top-left of
+    /// the surface (`tl_px_x`, `tl_px_y` of `ghostty_text_s`).
+    public let firstBaseline: CGPoint
+    /// `offset_start` of `ghostty_text_s`: a linear offset counted in the
+    /// terminal's own column count, which lags ``TerminalSurface/size()``
+    /// while a resize is on its way. Treat it as informational.
+    public let offsetStart: Int
+    /// `offset_len` of `ghostty_text_s`, in the same units as ``offsetStart``.
+    public let offsetLength: Int
+}
 
-    /// Reads an inclusive cell range without changing Ghostty's mouse state or
-    /// sending input to the running program. Ghostty handles soft wraps and CJK.
-    func readCells(_ range: ClosedRange<Int>, columns: Int, viewport: Bool = false) -> CellText? {
+public extension TerminalSurface {
+    /// Reads an inclusive cell range without changing Ghostty's selection or
+    /// mouse state and without sending input to the running program. A cell
+    /// is `row * columns + column`; pass the column count the terminal wraps
+    /// at, which ``size()`` can lag while a resize is on its way (the
+    /// selection region carries the terminal's own). With `viewport` the rows count from the top of the
+    /// visible screen, otherwise from the top of the scrollback. Ghostty
+    /// handles soft wraps and wide characters, so a hard line break is the
+    /// `"\n"` in ``TerminalCellText/text`` and a soft wrap is no separator.
+    /// Returns nil for a negative range, a non-positive `columns`, a range
+    /// Ghostty rejects, or a surface that is gone. A range below the grid is
+    /// not rejected: it reads as empty text.
+    func readCells(_ range: ClosedRange<Int>, columns: Int, viewport: Bool = false) -> TerminalCellText? {
         guard let surface = rawValue, columns > 0, range.lowerBound >= 0,
               range.upperBound / columns <= Int(UInt32.max)
         else { return nil }
@@ -34,9 +56,16 @@ extension TerminalSurface {
         let text = result.text.map {
             String(decoding: UnsafeRawBufferPointer(start: $0, count: Int(result.text_len)), as: UTF8.self)
         } ?? ""
-        return CellText(text: text, firstBaseline: CGPoint(x: result.tl_px_x, y: result.tl_px_y))
+        return TerminalCellText(
+            text: text,
+            firstBaseline: CGPoint(x: result.tl_px_x, y: result.tl_px_y),
+            offsetStart: Int(result.offset_start),
+            offsetLength: Int(result.offset_len),
+        )
     }
+}
 
+extension TerminalSurface {
     /// Expand either half of a wide glyph. Comparing the combined read also
     /// distinguishes a spacer cell from an adjacent identical character.
     func glyphCells(at cell: Int, columns: Int) -> ClosedRange<Int> {
