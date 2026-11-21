@@ -133,14 +133,21 @@
 
         func mousePoint(from event: NSEvent) -> (x: CGFloat, y: CGFloat) {
             let point = convert(event.locationInWindow, from: nil)
-            return (point.x, bounds.height - point.y)
+            return (point.x, bounds.height - point.y + pointerRowOffset)
+        }
+
+        /// `TerminalSurfaceCoordinator.pointerRowOffsetPixels`, in points.
+        var pointerRowOffset: CGFloat {
+            let pixels = core.pointerRowOffsetPixels
+            guard pixels != 0 else { return 0 }
+            return CGFloat(pixels) / (window?.backingScaleFactor ?? NSScreen.main?.backingScaleFactor ?? 2)
         }
 
         override open func mouseDown(with event: NSEvent) {
             window?.makeFirstResponder(self)
             // Hit testing counts whole rows: a viewport smooth scrolling
             // left between two is brought to one before the click lands.
-            core.scrollSettler.settleNow()
+            core.settleScrollForPointer()
             let (x, y) = mousePoint(from: event)
             let mods = TerminalInputModifiers(from: event.modifierFlags)
             pointer.pendingSelectionMenuPoint = nil
@@ -165,7 +172,7 @@
 
         override open func rightMouseDown(with event: NSEvent) {
             window?.makeFirstResponder(self)
-            core.scrollSettler.settleNow()
+            core.settleScrollForPointer()
             let (x, y) = mousePoint(from: event)
             let mods = TerminalInputModifiers(from: event.modifierFlags)
             surface?.sendMousePos(x: x, y: y, mods: mods.ghosttyMods)
@@ -206,7 +213,7 @@
 
         override open func otherMouseDown(with event: NSEvent) {
             window?.makeFirstResponder(self)
-            core.scrollSettler.settleNow()
+            core.settleScrollForPointer()
             let (x, y) = mousePoint(from: event)
             let mods = TerminalInputModifiers(from: event.modifierFlags)
             surface?.sendMousePos(x: x, y: y, mods: mods.ghosttyMods)

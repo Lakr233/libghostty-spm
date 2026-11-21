@@ -126,6 +126,15 @@
                 )
             }
 
+            var systemScrollIsOutOfRange: Bool {
+                guard let driver = systemScroll.driver else { return false }
+                return TerminalScrollOffsetMapping.isOutOfRange(
+                    offset: driver.contentOffset.y,
+                    maxOffset: max(0, driver.contentSize.height - driver.bounds.height),
+                    unit: contentOffsetUnit,
+                )
+            }
+
             /// UIKit rounds a content offset to this many points: one over
             /// the screen's scale, which is not its native scale on every
             /// display (3 against 2.807 on one), so an offset in pixels can

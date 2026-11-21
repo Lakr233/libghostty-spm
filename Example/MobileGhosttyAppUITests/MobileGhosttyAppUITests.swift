@@ -1267,6 +1267,71 @@ import XCTest
             }
         #endif
 
+        #if !targetEnvironment(macCatalyst)
+            /// `TerminalSurfaceOptions.scrollBehavior`, under a finger. A
+            /// drag is held at its end, so nothing decelerates.
+            func testFingerScrollSettlesOnARowByDefault() throws {
+                let rows = try scrolledRows(launching: [], dragging: [2.5])
+                XCTAssertGreaterThan(rows, 0.5)
+                XCTAssertEqual(rows, rows.rounded(), accuracy: 0.05, "rested between rows")
+                capture("scroll-settles-on-row")
+            }
+
+            func testFingerScrollRestsWhereItIsLeft() throws {
+                // The first drag says how far a drag falls short of the
+                // finger's travel; the second aims at the middle of a row.
+                let rows = try scrolledRows(launching: ["--ui-testing-scroll-anywhere"], dragging: [2.5, nil])
+                let part = rows - rows.rounded(.down)
+                XCTAssertEqual(part, 0.5, accuracy: 0.3, "\(rows) rows: came to rest on a row")
+                let later = try scrollOffset()
+                Thread.sleep(forTimeInterval: 1)
+                XCTAssertEqual(try scrollOffset(), later, accuracy: 0.5, "moved after the finger left")
+                capture("scroll-rests-anywhere")
+            }
+
+            func testFingerScrollMovesARowAtATime() throws {
+                let rows = try scrolledRows(launching: ["--ui-testing-scroll-rows"], dragging: [2.5])
+                XCTAssertGreaterThan(rows, 0.5)
+                XCTAssertEqual(rows, rows.rounded(), accuracy: 0.05, "rested between rows")
+                capture("scroll-row-at-a-time")
+            }
+
+            private func scrollOffset() throws -> Double {
+                let element = app.staticTexts["terminal.scroll"]
+                XCTAssertTrue(element.waitForExistence(timeout: 4))
+                return try XCTUnwrap(Double(element.value as? String ?? ""))
+            }
+
+            /// Rows the viewport went into the scrollback, after the drags
+            /// and a rest. A `nil` drag is as long as it takes to end half
+            /// a row past a row, given what the drag before it lost.
+            private func scrolledRows(launching arguments: [String], dragging drags: [Double?]) throws -> Double {
+                app.terminate()
+                app.launchArguments = ["--ui-testing", "--ui-testing-history-fixture"] + arguments
+                launchApp()
+                let terminal = try requireTerminalInteractionTarget()
+                waitForOutputLine("history-044 left middle right")
+                let geometry = app.staticTexts["terminal.grid"]
+                XCTAssertTrue(geometry.waitForExistence(timeout: 4))
+                let numbers = (geometry.value as? String ?? "")
+                    .split(whereSeparator: { !$0.isNumber && $0 != "." }).compactMap { Double($0) }
+                let cell = try XCTUnwrap(numbers.count == 3 ? numbers[1] : nil)
+                let bottom = try scrollOffset()
+
+                var lost = 0.0
+                for drag in drags {
+                    let gone = (bottom - (try scrollOffset())) / cell
+                    let wanted = drag ?? (1.5 - (gone - gone.rounded(.down)) + lost)
+                    let start = terminal.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.3))
+                    let end = start.withOffset(CGVector(dx: 0, dy: wanted * cell))
+                    start.press(forDuration: 0.05, thenDragTo: end, withVelocity: .slow, thenHoldForDuration: 0.6)
+                    lost = wanted - ((bottom - (try scrollOffset())) / cell - gone)
+                }
+                Thread.sleep(forTimeInterval: 1.2)
+                return (bottom - (try scrollOffset())) / cell
+            }
+        #endif
+
         private func pointerCell(in element: XCUIElement, column: Int, fraction: CGFloat = 0.5) -> XCUICoordinate {
             let geometry = app.staticTexts["terminal.grid"]
             XCTAssertTrue(geometry.waitForExistence(timeout: 4))

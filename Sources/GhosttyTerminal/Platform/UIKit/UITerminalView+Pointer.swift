@@ -93,7 +93,7 @@
             if phase == .began, !isFirstResponder {
                 becomeFirstResponder()
             }
-            stopMomentumScrolling()
+            stopMomentumScrolling(settle: .pointer)
 
             let button = pointerButton(from: event)
             let location = touch.location(in: self)
@@ -253,7 +253,7 @@
             }
             surface?.sendMousePos(
                 x: Double(point.x),
-                y: Double(point.y),
+                y: Double(point.y) + core.pointerRowOffsetPixels / Double(resolvedDisplayScale()),
                 mods: pointerMods(),
             )
         }
@@ -366,7 +366,7 @@
                         return
                     }
                     core.setFocus(true)
-                    stopMomentumScrolling()
+                    stopMomentumScrolling(settle: .pointer)
                     pointer.panOwnsTouchSequence = true
                     if pointer.gestureCaptured == nil {
                         pointer.gestureCaptured = surface?.isMouseCaptured == true

@@ -35,8 +35,13 @@
                 guard usesInlineTextSelection, gesture.state == .ended, surface != nil else { return }
                 // A tap that stopped a moving scroll leaves the viewport
                 // where it stopped, to be aligned in a moment, not at once.
-                stopMomentumScrolling(settle: touchSelection.tapStopsMomentum ? .later : .now)
-                let point = gesture.location(in: self)
+                var point = gesture.location(in: self)
+                if touchSelection.tapStopsMomentum {
+                    stopMomentumScrolling(settle: .later)
+                } else {
+                    stopMomentumScrolling(settle: .none)
+                    point = settleScrollNow(keeping: point)
+                }
                 defer {
                     touchSelection.tapBeganWithMenu = false
                     touchSelection.tapStopsMomentum = false

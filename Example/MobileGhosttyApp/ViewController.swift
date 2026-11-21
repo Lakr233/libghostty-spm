@@ -158,7 +158,20 @@ final class ViewController: UIViewController {
                 let keys = TerminalKeyLogAccessibilityView()
                 keys.translatesAutoresizingMaskIntoConstraints = false
                 view.addSubview(keys)
+                let scroll = TerminalScrollAccessibilityView(terminalView: terminalView)
+                scroll.translatesAutoresizingMaskIntoConstraints = false
+                view.addSubview(scroll)
+                if ProcessInfo.processInfo.arguments.contains("--ui-testing-scroll-anywhere") {
+                    terminalView.configuration.scrollBehavior = .restsAnywhere
+                }
+                if ProcessInfo.processInfo.arguments.contains("--ui-testing-scroll-rows") {
+                    terminalView.configuration.scrollBehavior = .rowAtATime
+                }
                 NSLayoutConstraint.activate([
+                    scroll.topAnchor.constraint(equalTo: view.topAnchor),
+                    scroll.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+                    scroll.widthAnchor.constraint(equalToConstant: 1),
+                    scroll.heightAnchor.constraint(equalToConstant: 1),
                     keys.topAnchor.constraint(equalTo: view.topAnchor),
                     keys.leadingAnchor.constraint(equalTo: view.leadingAnchor),
                     keys.widthAnchor.constraint(equalToConstant: 1),
@@ -446,6 +459,37 @@ final class ViewController: UIViewController {
 
         override var accessibilityValue: String? {
             get { UITestKeyLog.shared.lines.joined(separator: "\n") }
+            set {}
+        }
+    }
+
+    /// Where the scroll view that carries a one-finger scroll stands, in
+    /// points: the viewport's place by the pixel, which the session's text
+    /// cannot say.
+    private final class TerminalScrollAccessibilityView: UIView {
+        private weak var terminalView: UIView?
+
+        init(terminalView: UIView) {
+            self.terminalView = terminalView
+            super.init(frame: .zero)
+            isAccessibilityElement = true
+            accessibilityTraits = .staticText
+            accessibilityIdentifier = "terminal.scroll"
+            accessibilityLabel = "Terminal Scroll"
+            isUserInteractionEnabled = false
+            alpha = 0.01
+        }
+
+        @available(*, unavailable)
+        required init?(coder _: NSCoder) {
+            fatalError("init(coder:) has not been implemented")
+        }
+
+        override var accessibilityValue: String? {
+            get {
+                let driver = terminalView?.subviews.lazy.compactMap { $0 as? UIScrollView }.first
+                return driver.map { String(format: "%.3f", Double($0.contentOffset.y)) } ?? ""
+            }
             set {}
         }
     }
