@@ -119,7 +119,7 @@
         /// (y down from the top left).
         private func terminalPoint(of gesture: NSGestureRecognizer) -> CGPoint {
             let location = gesture.location(in: self)
-            return CGPoint(x: location.x, y: bounds.height - location.y)
+            return CGPoint(x: location.x, y: bounds.height - location.y + pointerRowOffset)
         }
 
         @objc func handleDirectTouchTapGesture(_ gesture: NSClickGestureRecognizer) {
@@ -131,7 +131,7 @@
         /// a left press and release where the finger was.
         func handleDirectTouchTap(at point: CGPoint) {
             window?.makeFirstResponder(self)
-            core.scrollSettler.settleNow()
+            core.settleScrollForPointer()
             pointer.pendingSelectionMenuPoint = nil
             surface?.sendMousePos(x: point.x, y: point.y, mods: GHOSTTY_MODS_NONE)
             surface?.sendMouseButton(state: GHOSTTY_MOUSE_PRESS, button: GHOSTTY_MOUSE_LEFT, mods: GHOSTTY_MODS_NONE)
@@ -161,7 +161,7 @@
         func handleDirectTouchHoldBegan(at point: CGPoint) {
             window?.makeFirstResponder(self)
             stopDirectTouchMomentum()
-            core.scrollSettler.settleNow()
+            core.settleScrollForPointer()
             surface?.sendMousePos(x: point.x, y: point.y, mods: GHOSTTY_MODS_NONE)
             if let menuPoint = selectionMenuPoint(at: point) {
                 pointer.pendingSelectionMenuPoint = menuPoint

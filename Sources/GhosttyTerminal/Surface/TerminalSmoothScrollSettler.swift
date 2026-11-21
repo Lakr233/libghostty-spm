@@ -43,6 +43,14 @@ final class TerminalSmoothScrollSettler {
 
     private let surface: () -> TerminalSurface?
 
+    /// Off, nothing settles by itself once a scroll stops; `settleNow` still
+    /// does (`TerminalScrollBehavior.restsAnywhere`).
+    var settlesAutomatically = true {
+        didSet {
+            if !settlesAutomatically { cancel() }
+        }
+    }
+
     /// A gesture or a glide is moving the viewport.
     private(set) var isHeld = false
     /// The last precision scroll, positive toward the scrollback: which way
@@ -104,6 +112,7 @@ final class TerminalSmoothScrollSettler {
 
     private func schedule(after delay: TimeInterval, followingTravel: Bool) {
         settleToken += 1
+        guard settlesAutomatically else { return }
         let token = settleToken
         guard delay > 0 else {
             startSnap(followingTravel: followingTravel)

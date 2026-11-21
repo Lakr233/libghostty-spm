@@ -93,7 +93,8 @@
                 _ scrollView: UIScrollView,
                 targetContentOffset: UnsafeMutablePointer<CGPoint>,
             ) {
-                guard scrollView === systemScroll.driver, let (mapping, _) = systemScrollMapping() else { return }
+                guard scrollView === systemScroll.driver, !scrollRestsAnywhere,
+                      let (mapping, _) = systemScrollMapping() else { return }
                 // Rounded in the engine's rows (offset + shift), then back.
                 targetContentOffset.pointee.y = mapping.landingOffset(proposed: targetContentOffset.pointee.y)
             }
@@ -108,7 +109,9 @@
                 } else {
                     // No deceleration — hardly moved, or already at the
                     // landing place: the alignment is ours.
-                    systemScrollAlign(animated: true)
+                    if !scrollRestsAnywhere {
+                        systemScrollAlign(animated: true)
+                    }
                     systemScrollResyncSoon()
                 }
             }

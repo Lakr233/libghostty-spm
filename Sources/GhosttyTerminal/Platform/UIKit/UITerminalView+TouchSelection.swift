@@ -68,7 +68,8 @@
 
         func beginTouchSelection(at point: CGPoint, selectAll: Bool, selectLine: Bool = false) {
             guard usesInlineTextSelection, window != nil, let surface, let grid = touchSelectionGrid() else { return }
-            stopMomentumScrolling()
+            stopMomentumScrolling(settle: .none)
+            let point = settleScrollNow(keeping: point)
             let cell = grid.cell(at: point, viewportOffset: touchViewportOffset)
             let total = max(grid.rows, Int(core.bridge.scrollbar?.total ?? UInt64(grid.rows)))
             let range: ClosedRange<Int>
