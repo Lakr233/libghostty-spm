@@ -584,11 +584,15 @@ so in the code — "it's just text" is the mistake this section exists to preven
   engine counts rows from the viewport's first and the picture is drawn
   that much higher. The public `viewportCell(at:)` / `selectionContains`
   go through the same `surfacePoint`. What still counts in whole rows
-  settles first: the touch selection and its tap, which also move their
-  point by what the settle moved the picture (`settleScrollNow(keeping:)`),
-  the touch menu and the pinch. `AppTerminalViewScrollBehaviorTests` and
-  three `MobileGhosttyAppUITests` (`--ui-testing-scroll-anywhere`,
-  `--ui-testing-scroll-rows`) cover it.
+  settles first: the touch selection, its tap and the touch menu, which
+  also move their point by what the settle moved the picture
+  (`settleScrollNow(keeping:)`), and the pinch. `beginTouchSelection`
+  counts rows from the engine's row after the settle
+  (`smoothScrollPosition().row`), not `touchViewportOffset`: the scrollbar
+  report a settle onto the next row causes arrives a frame later, and the
+  word one row up was selected. `AppTerminalViewScrollBehaviorTests` and the
+  `MobileGhosttyAppUITests` that pass `--ui-testing-scroll-anywhere` or
+  `--ui-testing-scroll-rows` cover it.
 - On iOS and visionOS one finger over scrollback is the system's scroll
   (`+SystemScroll`): the view holds a `UIScrollView` that draws nothing,
   hit-tests to nil, is hidden from accessibility, leaves `scrollsToTop` to

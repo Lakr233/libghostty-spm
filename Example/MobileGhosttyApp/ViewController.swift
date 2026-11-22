@@ -28,6 +28,7 @@ final class ViewController: UIViewController {
 
     #if DEBUG
         private var gridAccessibility: TerminalGridAccessibilityView?
+        private weak var scrollAccessibility: UIView?
     #endif
 
     override func viewDidLoad() {
@@ -159,6 +160,7 @@ final class ViewController: UIViewController {
                 keys.translatesAutoresizingMaskIntoConstraints = false
                 view.addSubview(keys)
                 let scroll = TerminalScrollAccessibilityView(terminalView: terminalView)
+                scrollAccessibility = scroll
                 scroll.translatesAutoresizingMaskIntoConstraints = false
                 view.addSubview(scroll)
                 if ProcessInfo.processInfo.arguments.contains("--ui-testing-scroll-anywhere") {
@@ -265,9 +267,44 @@ final class ViewController: UIViewController {
             if ProcessInfo.processInfo.arguments.contains("--ui-testing-history-fixture") {
                 let commands = (0 ..< 45).map { String(format: "echo history-%03d left middle right\r", $0) }
                 shellSession.terminalSession.sendInput(Data(("clear\r" + commands.joined()).utf8))
+                let prefix = "--ui-testing-rest-rows="
+                if let rows = ProcessInfo.processInfo.arguments.lazy
+                    .compactMap({ $0.hasPrefix(prefix) ? Double($0.dropFirst(prefix.count)) : nil }).first
+                {
+                    restScrollOnceHistoryIsOut(rows: rows)
+                }
             }
         #endif
     }
+
+    #if DEBUG
+        /// Moves the scroll view that carries a one-finger scroll `rows`
+        /// rows into the scrollback once the history fixture has been out
+        /// for half a second, and says so in the scroll element's label:
+        /// what a finger does, to the point, where a synthesized drag lands
+        /// anywhere within half a row.
+        private func restScrollOnceHistoryIsOut(rows: Double) {
+            Task { @MainActor [weak self] in
+                var outSince: Date?
+                while true {
+                    try? await Task.sleep(for: .milliseconds(100))
+                    guard let self else { return }
+                    guard shellSession.terminalSession.readViewportText()?
+                        .contains("history-044 left middle right") == true,
+                        let cell = gridAccessibility?.cellSize?.height,
+                        let driver = terminalView.subviews.lazy.compactMap({ $0 as? UIScrollView }).first
+                    else { continue }
+                    let since = outSince ?? Date()
+                    outSince = since
+                    guard Date().timeIntervalSince(since) >= 0.5 else { continue }
+                    let bottom = driver.contentSize.height - driver.bounds.height
+                    driver.contentOffset.y = bottom - rows * cell
+                    scrollAccessibility?.accessibilityLabel = "Terminal Scroll Rested"
+                    return
+                }
+            }
+        }
+    #endif
 
     // MARK: - Persistence
 

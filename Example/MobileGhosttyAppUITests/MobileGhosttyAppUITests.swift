@@ -1296,6 +1296,76 @@ import XCTest
                 capture("scroll-row-at-a-time")
             }
 
+            /// Resting anywhere with most of the engine's first row scrolled
+            /// off, a double tap settles on to the next row before it
+            /// selects, and the word it selects is still the one drawn under
+            /// the finger: the tap moves with the picture, and its row is
+            /// counted from where the settle left the viewport, not from the
+            /// scrollbar report, which arrives a frame later.
+            func testInlineDoubleTapRestingAnywhereSelectsTheWordDrawnThere() throws {
+                let word = try restingAnywhereOutputNumber(atRowFraction: 0.5)
+                word.point.doubleTap()
+                XCTAssertTrue(app.menuItems["Copy"].waitForExistence(timeout: 4), app.debugDescription)
+                app.menuItems["Copy"].tap()
+                let copied = try XCTUnwrap(copiedSelectionText(in: word.terminal, timeout: 2))
+                XCTAssertTrue(copied.contains(word.digits), "selected \(copied), drawn there: \(word.line)")
+            }
+
+            /// The same through the long press's Select, low in the row: the
+            /// menu's settle moves the picture up under a point that stays
+            /// where the finger was, unless it is moved with it.
+            func testInlineLongPressSelectRestingAnywhereSelectsTheWordDrawnThere() throws {
+                let word = try restingAnywhereOutputNumber(atRowFraction: 0.85)
+                word.point.press(forDuration: Self.longPressDuration)
+                XCTAssertTrue(app.menuItems["Select"].waitForExistence(timeout: 4), app.debugDescription)
+                app.menuItems["Select"].tap()
+                XCTAssertTrue(app.menuItems["Copy"].waitForExistence(timeout: 4), app.debugDescription)
+                app.menuItems["Copy"].tap()
+                let copied = try XCTUnwrap(copiedSelectionText(in: word.terminal, timeout: 2))
+                XCTAssertTrue(copied.contains(word.digits), "selected \(copied), drawn there: \(word.line)")
+            }
+
+            /// Rests the viewport anywhere, 3.25 rows into the scrollback, so
+            /// three quarters of the engine's first row is scrolled off (the
+            /// example app sets the scroll view's offset: a synthesized drag
+            /// lands anywhere within half a row), and finds a command's
+            /// output near the top (`history-NNN left middle right`): the
+            /// point over its number, at `fraction` of the height its row is
+            /// drawn at. The rows above and below are prompts,
+            /// `sandbox@ghostty % echo …`, with no digits in that column.
+            private func restingAnywhereOutputNumber(
+                atRowFraction fraction: Double,
+            ) throws -> (point: XCUICoordinate, digits: String, line: String, terminal: XCUIElement) {
+                app.terminate()
+                app.launchArguments = [
+                    "--ui-testing", "--ui-testing-history-fixture", "--ui-testing-scroll-anywhere",
+                    "--ui-testing-rest-rows=3.25",
+                ]
+                launchApp()
+                let terminal = try requireTerminalInteractionTarget()
+                let scroll = app.staticTexts["terminal.scroll"]
+                XCTAssertTrue(scroll.waitForExistence(timeout: 4))
+                let rested = XCTNSPredicateExpectation(
+                    predicate: NSPredicate(format: "label == 'Terminal Scroll Rested'"), object: scroll,
+                )
+                XCTAssertEqual(XCTWaiter.wait(for: [rested], timeout: 10), .completed, "never rested 3.25 rows back")
+                let hidden = 0.75
+                let lines = viewportText().components(separatedBy: "\n")
+                let index = try XCTUnwrap(lines.indices.dropFirst(3).first { lines[$0].hasPrefix("history-") })
+                let line = lines[index]
+                let digits = String(line.dropFirst(8).prefix(3))
+                let column = 9
+                let numbers = (app.staticTexts["terminal.grid"].value as? String ?? "")
+                    .split(whereSeparator: { !$0.isNumber && $0 != "." }).compactMap { Double($0) }
+                let grid = try XCTUnwrap(numbers.count == 3 ? numbers : nil, "no cell geometry")
+                let frame = terminal.frame
+                let point = app.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(
+                    dx: frame.minX + grid[2] + (Double(column) + 0.5) * grid[0],
+                    dy: frame.minY + grid[2] + (Double(index) + fraction - hidden) * grid[1],
+                ))
+                return (point, digits, line, terminal)
+            }
+
             private func scrollOffset() throws -> Double {
                 let element = app.staticTexts["terminal.scroll"]
                 XCTAssertTrue(element.waitForExistence(timeout: 4))

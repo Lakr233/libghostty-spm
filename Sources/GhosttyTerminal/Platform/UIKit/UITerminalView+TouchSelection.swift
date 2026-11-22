@@ -70,7 +70,11 @@
             guard usesInlineTextSelection, window != nil, let surface, let grid = touchSelectionGrid() else { return }
             stopMomentumScrolling(settle: .none)
             let point = settleScrollNow(keeping: point)
-            let cell = grid.cell(at: point, viewportOffset: touchViewportOffset)
+            // A settle that went on to the next row has moved the engine;
+            // the scrollbar report that says so arrives a frame later.
+            let viewportOffset = surface.smoothScrollPosition().flatMap { $0.isAvailable ? $0.row : nil }
+                ?? touchViewportOffset
+            let cell = grid.cell(at: point, viewportOffset: viewportOffset)
             let total = max(grid.rows, Int(core.bridge.scrollbar?.total ?? UInt64(grid.rows)))
             let range: ClosedRange<Int>
             if selectAll {
@@ -86,7 +90,7 @@
                 {
                     range = word
                 } else {
-                    let visibleRows = touchViewportOffset ..< min(total, touchViewportOffset + grid.rows)
+                    let visibleRows = viewportOffset ..< min(total, viewportOffset + grid.rows)
                     guard let row = surface.nearestTextRow(
                         to: cell / grid.columns, in: visibleRows, columns: grid.columns,
                     ), let textCells = surface.textCells(inRow: row, columns: grid.columns) else { return }
@@ -99,8 +103,8 @@
             // A new selection over the old one's scrolled viewport still
             // belongs to the place the first one started from.
             let viewportBefore = touchSelection.autoscrolledOffset == nil
-                ? currentTouchViewport(rows: grid.rows)
-                : touchSelection.viewportBeforeSelection ?? currentTouchViewport(rows: grid.rows)
+                ? currentTouchViewport(rows: grid.rows, offset: viewportOffset)
+                : touchSelection.viewportBeforeSelection ?? currentTouchViewport(rows: grid.rows, offset: viewportOffset)
             let autoscrolled = touchSelection.autoscrolledOffset
             dismissTouchSelection(restoringViewport: false)
             touchSelection.viewportBeforeSelection = viewportBefore
@@ -119,7 +123,7 @@
             overlay.onDrag = { [weak self] endpoint, gesture in self?.dragTouchSelection(endpoint, gesture: gesture) }
             touchSelection.overlay = overlay
             addSubview(overlay)
-            overlay.update(grid: grid, range: range, offset: touchViewportOffset, textCells: touchSelectionTextCells)
+            overlay.update(grid: grid, range: range, offset: viewportOffset, textCells: touchSelectionTextCells)
             presentTouchSelectionMenu(at: point)
         }
 
@@ -162,8 +166,7 @@
             }
         }
 
-        private func currentTouchViewport(rows: Int) -> (offset: Int, atBottom: Bool) {
-            let offset = touchViewportOffset
+        private func currentTouchViewport(rows: Int, offset: Int) -> (offset: Int, atBottom: Bool) {
             let total = Int(core.bridge.scrollbar?.total ?? UInt64(rows))
             return (offset, offset + rows >= total)
         }

@@ -16,7 +16,10 @@
 
         func presentTouchMenu(at point: CGPoint) {
             guard surface != nil else { return }
-            stopMomentumScrolling()
+            // Its Select hit-tests the point in whole rows: where the
+            // settle moved the picture under it.
+            stopMomentumScrolling(settle: .none)
+            let point = settleScrollNow(keeping: point)
             touchSelection.menuPoint = point
             if #available(iOS 16.0, *) {
                 selectionEditMenuInteraction.presentEditMenu(
