@@ -640,7 +640,23 @@ so in the code — "it's just text" is the mistake this section exists to preven
   that one cannot be cancelled, and under a finger that drags again both
   write the offset every frame. While anything moves the scroll view
   (`systemScrollIsBusy`) nothing here writes the offset; it is brought to
-  the engine at rest (`systemScrollSyncFromEngine`). Output arriving at the
+  the engine at rest (`systemScrollSyncFromEngine`). While the scroll
+  view moved in the last 0.1 s (`systemScrollMovedRecently`), a tick only
+  an engine wakeup asked for neither refreshes nor draws on the main
+  thread (`TerminalSurfaceCoordinator.wakeupSkipsDraw`): each row the
+  viewport crosses posts a wakeup, the next tick's synchronous `draw()`
+  waited for the frame the renderer thread was drawing, a whole frame at
+  120 Hz, so a slow drag stalled at every row; a frame drawn on the main
+  thread could land before an older one the renderer thread had queued;
+  and the refresh drew each position twice. The app tick still runs, the
+  renderer thread draws the scroll, the frame left out runs once the
+  scroll rests, and ticks the host side asks for (size, metrics,
+  visibility, selection, the first frame) still draw. Every
+  `scrollViewDidScroll` also keeps the coordinator's display link running
+  (`holdDisplayLinkForScroll`): UIKit's deceleration otherwise drops to
+  80 Hz and then 40 Hz on its way to rest, frames 8 and 17 ms apart in
+  turn, and a picture a fixed number of frames behind the scroll view
+  speeds up and slows down with them. Output arriving at the
   bottom under a finger or a bounce is absorbed in
   `SystemScrollState.shiftPixels`. The view's own pan
   (`gestureRecognizerShouldBegin` stands it down otherwise) keeps a

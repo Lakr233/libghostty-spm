@@ -233,6 +233,9 @@
                 core.bridge.onScrollbarChange = { [weak self] in
                     self?.systemScrollBarChanged()
                 }
+                core.wakeupSkipsDraw = { [weak self] in
+                    self?.systemScrollMovedRecently ?? false
+                }
             #endif
             core.onMouseShape = { [weak self] shape in
                 self?.applyMouseShape(shape)

@@ -118,6 +118,26 @@ final class TerminalSurfaceCoordinator {
     private var isWindowVisible = true
     private var isApplicationActive = true
     private var pendingImmediateTick = true
+    /// The tick owed draws on the main thread whatever the wakeup policy:
+    /// it was asked for from the host's side (size, metrics, visibility,
+    /// selection, focus, the first frame), which the renderer thread does
+    /// not know about.
+    private var pendingDraw = true
+
+    /// Whether a tick only an engine wakeup asked for leaves out the
+    /// `refresh()` and the synchronous `draw()`; it still ticks the app,
+    /// and the renderer thread draws what changed in the engine on its
+    /// own. UIKit's view says yes while its system scroll moves. Each row
+    /// a scroll crosses posts a wakeup. The next tick's draw waited for
+    /// the frame the renderer thread was drawing, about a whole frame at
+    /// 120 Hz, so the main thread missed one at every row; a frame the
+    /// main thread drew could also land before an older one the renderer
+    /// thread had queued, and the picture stepped back; and the refresh
+    /// made the renderer draw the position the scroll had just queued a
+    /// second time. The tick left out is owed (`owesWakeupFrame`) and
+    /// runs once the scroll rests.
+    var wakeupSkipsDraw: () -> Bool = { false }
+    private var owesWakeupFrame = false
 
     /// Running only while frames are owed. The engine's wakeups arrive at
     /// PTY speed, not display speed; rendering straight from them draws far
@@ -156,7 +176,25 @@ final class TerminalSurfaceCoordinator {
     }
 
     func requestImmediateTick() {
+        pendingDraw = true
+        requestWakeupTick()
+    }
+
+    /// A tick for the engine's wakeup: it refreshes and draws unless
+    /// `wakeupSkipsDraw`.
+    func requestWakeupTick() {
         pendingImmediateTick = true
+        ensureDisplayLink()
+    }
+
+    /// The system scroll moved: keeps the display link running, at its
+    /// 120 Hz, until `idleFramesBeforeRelease` frames after the last call.
+    /// The link draws nothing by itself. It holds the display at one
+    /// rate: left alone, UIKit's deceleration steps down through 80 Hz
+    /// (frames 8 and 17 ms apart in turn) and 40 Hz on its way to rest,
+    /// and a picture that is a fixed number of frames behind the scroll
+    /// view then moves too little in one frame and too much in the next.
+    func holdDisplayLinkForScroll() {
         ensureDisplayLink()
     }
 
@@ -249,7 +287,7 @@ final class TerminalSurfaceCoordinator {
                 return isApplicationActive && isAttached()
             },
             onWakeup: { [weak self] in
-                self?.requestImmediateTick()
+                self?.requestWakeupTick()
             },
         )
         TerminalDebugLog.log(.lifecycle, "surface rebuild succeeded")
@@ -567,6 +605,10 @@ final class TerminalSurfaceCoordinator {
             releaseDisplayLink()
             return
         }
+        if !pendingImmediateTick, owesWakeupFrame, !wakeupSkipsDraw() {
+            // The scroll rests: the wakeup frame left out while it moved.
+            pendingImmediateTick = true
+        }
         guard pendingImmediateTick else {
             idleFrameCount += 1
             if idleFrameCount >= Self.idleFramesBeforeRelease {
@@ -578,9 +620,19 @@ final class TerminalSurfaceCoordinator {
         pendingImmediateTick = false
         TerminalDebugLog.log(.render, "tick")
         controller?.tick()
-        surface?.refresh()
-        surface?.draw()
+        if tickDraws {
+            pendingDraw = false
+            owesWakeupFrame = false
+            surface?.refresh()
+            surface?.draw()
+        } else {
+            owesWakeupFrame = true
+        }
         onPostRender?()
+    }
+
+    private var tickDraws: Bool {
+        pendingDraw || !wakeupSkipsDraw()
     }
 
     // MARK: - Focus
@@ -620,6 +672,18 @@ final class TerminalSurfaceCoordinator {
 
         var testHooks_canRenderFrame: Bool {
             canRenderFrame
+        }
+
+        var testHooks_tickDraws: Bool {
+            tickDraws
+        }
+
+        var testHooks_owesWakeupFrame: Bool {
+            owesWakeupFrame
+        }
+
+        var testHooks_displayLinkIsRunning: Bool {
+            displayLink.map { !$0.isPaused } ?? false
         }
     #endif
 
@@ -680,6 +744,7 @@ final class TerminalSurfaceCoordinator {
         resizeThrottleArmed = false
         resizeThrottleTrailing = false
         pendingImmediateTick = true
+        pendingDraw = true
         controller?.remove(bridge)
         if hadSurface {
             // A message the IO thread queued for this surface names it by
@@ -751,6 +816,7 @@ final class TerminalSurfaceCoordinator {
         }
 
         pendingImmediateTick = true
+        pendingDraw = true
         tick()
         ensureDisplayLink()
     }

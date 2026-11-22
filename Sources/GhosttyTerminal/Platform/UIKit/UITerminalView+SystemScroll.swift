@@ -119,6 +119,17 @@
                 systemScrollBusy(countingRecentScroll: true)
             }
 
+            /// The scroll view moved in the last 0.1 s: a finger dragging,
+            /// deceleration, a bounce and the alignment all write the offset
+            /// every frame. What the coordinator's wakeups go by
+            /// (`wakeupSkipsDraw`), not `systemScrollIsBusy`: that one also
+            /// holds while an offset rests out of range or a flag is stuck,
+            /// and a surface at rest would then never draw a wakeup. An
+            /// offset the view writes itself (`isSyncing`) does not count.
+            var systemScrollMovedRecently: Bool {
+                systemScroll.driver != nil && CACurrentMediaTime() - systemScroll.lastDidScroll < 0.1
+            }
+
             /// `countingRecentScroll`: a `scrollViewDidScroll` in the last
             /// 50 ms counts as motion — whatever else moves the scroll view
             /// without reporting deceleration. Not counted right after a

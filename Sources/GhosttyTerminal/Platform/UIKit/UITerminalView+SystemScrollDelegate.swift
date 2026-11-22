@@ -57,6 +57,8 @@
                 systemScroll.lastOffset = scrollView.contentOffset.y
                 guard !systemScroll.isSyncing, let (mapping, position) = systemScrollMapping() else { return }
                 systemScroll.lastDidScroll = CACurrentMediaTime()
+                // One display rate for as long as the scroll moves.
+                core.holdDisplayLinkForScroll()
                 if abs(moved) > 0.01 {
                     systemScroll.motionDirection = moved > 0 ? 1 : -1
                 }
