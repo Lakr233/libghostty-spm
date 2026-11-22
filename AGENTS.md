@@ -609,7 +609,23 @@ so in the code — "it's just text" is the mistake this section exists to preven
   rubber band, is shown by translating the view's sublayers
   (`applyOverscroll`), so the renderer draws no frame for it, with the
   uncovered strip filled with the terminal's background.
-  `scrollViewWillEndDragging` rounds the landing place to a row. A lift
+  `scrollViewWillEndDragging` rounds a fling's landing place to a row,
+  only the way the fling goes (`landingOffset(proposed:current:)`: a
+  landing place behind the start pulls the content back within a frame).
+  UIKit takes a lift under about 250 pt/s for a stop — no velocity, and
+  the offset where it is as the landing place — and rounding that one sent
+  the content back half the time, against a finger still dragging it on.
+  It keeps its landing place instead, the pan's velocity is kept
+  (`releaseVelocity`), and `didEndDragging(willDecelerate: false)` aligns
+  to the row ahead of the finger at the finger's speed (`restingRow`;
+  under 20 pt/s, the nearest row). UIKit still reports `isDragging` there,
+  so that alignment passes `lifted`. After a touch stops a glide, a bounce
+  or an alignment, the animated alignment that follows goes to the row
+  ahead the way it went (`caughtDirection`); an immediate one goes to the
+  nearest. Alignments run along `TerminalScrollAlignmentCurve`
+  (`Metrics/`, unit-tested), a cubic that sets off at the scroll's speed
+  and is smoothstep from rest: the cubic ease-out before it started at
+  three times its average speed. A lift
   with no deceleration and a tap that stops a moving scroll align with the
   view's own display-link animation, never `setContentOffset(_:animated:)`:
   that one cannot be cancelled, and under a finger that drags again both

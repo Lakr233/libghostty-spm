@@ -53,6 +53,22 @@
             var alignFrom: CGFloat = 0
             var alignTo: CGFloat = 0
             var alignStart: CFTimeInterval = 0
+            /// The alignment's duration and starting speed.
+            var alignCurve = TerminalScrollAlignmentCurve(distance: 0, velocity: 0, longest: 0)
+            /// A lift UIKit took for a stop (it reports no velocity under
+            /// about 250 pt/s) while the finger still moved: the finger's
+            /// speed, in points per second toward a larger offset, kept by
+            /// `willEndDragging` for the alignment `didEndDragging` starts.
+            var releaseVelocity: CGFloat = 0
+            /// The way the content offset last moved (±1), and where it was:
+            /// kept by `scrollViewDidScroll`.
+            var motionDirection: CGFloat = 0
+            var lastOffset: CGFloat = 0
+            /// The way a glide, a bounce or an alignment was going when a
+            /// touch stopped it. The animated alignment that follows goes to
+            /// the row ahead that way: to the nearer row, half the time it
+            /// went back against the glide.
+            var caughtDirection: CGFloat = 0
             /// Pixels the engine's position is ahead of the scroll view's:
             /// engine position = content offset (in pixels) + shift.
             ///

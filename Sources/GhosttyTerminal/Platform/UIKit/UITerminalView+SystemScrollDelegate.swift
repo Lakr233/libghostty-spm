@@ -29,10 +29,10 @@
 
             func scrollViewWillEndDragging(
                 _ scrollView: UIScrollView,
-                withVelocity _: CGPoint,
+                withVelocity velocity: CGPoint,
                 targetContentOffset: UnsafeMutablePointer<CGPoint>,
             ) {
-                view?.systemScrollWillEndDragging(scrollView, targetContentOffset: targetContentOffset)
+                view?.systemScrollWillEndDragging(scrollView, velocity: velocity, targetContentOffset: targetContentOffset)
             }
 
             func scrollViewDidEndDragging(_ scrollView: UIScrollView, willDecelerate decelerate: Bool) {
@@ -52,9 +52,14 @@
         /// pixel, and its landing place is a whole row.
         extension UITerminalView {
             func systemScrollDidScroll(_ scrollView: UIScrollView) {
-                guard scrollView === systemScroll.driver, !systemScroll.isSyncing,
-                      let (mapping, position) = systemScrollMapping() else { return }
+                guard scrollView === systemScroll.driver else { return }
+                let moved = scrollView.contentOffset.y - systemScroll.lastOffset
+                systemScroll.lastOffset = scrollView.contentOffset.y
+                guard !systemScroll.isSyncing, let (mapping, position) = systemScrollMapping() else { return }
                 systemScroll.lastDidScroll = CACurrentMediaTime()
+                if abs(moved) > 0.01 {
+                    systemScroll.motionDirection = moved > 0 ? 1 : -1
+                }
                 let offsetPixels = scrollView.contentOffset.y * mapping.scale
                 // Out of the scroll view's own range is its rubber band.
                 applyOverscroll(mapping.overscroll(offsetPixels: offsetPixels))
@@ -79,6 +84,9 @@
                 core.scrollSettler.cancel()
                 systemScrollCancelAlign()
                 systemScroll.isUIKitMoving = false
+                // Dragged on: the lift goes by this drag, not by what a
+                // touch stopped.
+                systemScroll.caughtDirection = 0
                 momentumScroll.panIsActive = true
                 momentumScroll.settleToken += 1
                 softwareKeyboard.tapCandidateArmed = false
@@ -89,19 +97,44 @@
 
             /// The landing place becomes a whole row, and UIKit decelerates
             /// to it.
+            ///
+            /// UIKit takes a lift slower than about 250 pt/s for a stop: no
+            /// velocity, and the current offset as the landing place, where
+            /// it does not move. Rewritten to the nearest row, UIKit slid
+            /// there from rest, at its fastest in the first frame, and half
+            /// the time the nearest row was behind the finger: dragged on, the
+            /// content went back at the lift. Such a lift keeps its landing
+            /// place and leaves the finger's speed to the alignment in
+            /// `didEndDragging`, which carries on to the row ahead.
             func systemScrollWillEndDragging(
                 _ scrollView: UIScrollView,
+                velocity: CGPoint,
                 targetContentOffset: UnsafeMutablePointer<CGPoint>,
             ) {
-                guard scrollView === systemScroll.driver, !scrollRestsAnywhere,
-                      let (mapping, _) = systemScrollMapping() else { return }
+                guard scrollView === systemScroll.driver else { return }
+                systemScroll.releaseVelocity = 0
+                guard !scrollRestsAnywhere, let (mapping, _) = systemScrollMapping() else { return }
+                let current = scrollView.contentOffset.y
+                if velocity.y == 0, !systemScrollIsOutOfRange {
+                    targetContentOffset.pointee.y = current
+                    // The pan is attached to this view, which does not
+                    // scroll; positive is the finger going down, toward a
+                    // smaller offset.
+                    systemScroll.releaseVelocity = -scrollView.panGestureRecognizer.velocity(in: self).y
+                    return
+                }
                 // Rounded in the engine's rows (offset + shift), then back.
-                targetContentOffset.pointee.y = mapping.landingOffset(proposed: targetContentOffset.pointee.y)
+                targetContentOffset.pointee.y = mapping.landingOffset(
+                    proposed: targetContentOffset.pointee.y,
+                    current: current,
+                )
             }
 
             func systemScrollDidEndDragging(_ scrollView: UIScrollView, willDecelerate decelerate: Bool) {
                 guard scrollView === systemScroll.driver else { return }
                 momentumScroll.panIsActive = false
+                let releaseVelocity = systemScroll.releaseVelocity
+                systemScroll.releaseVelocity = 0
                 if decelerate {
                     systemScroll.isUIKitMoving = true
                     systemScroll.lastDidScroll = CACurrentMediaTime()
@@ -110,7 +143,7 @@
                     // No deceleration — hardly moved, or already at the
                     // landing place: the alignment is ours.
                     if !scrollRestsAnywhere {
-                        systemScrollAlign(animated: true)
+                        systemScrollAlign(animated: true, velocity: releaseVelocity, lifted: true)
                     }
                     systemScrollResyncSoon()
                 }

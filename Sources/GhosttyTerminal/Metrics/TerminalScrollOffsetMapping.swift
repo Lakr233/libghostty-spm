@@ -61,12 +61,51 @@ struct TerminalScrollOffsetMapping: Equatable {
     }
 
     /// The landing place UIKit proposes for a fling (in points), moved to
-    /// the nearest whole row of the engine.
-    func landingOffset(proposed points: CGFloat) -> CGFloat {
+    /// the nearest whole row of the engine — but not to one behind
+    /// `current`, the offset (in points) the fling sets off from.
+    ///
+    /// UIKit carries the release's speed into a rewritten landing place, so
+    /// moving it a few points either way leaves the glide's first frame as
+    /// it was; a landing place behind the start, though, pulls the content
+    /// back within a frame. The rounding only goes the way of the fling:
+    /// with the nearest row behind the start, the first row ahead of it.
+    func landingOffset(proposed points: CGFloat, current: CGFloat) -> CGFloat {
         let cell = CGFloat(cellHeight)
-        let engine = min(max(0, points * scale + CGFloat(shift)), CGFloat(engineMax))
-        let aligned = (engine / cell).rounded() * cell
+        let engine = clampedEngine(points)
+        let from = clampedEngine(current)
+        var aligned = (engine / cell).rounded() * cell
+        // Half a pixel of slack: an offset UIKit rounded onto a row is that
+        // row.
+        if engine > from {
+            aligned = max(aligned, ((from - 0.5) / cell).rounded(.up) * cell)
+        } else if engine < from {
+            aligned = min(aligned, ((from + 0.5) / cell).rounded(.down) * cell)
+        }
+        aligned = min(max(0, aligned), CGFloat(engineMax))
         return min(max(0, aligned - CGFloat(shift)), viewMax) / scale
+    }
+
+    /// The whole row a scroll that stopped between rows is brought to: the
+    /// nearest, or — while it still moves (`travel`, positive toward the
+    /// bottom) — the first one the way it goes, so the alignment carries
+    /// on rather than turning back. Not past the bottom.
+    func restingRow(enginePixels position: Double, travel: Double) -> Int {
+        let cell = Double(cellHeight)
+        let row: Double
+        if travel > 0 {
+            row = ((position - 0.5) / cell).rounded(.up)
+        } else if travel < 0 {
+            row = ((position + 0.5) / cell).rounded(.down)
+        } else {
+            return nearestRow(enginePixels: Int(position.rounded()))
+        }
+        return min(engineMax, max(0, Int(row) * cellHeight))
+    }
+
+    /// An offset in points as an engine position in pixels, within the
+    /// engine's range.
+    private func clampedEngine(_ points: CGFloat) -> CGFloat {
+        min(max(0, points * scale + CGFloat(shift)), CGFloat(engineMax))
     }
 
     /// Whether an offset is out of range by more than UIKit's rounding:

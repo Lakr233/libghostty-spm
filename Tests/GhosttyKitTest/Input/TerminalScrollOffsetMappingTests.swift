@@ -79,17 +79,52 @@ struct TerminalScrollOffsetMappingTests {
     @Test
     func `a fling lands on a whole row of the engine`() {
         // 345 pt is 1035 px, 20.3 rows: back to row 20, 1020 px.
-        #expect(mapping.landingOffset(proposed: 345) == 340)
-        #expect(mapping.landingOffset(proposed: -80) == 0)
-        #expect(mapping.landingOffset(proposed: 4000) == 1700)
+        #expect(mapping.landingOffset(proposed: 345, current: 0) == 340)
+        #expect(mapping.landingOffset(proposed: -80, current: 0) == 0)
+        #expect(mapping.landingOffset(proposed: 4000, current: 1690) == 1700)
         for proposed in stride(from: CGFloat(0), through: 1700, by: 7.3) {
-            let engine = (mapping.landingOffset(proposed: proposed) * mapping.scale).rounded()
+            let engine = (mapping.landingOffset(proposed: proposed, current: 0) * mapping.scale).rounded()
             #expect(Int(engine) % 51 == 0)
             #expect(abs(engine - proposed * 3) <= 25.5)
         }
         // Rounded in the engine's rows: 160 px of offset is 220 px in the
         // engine, row 4 (204 px), shown at 144 px of offset.
-        #expect(shifted.landingOffset(proposed: 160.0 / 3) == 144.0 / 3)
+        #expect(shifted.landingOffset(proposed: 160.0 / 3, current: 0) == 144.0 / 3)
+    }
+
+    /// UIKit pulls the content back within a frame to a landing place
+    /// behind where the fling started.
+    @Test
+    func `a fling never lands behind where it started`() {
+        // From 60 px (row 1.18) to 63 px: the nearest row, 51 px, is behind
+        // the start; the first row ahead is 102 px.
+        #expect(mapping.landingOffset(proposed: 21, current: 20) == 34)
+        // Toward the top, from 132 px (row 2.59) to 130.5 px: not 153 px
+        // but 102 px.
+        #expect(mapping.landingOffset(proposed: 43.5, current: 44) == 34)
+        // From a row, a short fling may land on that row.
+        #expect(mapping.landingOffset(proposed: 17.5, current: 17) == 17)
+        // The row ahead past a bottom that is not a whole row: the bottom.
+        let short = TerminalScrollOffsetMapping(scale: 3, cellHeight: 51, engineMax: 130, viewMax: 130, shift: 0)
+        #expect(short.landingOffset(proposed: 43, current: 40) == 130.0 / 3)
+    }
+
+    @Test
+    func `a scroll still moving rests on the row ahead`() {
+        #expect(mapping.restingRow(enginePixels: 1000, travel: 0) == 1020)
+        #expect(mapping.restingRow(enginePixels: 1045, travel: 0) == 1020)
+        // Toward the bottom, past the nearer row behind.
+        #expect(mapping.restingRow(enginePixels: 1030, travel: 120) == 1071)
+        // Toward the top, the row above is the one ahead.
+        #expect(mapping.restingRow(enginePixels: 1060, travel: -120) == 1020)
+        // Within half a pixel of a row is that row, not the next.
+        #expect(mapping.restingRow(enginePixels: 1020.3, travel: 120) == 1020)
+        #expect(mapping.restingRow(enginePixels: 1019.7, travel: -120) == 1020)
+        // Not past either end.
+        #expect(mapping.restingRow(enginePixels: 5090, travel: 120) == 5100)
+        #expect(mapping.restingRow(enginePixels: 10, travel: -120) == 0)
+        let short = TerminalScrollOffsetMapping(scale: 3, cellHeight: 51, engineMax: 130, viewMax: 130, shift: 0)
+        #expect(short.restingRow(enginePixels: 120, travel: 120) == 130)
     }
 
     @Test
