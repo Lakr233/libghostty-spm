@@ -6,21 +6,31 @@
 import Foundation
 import GhosttyKit
 
-/// Text read from a range of cells, as Ghostty returns it.
+/// Text read from a range of cells, as Ghostty returns it
+/// (`ghostty_surface_read_text`).
 public struct TerminalCellText: Equatable, Sendable {
     /// The text in the range. Ghostty joins a soft-wrapped row to the next
     /// without a separator and puts `"\n"` between rows only at a hard line
-    /// break; a wide character appears once, not once per cell. Trailing
-    /// blanks of a row are not part of the read.
+    /// break; a wide character appears once, not once per cell. Empty cells
+    /// at the end of a row are left out; spaces the program wrote are kept.
     public let text: String
-    /// Where the first cell of the range sits, in pixels from the top-left of
-    /// the surface (`tl_px_x`, `tl_px_y` of `ghostty_text_s`).
+    /// The left edge and the text baseline of the range's first cell in
+    /// view, in view points from the surface's top-left corner, padding
+    /// included (`tl_px_x`, `tl_px_y` of `ghostty_text_s`; Ghostty divides
+    /// by the content scale). A range that starts above the viewport
+    /// reports the viewport's first row. (-1, -1) when no part of the
+    /// range is in view.
     public let firstBaseline: CGPoint
-    /// `offset_start` of `ghostty_text_s`: a linear offset counted in the
-    /// terminal's own column count, which lags ``TerminalSurface/size()``
-    /// while a resize is on its way. Treat it as informational.
+    /// `offset_start` of `ghostty_text_s`: where the range's first cell in
+    /// view sits in the viewport read as one array, `row * columns +
+    /// column` with rows counted from the top of the viewport and the
+    /// terminal's own column count, which ``TerminalSurface/size()`` can lag
+    /// while a resize is on its way. 0 when no part of the range is in
+    /// view. Ghostty notes both offsets are off for a range only partly in
+    /// view: treat them as informational.
     public let offsetStart: Int
-    /// `offset_len` of `ghostty_text_s`, in the same units as ``offsetStart``.
+    /// `offset_len` of `ghostty_text_s`: the offset of the range's last cell
+    /// in view minus ``offsetStart``, one less than the number of cells.
     public let offsetLength: Int
 }
 
@@ -29,10 +39,11 @@ public extension TerminalSurface {
     /// mouse state and without sending input to the running program. A cell
     /// is `row * columns + column`; pass the column count the terminal wraps
     /// at, which ``size()`` can lag while a resize is on its way (the
-    /// selection region carries the terminal's own). With `viewport` the rows count from the top of the
-    /// visible screen, otherwise from the top of the scrollback. Ghostty
-    /// handles soft wraps and wide characters, so a hard line break is the
-    /// `"\n"` in ``TerminalCellText/text`` and a soft wrap is no separator.
+    /// selection region carries the terminal's own). With `viewport` the
+    /// rows count from the top of the visible screen, otherwise from the
+    /// top of the scrollback. Ghostty handles soft wraps and wide
+    /// characters, so a hard line break is the `"\n"` in
+    /// ``TerminalCellText/text`` and a soft wrap is no separator.
     /// Returns nil for a negative range, a non-positive `columns`, a range
     /// Ghostty rejects, or a surface that is gone. A range below the grid is
     /// not rejected: it reads as empty text.

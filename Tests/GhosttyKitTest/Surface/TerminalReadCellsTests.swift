@@ -61,6 +61,69 @@ struct TerminalReadCellsTests {
     }
 
     @Test
+    func `empty cells end a row and written spaces stay`() async throws {
+        let harness = await GhosttySurfaceHarness.make()
+        defer { harness.tearDown() }
+        let surface = try #require(harness.surface)
+        let columns = try columns(surface)
+        harness.receive("\u{1B}[2J\u{1B}[Hab   \r\nc")
+
+        #expect(try #require(surface.readCells(0 ... 9, columns: columns, viewport: true)).text == "ab   ")
+        #expect(try #require(surface.readCells(columns ... columns + 9, columns: columns, viewport: true)).text == "c")
+    }
+
+    /// At a content scale of 2: the first cell's left edge and baseline in
+    /// view points, its offsets in the viewport, and nothing for a range
+    /// out of view.
+    @Test
+    func `where the first cell is, in view points and viewport offsets`() async throws {
+        let harness = await GhosttySurfaceHarness.make()
+        defer { harness.tearDown() }
+        let surface = try #require(harness.surface)
+        let before = try #require(surface.size())
+        harness.coordinator.scaleFactor = { 2 }
+        harness.coordinator.synchronizeMetrics()
+        // The cells double in pixels once the new scale has reached the grid.
+        let deadline = ContinuousClock.now + .seconds(5)
+        while surface.size()?.cellHeightPixels == before.cellHeightPixels, ContinuousClock.now < deadline {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        let metrics = try #require(surface.size())
+        try #require(metrics.cellHeightPixels != before.cellHeightPixels)
+        let columns = Int(metrics.columns)
+        let cellWidth = Double(metrics.cellWidthPixels) / 2
+        let cellHeight = Double(metrics.cellHeightPixels) / 2
+        let lines = (0 ..< 150).map { String(format: "row%03d", $0) }
+        harness.receive("\u{1B}[2J\u{1B}[H" + lines.joined(separator: "\r\n"))
+        // The offsets count in the terminal's own column count, which
+        // catches up with the new grid a moment later.
+        #expect(surface.performBindingAction("select_all"))
+        while surface.selectionRegion()?.columns != columns, ContinuousClock.now < deadline {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        try #require(surface.selectionRegion()?.columns == columns)
+
+        let top = try #require(surface.readCells(0 ... 2, columns: columns, viewport: true))
+        let read = try #require(surface.readCells(2 * columns + 1 ... 2 * columns + 4, columns: columns, viewport: true))
+        #expect(Double(read.firstBaseline.x - top.firstBaseline.x) == cellWidth)
+        #expect(Double(read.firstBaseline.y - top.firstBaseline.y) == 2 * cellHeight)
+        #expect(read.offsetStart == 2 * columns + 1)
+        #expect(read.offsetLength == 3)
+
+        // A baseline, not the top edge: in the lower half of the row whose
+        // bottom edge the cursor reports once it is moved there.
+        harness.receive("\u{1B}[H")
+        let bottom = Double(surface.imePoint().y)
+        #expect(Double(top.firstBaseline.y) > bottom - cellHeight / 2)
+        #expect(Double(top.firstBaseline.y) <= bottom)
+
+        let gone = try #require(surface.readCells(0 ... 5, columns: columns))
+        #expect(gone.text == "row000")
+        #expect(gone.firstBaseline == CGPoint(x: -1, y: -1))
+        #expect(gone.offsetStart == 0 && gone.offsetLength == 0)
+    }
+
+    @Test
     func `an invalid range or a dead surface reads nil, one below the grid reads no text`() async throws {
         let harness = await GhosttySurfaceHarness.make()
         defer { harness.tearDown() }
