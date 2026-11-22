@@ -47,6 +47,9 @@ public struct TerminalSurfaceOptions: Sendable {
     /// incrementally is better off at `0`; coalesced jumps read as blinking.
     public var resizeThrottleMilliseconds: Double
 
+    /// Applied to a live surface as it changes; not part of its identity.
+    public var scrollBehavior: TerminalScrollBehavior
+
     public init(
         backend: TerminalSessionBackend = .exec,
         fontSize: Float? = nil,
@@ -56,6 +59,7 @@ public struct TerminalSurfaceOptions: Sendable {
         waitAfterCommand: Bool? = nil,
         context: TerminalSurfaceContext = .window,
         resizeThrottleMilliseconds: Double = 0,
+        scrollBehavior: TerminalScrollBehavior = .settlesOnRow,
     ) {
         self.backend = backend
         self.fontSize = fontSize
@@ -65,12 +69,14 @@ public struct TerminalSurfaceOptions: Sendable {
         self.waitAfterCommand = waitAfterCommand
         self.context = context
         self.resizeThrottleMilliseconds = max(0, resizeThrottleMilliseconds)
+        self.scrollBehavior = scrollBehavior
     }
 
-    /// `resizeThrottleMilliseconds` is deliberately absent: it is a delivery
-    /// policy, not part of the surface's identity. Including it would tear down
-    /// and rebuild a live surface — discarding its grid and scrollback — for a
-    /// change that only affects how often the existing surface is resized.
+    /// `resizeThrottleMilliseconds` and `scrollBehavior` are deliberately
+    /// absent: each is a policy, not part of the surface's identity.
+    /// Including either would tear down and rebuild a live surface —
+    /// discarding its grid and scrollback — for a change that only affects
+    /// how the existing surface is resized or scrolled.
     func isEquivalent(to other: TerminalSurfaceOptions) -> Bool {
         fontSize == other.fontSize
             && workingDirectory == other.workingDirectory

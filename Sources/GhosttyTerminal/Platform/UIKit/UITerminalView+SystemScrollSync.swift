@@ -115,7 +115,9 @@
                 if let driver = systemScroll.driver, driver.isTracking || driver.isDragging || momentumScroll.panIsActive {
                     return
                 }
-                systemScrollAlign(animated: true)
+                if !scrollRestsAnywhere {
+                    systemScrollAlign(animated: true)
+                }
                 if systemScroll.alignLink == nil {
                     systemScrollSyncFromEngine(afterMotion: true)
                 }

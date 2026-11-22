@@ -29,6 +29,9 @@ final class TerminalSurfaceCoordinator {
 
     var configuration: TerminalSurfaceOptions = .init() {
         didSet {
+            if configuration.scrollBehavior != oldValue.scrollBehavior {
+                applyScrollBehavior()
+            }
             guard !configuration.isEquivalent(to: oldValue) else { return }
             rebuildIfReady()
         }
@@ -251,9 +254,10 @@ final class TerminalSurfaceCoordinator {
         )
         TerminalDebugLog.log(.lifecycle, "surface rebuild succeeded")
         startFontSizeTracking(on: newSurface, controller: controller)
-        // The views settle every precision scroll on a row, so the surfaces
-        // they build may move by the pixel; nothing else turns it on.
-        newSurface.setSmoothScrolling(true)
+        // The views settle every precision scroll on a row, or offset what
+        // they hit-test, so the surfaces they build may move by the pixel;
+        // nothing else turns it on.
+        applyScrollBehavior()
         newSurface.onPrecisionScroll = { [weak self] y in
             self?.scrollSettler.didScroll(up: y)
         }
@@ -261,6 +265,35 @@ final class TerminalSurfaceCoordinator {
             .terminalDidAttachSurface(newSurface)
         synchronizeMetrics()
         requestImmediateTick()
+    }
+
+    // MARK: - Scroll behavior
+
+    /// The engine clears the fraction when smooth scrolling goes off, and a
+    /// viewport left between rows is brought to one when settling comes on.
+    private func applyScrollBehavior() {
+        let behavior = configuration.scrollBehavior
+        surface?.setSmoothScrolling(behavior != .rowAtATime)
+        scrollSettler.settlesAutomatically = behavior == .settlesOnRow
+        if behavior == .settlesOnRow, !scrollSettler.isHeld {
+            scrollSettler.release(followingTravel: false)
+        }
+    }
+
+    /// What a view adds to a position before it goes to the engine, in
+    /// pixels: the engine counts rows from the viewport's first, and a
+    /// viewport resting between rows is drawn that much higher.
+    var pointerRowOffsetPixels: Double {
+        guard configuration.scrollBehavior == .restsAnywhere,
+              let position = surface?.smoothScrollPosition(), position.isAvailable else { return 0 }
+        return position.fraction
+    }
+
+    /// Before a pointer press. A viewport that settles is brought to a row;
+    /// one that rests anywhere stays, its positions carrying the offset.
+    func settleScrollForPointer() {
+        guard configuration.scrollBehavior != .restsAnywhere else { return }
+        scrollSettler.settleNow()
     }
 
     // MARK: - Metrics

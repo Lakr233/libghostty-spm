@@ -28,6 +28,7 @@ final class ViewController: UIViewController {
 
     #if DEBUG
         private var gridAccessibility: TerminalGridAccessibilityView?
+        private weak var scrollAccessibility: UIView?
     #endif
 
     override func viewDidLoad() {
@@ -158,7 +159,21 @@ final class ViewController: UIViewController {
                 let keys = TerminalKeyLogAccessibilityView()
                 keys.translatesAutoresizingMaskIntoConstraints = false
                 view.addSubview(keys)
+                let scroll = TerminalScrollAccessibilityView(terminalView: terminalView)
+                scrollAccessibility = scroll
+                scroll.translatesAutoresizingMaskIntoConstraints = false
+                view.addSubview(scroll)
+                if ProcessInfo.processInfo.arguments.contains("--ui-testing-scroll-anywhere") {
+                    terminalView.configuration.scrollBehavior = .restsAnywhere
+                }
+                if ProcessInfo.processInfo.arguments.contains("--ui-testing-scroll-rows") {
+                    terminalView.configuration.scrollBehavior = .rowAtATime
+                }
                 NSLayoutConstraint.activate([
+                    scroll.topAnchor.constraint(equalTo: view.topAnchor),
+                    scroll.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+                    scroll.widthAnchor.constraint(equalToConstant: 1),
+                    scroll.heightAnchor.constraint(equalToConstant: 1),
                     keys.topAnchor.constraint(equalTo: view.topAnchor),
                     keys.leadingAnchor.constraint(equalTo: view.leadingAnchor),
                     keys.widthAnchor.constraint(equalToConstant: 1),
@@ -252,9 +267,44 @@ final class ViewController: UIViewController {
             if ProcessInfo.processInfo.arguments.contains("--ui-testing-history-fixture") {
                 let commands = (0 ..< 45).map { String(format: "echo history-%03d left middle right\r", $0) }
                 shellSession.terminalSession.sendInput(Data(("clear\r" + commands.joined()).utf8))
+                let prefix = "--ui-testing-rest-rows="
+                if let rows = ProcessInfo.processInfo.arguments.lazy
+                    .compactMap({ $0.hasPrefix(prefix) ? Double($0.dropFirst(prefix.count)) : nil }).first
+                {
+                    restScrollOnceHistoryIsOut(rows: rows)
+                }
             }
         #endif
     }
+
+    #if DEBUG
+        /// Moves the scroll view that carries a one-finger scroll `rows`
+        /// rows into the scrollback once the history fixture has been out
+        /// for half a second, and says so in the scroll element's label:
+        /// what a finger does, to the point, where a synthesized drag lands
+        /// anywhere within half a row.
+        private func restScrollOnceHistoryIsOut(rows: Double) {
+            Task { @MainActor [weak self] in
+                var outSince: Date?
+                while true {
+                    try? await Task.sleep(for: .milliseconds(100))
+                    guard let self else { return }
+                    guard shellSession.terminalSession.readViewportText()?
+                        .contains("history-044 left middle right") == true,
+                        let cell = gridAccessibility?.cellSize?.height,
+                        let driver = terminalView.subviews.lazy.compactMap({ $0 as? UIScrollView }).first
+                    else { continue }
+                    let since = outSince ?? Date()
+                    outSince = since
+                    guard Date().timeIntervalSince(since) >= 0.5 else { continue }
+                    let bottom = driver.contentSize.height - driver.bounds.height
+                    driver.contentOffset.y = bottom - rows * cell
+                    scrollAccessibility?.accessibilityLabel = "Terminal Scroll Rested"
+                    return
+                }
+            }
+        }
+    #endif
 
     // MARK: - Persistence
 
@@ -446,6 +496,37 @@ final class ViewController: UIViewController {
 
         override var accessibilityValue: String? {
             get { UITestKeyLog.shared.lines.joined(separator: "\n") }
+            set {}
+        }
+    }
+
+    /// Where the scroll view that carries a one-finger scroll stands, in
+    /// points: the viewport's place by the pixel, which the session's text
+    /// cannot say.
+    private final class TerminalScrollAccessibilityView: UIView {
+        private weak var terminalView: UIView?
+
+        init(terminalView: UIView) {
+            self.terminalView = terminalView
+            super.init(frame: .zero)
+            isAccessibilityElement = true
+            accessibilityTraits = .staticText
+            accessibilityIdentifier = "terminal.scroll"
+            accessibilityLabel = "Terminal Scroll"
+            isUserInteractionEnabled = false
+            alpha = 0.01
+        }
+
+        @available(*, unavailable)
+        required init?(coder _: NSCoder) {
+            fatalError("init(coder:) has not been implemented")
+        }
+
+        override var accessibilityValue: String? {
+            get {
+                let driver = terminalView?.subviews.lazy.compactMap { $0 as? UIScrollView }.first
+                return driver.map { String(format: "%.3f", Double($0.contentOffset.y)) } ?? ""
+            }
             set {}
         }
     }

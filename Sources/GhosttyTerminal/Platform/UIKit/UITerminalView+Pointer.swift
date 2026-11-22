@@ -93,7 +93,7 @@
             if phase == .began, !isFirstResponder {
                 becomeFirstResponder()
             }
-            stopMomentumScrolling()
+            stopMomentumScrolling(settle: .pointer)
 
             let button = pointerButton(from: event)
             let location = touch.location(in: self)
@@ -251,11 +251,18 @@
             if remember {
                 pointer.lastLocation = point
             }
+            let sent = surfacePoint(point)
             surface?.sendMousePos(
-                x: Double(point.x),
-                y: Double(point.y),
+                x: Double(sent.x),
+                y: Double(sent.y),
                 mods: pointerMods(),
             )
+        }
+
+        /// `TerminalSurfaceCoordinator.pointerRowOffsetPixels`, in points:
+        /// what a point in this view gains on its way to the engine.
+        var pointerRowOffset: CGFloat {
+            CGFloat(core.pointerRowOffsetPixels) / resolvedDisplayScale()
         }
 
         func refreshPointerPositionForModifierChange() {
@@ -366,7 +373,7 @@
                         return
                     }
                     core.setFocus(true)
-                    stopMomentumScrolling()
+                    stopMomentumScrolling(settle: .pointer)
                     pointer.panOwnsTouchSequence = true
                     if pointer.gestureCaptured == nil {
                         pointer.gestureCaptured = surface?.isMouseCaptured == true

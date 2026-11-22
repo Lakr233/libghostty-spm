@@ -331,7 +331,7 @@
     /// reported by the renderer, which draws nothing for a window that is
     /// not.
     @MainActor
-    private final class ScrollRig {
+    final class ScrollRig {
         enum Phase: Int64 { case began = 1, changed = 2, ended = 4 }
         enum Momentum: Int64 { case begin = 1, continuing = 2, end = 3 }
 

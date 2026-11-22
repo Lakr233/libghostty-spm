@@ -304,6 +304,7 @@
             case .none: break
             case .later: settleScrollSoon()
             case .now: settleScrollNow()
+            case .pointer: settleScrollForPointer()
             }
         }
     }

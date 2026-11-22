@@ -32,9 +32,11 @@
     }
 
     extension AppTerminalView {
-        /// The surface's top-left origin, as `mousePoint(from:)` sends it.
+        /// The surface's top-left origin, as `mousePoint(from:)` sends it:
+        /// with the part of a row a viewport resting between rows is drawn
+        /// above the engine's rows (`pointerRowOffset`).
         func surfacePoint(_ point: NSPoint) -> CGPoint {
-            CGPoint(x: point.x, y: bounds.height - point.y)
+            CGPoint(x: point.x, y: bounds.height - point.y + pointerRowOffset)
         }
     }
 #endif

@@ -568,6 +568,31 @@ so in the code — "it's just text" is the mistake this section exists to preven
   `+Scroll` for the wheel, the touch pan and its momentum, `+ScrollSettle`
   for the rest. A wheel notch, a program tracking the mouse and a screen
   with no scrollback go to the surface as before.
+- All of the above is `TerminalSurfaceOptions.scrollBehavior`'s default,
+  `.settlesOnRow`. `.rowAtATime` leaves the surface out of smooth
+  scrolling (the engine clears a fraction when it goes off), and
+  `.restsAnywhere` keeps the pixel scroll but nothing settles by itself:
+  the settler's `settlesAutomatically` is off, and on iOS the scroll view's
+  landing place is not rounded and its alignments are skipped, except a
+  bounce let go out of range. Like `resizeThrottleMilliseconds` it is a
+  policy outside `isEquivalent`, applied to the live surface as it changes
+  (`TerminalSurfaceCoordinator.applyScrollBehavior`; back to
+  `.settlesOnRow` settles at once). Resting anywhere, a press does not
+  settle first: every point a view sends to the engine or hit-tests gains
+  the fraction (`pointerRowOffsetPixels`; AppKit's `surfacePoint` /
+  `mousePoint`, UIKit's `surfacePoint` / `sendPointerPosition`), since the
+  engine counts rows from the viewport's first and the picture is drawn
+  that much higher. The public `viewportCell(at:)` / `selectionContains`
+  go through the same `surfacePoint`. What still counts in whole rows
+  settles first: the touch selection, its tap and the touch menu, which
+  also move their point by what the settle moved the picture
+  (`settleScrollNow(keeping:)`), and the pinch. `beginTouchSelection`
+  counts rows from the engine's row after the settle
+  (`smoothScrollPosition().row`), not `touchViewportOffset`: the scrollbar
+  report a settle onto the next row causes arrives a frame later, and the
+  word one row up was selected. `AppTerminalViewScrollBehaviorTests` and the
+  `MobileGhosttyAppUITests` that pass `--ui-testing-scroll-anywhere` or
+  `--ui-testing-scroll-rows` cover it.
 - On iOS and visionOS one finger over scrollback is the system's scroll
   (`+SystemScroll`): the view holds a `UIScrollView` that draws nothing,
   hit-tests to nil, is hidden from accessibility, leaves `scrollsToTop` to

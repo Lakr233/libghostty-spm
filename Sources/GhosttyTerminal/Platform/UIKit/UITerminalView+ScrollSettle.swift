@@ -31,6 +31,12 @@
             case later
             /// Align to a row now.
             case now
+            /// A pointer press follows: `settleScrollForPointer`.
+            case pointer
+        }
+
+        var scrollRestsAnywhere: Bool {
+            core.configuration.scrollBehavior == .restsAnywhere
         }
 
         /// A finger came down while momentum, the scroll view's deceleration
@@ -54,6 +60,9 @@
         func snapScrollToRow() {
             guard !momentumScroll.scrollsLocally else { return }
             #if !targetEnvironment(macCatalyst)
+                // Resting anywhere, only a bounce held and let go is brought
+                // back, and the ends it comes back to are rows.
+                if scrollRestsAnywhere, !systemScrollIsOutOfRange { return }
                 if systemScrollIsActive {
                     systemScrollAlign(animated: true)
                     return
@@ -72,6 +81,34 @@
                 if systemScrollIsActive {
                     systemScrollAlign(animated: false)
                 }
+            #endif
+        }
+
+        /// `settleScrollNow`, for a caller that goes on to hit-test `point`
+        /// in whole rows: where that place on the picture is once the
+        /// viewport is on a row. A viewport that settles by itself is on
+        /// one already, bar a glide caught on the way.
+        func settleScrollNow(keeping point: CGPoint) -> CGPoint {
+            var shift: CGFloat = 0
+            if scrollRestsAnywhere, let position = surface?.smoothScrollPosition(), position.isAvailable {
+                shift = CGFloat(position.pixelsToNearestRow) / resolvedDisplayScale()
+            }
+            settleScrollNow()
+            return CGPoint(x: point.x, y: point.y + shift)
+        }
+
+        /// Before a pointer press: whatever moves the viewport stops, and a
+        /// viewport that settles is brought to a row. One that rests
+        /// anywhere stays, its positions carrying the offset
+        /// (`sendPointerPosition`).
+        func settleScrollForPointer() {
+            guard scrollRestsAnywhere else {
+                settleScrollNow()
+                return
+            }
+            momentumScroll.settleToken += 1
+            #if !targetEnvironment(macCatalyst)
+                systemScrollStop()
             #endif
         }
 
