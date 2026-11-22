@@ -73,9 +73,10 @@ public struct TerminalSurfaceOptions: Sendable {
     }
 
     /// `resizeThrottleMilliseconds` and `scrollBehavior` are deliberately
-    /// absent: each is a policy, not part of the surface's identity. Including it would tear down
-    /// and rebuild a live surface — discarding its grid and scrollback — for a
-    /// change that only affects how often the existing surface is resized.
+    /// absent: each is a policy, not part of the surface's identity.
+    /// Including either would tear down and rebuild a live surface —
+    /// discarding its grid and scrollback — for a change that only affects
+    /// how the existing surface is resized or scrolled.
     func isEquivalent(to other: TerminalSurfaceOptions) -> Bool {
         fontSize == other.fontSize
             && workingDirectory == other.workingDirectory

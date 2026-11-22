@@ -132,8 +132,8 @@
         }
 
         func mousePoint(from event: NSEvent) -> (x: CGFloat, y: CGFloat) {
-            let point = convert(event.locationInWindow, from: nil)
-            return (point.x, bounds.height - point.y + pointerRowOffset)
+            let point = surfacePoint(convert(event.locationInWindow, from: nil))
+            return (point.x, point.y)
         }
 
         /// `TerminalSurfaceCoordinator.pointerRowOffsetPixels`, in points.

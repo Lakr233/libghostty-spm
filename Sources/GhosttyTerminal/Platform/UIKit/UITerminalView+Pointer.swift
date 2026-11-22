@@ -251,11 +251,18 @@
             if remember {
                 pointer.lastLocation = point
             }
+            let sent = surfacePoint(point)
             surface?.sendMousePos(
-                x: Double(point.x),
-                y: Double(point.y) + core.pointerRowOffsetPixels / Double(resolvedDisplayScale()),
+                x: Double(sent.x),
+                y: Double(sent.y),
                 mods: pointerMods(),
             )
+        }
+
+        /// `TerminalSurfaceCoordinator.pointerRowOffsetPixels`, in points:
+        /// what a point in this view gains on its way to the engine.
+        var pointerRowOffset: CGFloat {
+            CGFloat(core.pointerRowOffsetPixels) / resolvedDisplayScale()
         }
 
         func refreshPointerPositionForModifierChange() {

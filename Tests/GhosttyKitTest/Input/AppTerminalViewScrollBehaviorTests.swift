@@ -76,6 +76,28 @@
             #expect(selected == "line \(first + 5)")
         }
 
+        /// What a host asks before `super.mouseDown` to drag the selection
+        /// out answers for the row drawn under the point, as the press does.
+        @Test(.timeLimit(.minutes(1)))
+        func `resting anywhere, the public hit test names the row drawn under the point`() async throws {
+            let harness = await GhosttySurfaceHarness.make()
+            defer { harness.tearDown() }
+            let rig = try await ScrollRig()
+            defer { rig.tearDown() }
+            rig.view.configuration.scrollBehavior = .restsAnywhere
+
+            try drag(rig, tenthsOfARow: 33)
+            let position = try #require(rig.position)
+            try #require(position.fraction * 2 > Double(position.cellHeight))
+
+            let pointer = try #require(DrawnRows(rig))
+            pointer.drag(acrossRow: 5, columns: 0 ... 12)
+            #expect(rig.view.viewportCell(at: pointer.point(3, 5, dx: 0.5)) == TerminalViewportCell(column: 3, row: 5))
+            #expect(rig.view.selectionContains(pointer.point(3, 5, dx: 0.5)))
+            #expect(!rig.view.selectionContains(pointer.point(3, 4, dx: 0.5)))
+            #expect(!rig.view.selectionContains(pointer.point(3, 6, dx: 0.5)))
+        }
+
         @Test(.timeLimit(.minutes(1)))
         func `settling again brings a viewport left between rows to a row`() async throws {
             let harness = await GhosttySurfaceHarness.make()
