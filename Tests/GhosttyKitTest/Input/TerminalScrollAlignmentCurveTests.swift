@@ -58,6 +58,23 @@ struct TerminalScrollAlignmentCurveTests {
         #expect(curve.duration == 0.25)
     }
 
+    /// The Mac's snap after momentum: the speed falls in a straight line
+    /// from the momentum's to zero.
+    @Test
+    func `a preferred slope of 2 slows down evenly`() {
+        let curve = TerminalScrollAlignmentCurve(distance: 13, velocity: 100, longest: 0.4, preferredSlope: 2)
+        #expect(abs(curve.duration - 0.26) < 1e-9)
+        #expect(abs(curve.startSlope - 2) < 1e-9)
+        let du: CGFloat = 0.0001
+        let speedAt = { (u: CGFloat) in (curve.value(at: u + du) - curve.value(at: u)) / du }
+        #expect(abs(speedAt(0.5) - speedAt(0) / 2) < 0.001)
+        #expect(abs(speedAt(0.25) - speedAt(0) * 3 / 4) < 0.001)
+        // Slower momentum takes the longest duration and keeps its speed.
+        let slow = TerminalScrollAlignmentCurve(distance: 13, velocity: 60, longest: 0.4, preferredSlope: 2)
+        #expect(slow.duration == 0.4)
+        #expect(abs(startSpeed(slow, distance: 13) - 60) < 1)
+    }
+
     @Test
     func `it never overshoots the row or turns back`() {
         let cases: [(CGFloat, CGFloat)] = [(6, 0), (6, 60), (6, 120), (1, 250), (13, 30), (6, -200), (-6, -90)]

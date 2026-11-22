@@ -26,7 +26,12 @@ struct TerminalScrollAlignmentCurve: Equatable {
     /// `distance` to the row and `velocity` of the scroll, in the same unit
     /// (per second); a velocity away from the row counts as rest. `longest`
     /// is the duration from rest.
-    init(distance: CGFloat, velocity: CGFloat, longest: TimeInterval) {
+    ///
+    /// `preferredSlope` is the start slope wanted where the duration allows
+    /// it: 3 is the ease-out, the quickest that does not overshoot; 2 slows
+    /// down evenly, the speed falling in a straight line from the scroll's
+    /// to zero, the way a glide's friction ends it.
+    init(distance: CGFloat, velocity: CGFloat, longest: TimeInterval, preferredSlope: CGFloat = 3) {
         let speed = distance == 0 ? 0 : max(0, velocity * (distance < 0 ? -1 : 1))
         guard speed > 0 else {
             duration = longest
@@ -34,8 +39,8 @@ struct TerminalScrollAlignmentCurve: Equatable {
             return
         }
         let span = abs(distance)
-        // The duration whose ease-out starts at exactly this speed.
-        duration = min(longest, max(Self.shortestDuration, Double(3 * span / speed)))
+        // The duration whose curve starts at exactly this speed.
+        duration = min(longest, max(Self.shortestDuration, Double(preferredSlope * span / speed)))
         startSlope = min(3, speed * CGFloat(duration) / span)
     }
 

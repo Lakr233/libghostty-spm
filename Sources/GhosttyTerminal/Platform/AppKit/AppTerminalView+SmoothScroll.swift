@@ -14,21 +14,30 @@
     /// engine decides whether it moves by the pixel.
     ///
     /// While fingers are down or momentum runs, the settler is held. When
-    /// momentum ends the viewport goes on to the row ahead; when the
-    /// fingers lift it waits `smoothScrollLiftDelay` for momentum, then goes
-    /// on the way it was going if it was still moving and to the nearer row
-    /// if it had been dragged to a stop. A precise event with no phase at
-    /// all (a synthesized pixel scroll, a smooth-scrolling utility) is left
-    /// to the settler's own idle delay.
+    /// momentum ends the viewport goes on to the row ahead, at the speed the
+    /// momentum ended at. When the fingers lift with the viewport still
+    /// moving it does the same at once: momentum that follows holds the
+    /// settler and carries on from wherever the snap got to, the same way.
+    /// When they lift from a viewport dragged to a stop it waits
+    /// `smoothScrollLiftDelay` for momentum, then goes to the nearer row. A
+    /// touch that stopped momentum and lifted goes on to the row ahead the
+    /// way the momentum went. A precise event with no phase at all (a
+    /// synthesized pixel scroll, a smooth-scrolling utility) is left to the
+    /// settler's own idle delay.
     extension AppTerminalView {
         /// AppKit sends the first momentum event right after the gesture's
         /// last one; a lift waits this long for it.
         static let smoothScrollLiftDelay: TimeInterval = 0.08
-        /// Pixels in the last scroll of a gesture from which the viewport
-        /// counts as still moving when the fingers lift. At 2x one point is
-        /// two pixels, so a finger resting on a Magic Mouse that drifts a
-        /// point does not.
-        static let smoothScrollMovingDelta: Double = 3
+        /// The speed (points per second, over the settler's
+        /// `velocityWindow`) from which the viewport counts as still moving
+        /// when the fingers lift. A finger resting on a Magic Mouse that
+        /// drifts a point in one event comes to 20 pt/s and does not.
+        ///
+        /// Not the last event's size: a trackpad at 120 Hz moving 150 pt/s
+        /// sends a point or two an event, which read as a stop half the
+        /// time, and fingers held still send nothing, so the last event
+        /// was the one from before they stopped.
+        static let smoothScrollMovingSpeed: Double = 30
 
         /// Before the event's scroll goes to the surface.
         func smoothScrollWillScroll(_ event: NSEvent) {
@@ -51,14 +60,18 @@
                 // still moves tens of pixels; a snap to the nearer row then
                 // goes back up to half a row and the new gesture forward
                 // again, which reads as the text jumping back and forth. A
-                // scroll dragged to a stop stays where it was put.
-                settler.release(
-                    after: Self.smoothScrollLiftDelay,
-                    followingTravel: abs(settler.lastTravel) >= Self.smoothScrollMovingDelta,
-                )
+                // scroll dragged to a stop stays where it was put. A moving
+                // one sets off at once rather than pausing for momentum: the
+                // momentum that follows holds the settler and carries on the
+                // same way from wherever the snap got to.
+                let pixelsPerPoint = Double(currentScaleFactor())
+                let moving = abs(settler.velocity()) >= Self.smoothScrollMovingSpeed * pixelsPerPoint
+                settler.release(after: moving ? 0 : Self.smoothScrollLiftDelay, followingTravel: moving)
             } else if event.phase.contains(.cancelled) {
-                // Fingers rested on a moving scroll and lifted.
-                settler.release(followingTravel: false)
+                // Fingers rested on a moving scroll and lifted: on the way
+                // it was going, as momentum that ends. To the nearer row,
+                // half the time that went back against the momentum.
+                settler.release(followingTravel: true)
             }
         }
     }

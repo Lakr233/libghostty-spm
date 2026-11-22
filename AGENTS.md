@@ -550,8 +550,14 @@ so in the code — "it's just text" is the mistake this section exists to preven
   at the end: on the way it was going when momentum ends or the fingers
   lift with the viewport still moving (never back against the travel, or a
   string of flicks jumps back and forth), to the nearer row when it was
-  dragged to a stop. The snap is eased over 180 ms and re-reads the engine
-  every frame, so a multiplier or output arriving meanwhile cannot put it
+  dragged to a stop. Still moving is a speed, not the last event's size:
+  `velocity(at:)` is the precision scrolls of the last 50 ms, fading to
+  nothing 0.1 s after the last one (fingers held still send no events). The
+  snap sets off at that speed and slows down evenly to the row
+  (`TerminalScrollAlignmentCurve` with `preferredSlope` 2, 0.1–0.4 s), and
+  from rest it is smoothstep over 180 ms: eased out from any speed, it
+  started at three times its average, and momentum ending at 60 pt/s was
+  pushed on at 91–102 pt/s. It re-reads the engine every frame, so a multiplier or output arriving meanwhile cannot put it
   off; it stops if the viewport is moved away. A scroll meant to land on
   a row is counted from the viewport's first row
   (`TerminalSmoothScrollPosition.pixels(to:)`), never as a difference of
@@ -563,8 +569,11 @@ so in the code — "it's just text" is the mistake this section exists to preven
   `mouseDown` and friends, the touch display's tap and hold, UIKit's
   pointer and `settleScrollNow`) settles at once first. AppKit:
   `AppTerminalView+SmoothScroll.swift` tells the settler about the
-  trackpad's phases (a lift waits 80 ms for momentum, momentum's end
-  settles at once), `+DirectTouch` about the finger and its glide. UIKit:
+  trackpad's phases (a lift at 30 pt/s or more and momentum's end settle
+  at once, momentum that follows holding the settler again; a lift from a
+  stop waits 80 ms for momentum; a touch that stopped momentum and lifted,
+  `.cancelled`, goes on the way the momentum went), `+DirectTouch` about
+  the finger and its glide. UIKit:
   `+Scroll` for the wheel, the touch pan and its momentum, `+ScrollSettle`
   for the rest. A wheel notch, a program tracking the mouse and a screen
   with no scrollback go to the surface as before.
