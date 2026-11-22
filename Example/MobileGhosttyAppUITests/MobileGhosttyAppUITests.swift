@@ -1278,21 +1278,48 @@ import XCTest
             }
 
             func testFingerScrollRestsWhereItIsLeft() throws {
-                // The first drag says how far a drag falls short of the
-                // finger's travel; the second aims at the middle of a row.
-                let rows = try scrolledRows(launching: ["--ui-testing-scroll-anywhere"], dragging: [2.5, nil])
+                // Each drag aims at the middle of a row, given what the one
+                // before it fell short of the finger's travel. A loaded
+                // runner can deliver a drag late enough to glide, so the
+                // drags go on until one rests well between two rows; a
+                // viewport that settles never does.
+                let rows = try scrolledRows(
+                    launching: ["--ui-testing-scroll-anywhere"], dragging: [2.5, nil],
+                    until: { (0.2 ... 0.8).contains($0 - $0.rounded(.down)) },
+                )
                 let part = rows - rows.rounded(.down)
-                XCTAssertEqual(part, 0.5, accuracy: 0.3, "\(rows) rows: came to rest on a row")
+                XCTAssertTrue((0.2 ... 0.8).contains(part), "\(rows) rows: came to rest on a row")
                 let later = try scrollOffset()
                 Thread.sleep(forTimeInterval: 1)
                 XCTAssertEqual(try scrollOffset(), later, accuracy: 0.5, "moved after the finger left")
                 capture("scroll-rests-anywhere")
             }
 
+            /// The scroll view takes no drag here, and its offset follows
+            /// the engine only at rest, so the scroll is read off the text:
+            /// the finger moved the viewport, by whole rows. That no
+            /// precision scroll leaves a fraction is
+            /// `AppTerminalViewScrollBehaviorTests`' to check.
             func testFingerScrollMovesARowAtATime() throws {
-                let rows = try scrolledRows(launching: ["--ui-testing-scroll-rows"], dragging: [2.5])
-                XCTAssertGreaterThan(rows, 0.5)
-                XCTAssertEqual(rows, rows.rounded(), accuracy: 0.05, "rested between rows")
+                app.terminate()
+                app.launchArguments = ["--ui-testing", "--ui-testing-history-fixture", "--ui-testing-scroll-rows"]
+                launchApp()
+                let terminal = try requireTerminalInteractionTarget()
+                waitForOutputLine("history-044 left middle right")
+                let before = viewportText().components(separatedBy: "\n")
+                let numbers = (app.staticTexts["terminal.grid"].value as? String ?? "")
+                    .split(whereSeparator: { !$0.isNumber && $0 != "." }).compactMap { Double($0) }
+                let cell = try XCTUnwrap(numbers.count == 3 ? numbers[1] : nil)
+                let start = terminal.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.3))
+                start.press(
+                    forDuration: 0.05, thenDragTo: start.withOffset(CGVector(dx: 0, dy: 2.5 * cell)),
+                    withVelocity: .slow, thenHoldForDuration: 0.6,
+                )
+                let after = try XCTUnwrap(waitForViewport("the viewport moved into the scrollback") {
+                    $0.components(separatedBy: "\n").firstIndex(of: before[0]).map { $0 > 0 } ?? false
+                }).components(separatedBy: "\n")
+                let rows = try XCTUnwrap(after.firstIndex(of: before[0]))
+                XCTAssertEqual(Array(after[rows...]), Array(before.prefix(after.count - rows)))
                 capture("scroll-row-at-a-time")
             }
 
@@ -1374,8 +1401,14 @@ import XCTest
 
             /// Rows the viewport went into the scrollback, after the drags
             /// and a rest. A `nil` drag is as long as it takes to end half
-            /// a row past a row, given what the drag before it lost.
-            private func scrolledRows(launching arguments: [String], dragging drags: [Double?]) throws -> Double {
+            /// a row past a row, given what the drag before it lost; while
+            /// `until` refuses where the last one came to rest, up to five
+            /// more are made.
+            private func scrolledRows(
+                launching arguments: [String],
+                dragging drags: [Double?],
+                until accepted: (Double) -> Bool = { _ in true },
+            ) throws -> Double {
                 app.terminate()
                 app.launchArguments = ["--ui-testing", "--ui-testing-history-fixture"] + arguments
                 launchApp()
@@ -1389,16 +1422,44 @@ import XCTest
                 let bottom = try scrollOffset()
 
                 var lost = 0.0
-                for drag in drags {
+                var drags = drags
+                var retries = 5
+                while !drags.isEmpty {
+                    let drag = drags.removeFirst()
                     let gone = (bottom - (try scrollOffset())) / cell
                     let wanted = drag ?? (1.5 - (gone - gone.rounded(.down)) + lost)
                     let start = terminal.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.3))
                     let end = start.withOffset(CGVector(dx: 0, dy: wanted * cell))
                     start.press(forDuration: 0.05, thenDragTo: end, withVelocity: .slow, thenHoldForDuration: 0.6)
-                    lost = wanted - ((bottom - (try scrollOffset())) / cell - gone)
+                    let rested = (bottom - (try restingScrollOffset())) / cell
+                    // A glide is no measure of what a held drag falls short.
+                    if abs(rested - gone - wanted) < 1 {
+                        lost = wanted - (rested - gone)
+                    }
+                    if drags.isEmpty, retries > 0, !accepted(rested) {
+                        retries -= 1
+                        drags.append(nil)
+                    }
                 }
                 Thread.sleep(forTimeInterval: 1.2)
                 return (bottom - (try scrollOffset())) / cell
+            }
+
+            /// The scroll view's offset once it has held still for half a
+            /// second, or after five.
+            private func restingScrollOffset() throws -> Double {
+                var offset = try scrollOffset()
+                var stillSince = Date()
+                let deadline = Date().addingTimeInterval(5)
+                while Date().timeIntervalSince(stillSince) < 0.5, Date() < deadline {
+                    Thread.sleep(forTimeInterval: 0.1)
+                    let now = try scrollOffset()
+                    if abs(now - offset) > 0.01 {
+                        offset = now
+                        stillSince = Date()
+                    }
+                }
+                return offset
             }
         #endif
 
