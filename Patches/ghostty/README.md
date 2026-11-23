@@ -319,6 +319,27 @@ to move back.
   (ghostty-org/ghostty#14400's overscan API is "the first step"); once it
   has a renderer offset of its own, drop this patch and keep only the
   views' settling on top of upstream's.
+- `0023-smooth-scroll-presented.sh` — tells the host when the frame that
+  holds a smooth scroll has been handed to the layer. iOS system scrolling
+  moves the viewport from the scroll view's per-frame callback on the main
+  thread; the render thread draws the step and its completion handler
+  queues the present on the main queue, after the callback has returned
+  and UIKit has committed the frame, so the picture reached the glass one
+  refresh behind the scroll view's own content (34.0 ms against 25.7 on a
+  120 Hz iPhone). `ghostty_surface_smooth_scroll_by_tracked` is 0022's
+  `ghostty_surface_smooth_scroll_by` with a sequence number, written in
+  the critical section that moves the viewport
+  (`renderer.State.scroll_seq`); `updateFrame` reads it where it reads the
+  position, the frame drawn from that update carries it into Metal's
+  completion block, and the block records it after presenting
+  (`scroll_presented`, an atomic max).
+  `ghostty_surface_smooth_scroll_presented` compares the two without a
+  lock. The view waits on it inside the callback, so the present is queued
+  behind the callback and committed in the same run loop turn. Purely
+  additive, and nothing inside what 0022 inserts is edited: an anchored
+  edit recognises itself by finding its text intact, and `build.sh` runs
+  the whole stack again for every target. OpenGL has no completion
+  callback and is left alone.
 
 Dropped once upstream carried them: `0014-free-text-signature.patch`
 (`ghostty_surface_free_text` taking the surface, upstream `4803d58b`). A

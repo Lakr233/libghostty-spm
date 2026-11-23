@@ -550,8 +550,14 @@ so in the code — "it's just text" is the mistake this section exists to preven
   at the end: on the way it was going when momentum ends or the fingers
   lift with the viewport still moving (never back against the travel, or a
   string of flicks jumps back and forth), to the nearer row when it was
-  dragged to a stop. The snap is eased over 180 ms and re-reads the engine
-  every frame, so a multiplier or output arriving meanwhile cannot put it
+  dragged to a stop. Still moving is a speed, not the last event's size:
+  `velocity(at:)` is the precision scrolls of the last 50 ms, fading to
+  nothing 0.1 s after the last one (fingers held still send no events). The
+  snap sets off at that speed and slows down evenly to the row
+  (`TerminalScrollAlignmentCurve` with `preferredSlope` 2, 0.1–0.4 s), and
+  from rest it is smoothstep over 180 ms: eased out from any speed, it
+  started at three times its average, and momentum ending at 60 pt/s was
+  pushed on at 91–102 pt/s. It re-reads the engine every frame, so a multiplier or output arriving meanwhile cannot put it
   off; it stops if the viewport is moved away. A scroll meant to land on
   a row is counted from the viewport's first row
   (`TerminalSmoothScrollPosition.pixels(to:)`), never as a difference of
@@ -563,8 +569,13 @@ so in the code — "it's just text" is the mistake this section exists to preven
   `mouseDown` and friends, the touch display's tap and hold, UIKit's
   pointer and `settleScrollNow`) settles at once first. AppKit:
   `AppTerminalView+SmoothScroll.swift` tells the settler about the
-  trackpad's phases (a lift waits 80 ms for momentum, momentum's end
-  settles at once), `+DirectTouch` about the finger and its glide. UIKit:
+  trackpad's phases (a lift at 30 pt/s or more and momentum's end settle
+  at once, momentum that follows holding the settler again; a lift from a
+  stop waits 80 ms for momentum; a touch that lifts without moving,
+  `.cancelled`, resumes what it stopped (`touchDown`): momentum or a snap
+  on the way it went goes on that way, a snap from a stop on to the nearer
+  row it was heading for, never turned round), `+DirectTouch` about
+  the finger and its glide. UIKit:
   `+Scroll` for the wheel, the touch pan and its momentum, `+ScrollSettle`
   for the rest. A wheel notch, a program tracking the mouse and a screen
   with no scrollback go to the surface as before.
@@ -609,13 +620,56 @@ so in the code — "it's just text" is the mistake this section exists to preven
   rubber band, is shown by translating the view's sublayers
   (`applyOverscroll`), so the renderer draws no frame for it, with the
   uncovered strip filled with the terminal's background.
-  `scrollViewWillEndDragging` rounds the landing place to a row. A lift
+  `scrollViewWillEndDragging` rounds a fling's landing place to a row,
+  only the way the fling goes (`landingOffset(proposed:current:)`: a
+  landing place behind the start pulls the content back within a frame).
+  UIKit takes a lift under about 250 pt/s for a stop — no velocity, and
+  the offset where it is as the landing place — and rounding that one sent
+  the content back half the time, against a finger still dragging it on.
+  It keeps its landing place instead, the pan's velocity is kept
+  (`releaseVelocity`), and `didEndDragging(willDecelerate: false)` aligns
+  to the row ahead of the finger at the finger's speed (`restingRow`;
+  under 20 pt/s, the nearest row). UIKit still reports `isDragging` there,
+  so that alignment passes `lifted`. After a touch stops a glide, a bounce
+  or an alignment, the animated alignment that follows goes to the row
+  ahead the way it went (`caughtDirection`); an immediate one goes to the
+  nearest. Alignments run along `TerminalScrollAlignmentCurve`
+  (`Metrics/`, unit-tested), a cubic that sets off at the scroll's speed
+  and is smoothstep from rest: the cubic ease-out before it started at
+  three times its average speed. A lift
   with no deceleration and a tap that stops a moving scroll align with the
   view's own display-link animation, never `setContentOffset(_:animated:)`:
   that one cannot be cancelled, and under a finger that drags again both
   write the offset every frame. While anything moves the scroll view
   (`systemScrollIsBusy`) nothing here writes the offset; it is brought to
-  the engine at rest (`systemScrollSyncFromEngine`). Output arriving at the
+  the engine at rest (`systemScrollSyncFromEngine`). While the scroll
+  view moved in the last 0.1 s (`systemScrollMovedRecently`), a tick only
+  an engine wakeup asked for neither refreshes nor draws on the main
+  thread (`TerminalSurfaceCoordinator.wakeupSkipsDraw`): each row the
+  viewport crosses posts a wakeup, the next tick's synchronous `draw()`
+  waited for the frame the renderer thread was drawing, a whole frame at
+  120 Hz, so a slow drag stalled at every row; a frame drawn on the main
+  thread could land before an older one the renderer thread had queued;
+  and the refresh drew each position twice. The app tick still runs, the
+  renderer thread draws the scroll, the frame left out runs once the
+  scroll rests, and ticks the host side asks for (size, metrics,
+  visibility, selection, the first frame) still draw. Every
+  `scrollViewDidScroll` also keeps the coordinator's display link running
+  (`holdDisplayLinkForScroll`): UIKit's deceleration otherwise drops to
+  80 Hz and then 40 Hz on its way to rest, frames 8 and 17 ms apart in
+  turn, and a picture a fixed number of frames behind the scroll view
+  speeds up and slows down with them. Each step goes to the engine
+  numbered (`smoothScrollTracked`, `0023-smooth-scroll-presented.sh`) and
+  `scrollViewDidScroll` then waits for the frame that holds it
+  (`systemScrollWaitForFrame`, `smoothScrollPresented`): the renderer
+  thread queues its present on the main queue, and only a present queued
+  before the callback returns is committed with UIKit's frame instead of
+  a refresh later. The wait ends `frameWaitBudget` into the turn of the
+  run loop (`TerminalMainTurnClock`), counted from the wake so a turn the
+  touch delivery already used up does not wait at all, and stands down
+  for a while after three misses in a row. Do not replace it with a fixed
+  sleep, and do not draw on the main thread instead: `draw()` shows what
+  the renderer thread last updated, not the step just made. Output arriving at the
   bottom under a finger or a bounce is absorbed in
   `SystemScrollState.shiftPixels`. The view's own pan
   (`gestureRecognizerShouldBegin` stands it down otherwise) keeps a
@@ -1097,7 +1151,7 @@ Two release tracks, decoupled since 1.4.0:
   `ghostty_config_load_file` on its rendered config; `ghostty_config_get`
   is bound for `background` alone — `TerminalController.backgroundColor`)
   and `ghostty_surface_quicklook_font` have no Swift wrapper yet. The
-  smooth-scroll functions `0022` adds are bound internally only
+  smooth-scroll functions `0022` and `0023` add are bound internally only
   (`TerminalSurface+SmoothScroll.swift`): a surface that moves by the pixel
   needs something to bring it back to a row, and that is the views'
   settler

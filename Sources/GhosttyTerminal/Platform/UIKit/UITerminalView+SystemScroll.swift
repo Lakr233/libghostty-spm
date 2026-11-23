@@ -53,6 +53,27 @@
             var alignFrom: CGFloat = 0
             var alignTo: CGFloat = 0
             var alignStart: CFTimeInterval = 0
+            /// The alignment's duration and starting speed.
+            var alignCurve = TerminalScrollAlignmentCurve(distance: 0, velocity: 0, longest: 0)
+            /// A lift UIKit took for a stop (it reports no velocity under
+            /// about 250 pt/s) while the finger still moved: the finger's
+            /// speed, in points per second toward a larger offset, kept by
+            /// `willEndDragging` for the alignment `didEndDragging` starts.
+            var releaseVelocity: CGFloat = 0
+            /// The way the content offset last moved (±1), and where it was:
+            /// kept by `scrollViewDidScroll`.
+            var motionDirection: CGFloat = 0
+            var lastOffset: CGFloat = 0
+            /// The way a glide, a bounce or an alignment was going when a
+            /// touch stopped it. The animated alignment that follows goes to
+            /// the row ahead that way: to the nearer row, half the time it
+            /// went back against the glide.
+            var caughtDirection: CGFloat = 0
+            /// After the wait for a step's frame timed out
+            /// `frameWaitMissLimit` times in a row
+            /// (`systemScrollWaitForFrame`): no waiting until this time.
+            var frameWaitSuspendedUntil: CFTimeInterval = 0
+            var frameWaitMisses = 0
             /// Pixels the engine's position is ahead of the scroll view's:
             /// engine position = content offset (in pixels) + shift.
             ///
@@ -103,6 +124,17 @@
                 systemScrollBusy(countingRecentScroll: true)
             }
 
+            /// The scroll view moved in the last 0.1 s: a finger dragging,
+            /// deceleration, a bounce and the alignment all write the offset
+            /// every frame. What the coordinator's wakeups go by
+            /// (`wakeupSkipsDraw`), not `systemScrollIsBusy`: that one also
+            /// holds while an offset rests out of range or a flag is stuck,
+            /// and a surface at rest would then never draw a wakeup. An
+            /// offset the view writes itself (`isSyncing`) does not count.
+            var systemScrollMovedRecently: Bool {
+                systemScroll.driver != nil && CACurrentMediaTime() - systemScroll.lastDidScroll < 0.1
+            }
+
             /// `countingRecentScroll`: a `scrollViewDidScroll` in the last
             /// 50 ms counts as motion — whatever else moves the scroll view
             /// without reporting deceleration. Not counted right after a
@@ -151,6 +183,7 @@
 
             func installSystemScrollDriver() {
                 guard systemScroll.driver == nil else { return }
+                TerminalMainTurnClock.install()
                 let driver = TerminalScrollDriverView(frame: bounds)
                 driver.autoresizingMask = [.flexibleWidth, .flexibleHeight]
                 driver.backgroundColor = .clear

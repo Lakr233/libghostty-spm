@@ -29,6 +29,33 @@
             try await checkLift(tenthsOfARow: 33, landsOn: 4, draggedToAStop: false)
         }
 
+        /// Patches/ghostty/0023: a step made with `smoothScrollTracked`
+        /// is numbered, and `smoothScrollPresented` turns true once the
+        /// renderer has handed over a frame that holds it. iOS system
+        /// scrolling waits on that every frame; if it never came true,
+        /// every frame there would wait out its budget.
+        @Test(.timeLimit(.minutes(1)))
+        func `a tracked scroll reports the frame that holds it`() async throws {
+            let harness = await GhosttySurfaceHarness.make()
+            defer { harness.tearDown() }
+            let rig = try await ScrollRig()
+            defer { rig.tearDown() }
+            let surface = try #require(rig.view.surface)
+            let before = try rig.pixels()
+
+            for step in 1 ... 5 {
+                surface.smoothScrollTracked(byPixels: 3)
+                // The mark is set on the renderer's side: waiting here, on
+                // the main thread, is exactly what the scroll view does.
+                let deadline = ContinuousClock.now + .seconds(5)
+                while !surface.smoothScrollPresented() {
+                    try #require(ContinuousClock.now < deadline, "step \(step): no frame holding it was handed over")
+                    usleep(200)
+                }
+            }
+            #expect(try abs(rig.pixels() - before) == 15)
+        }
+
         /// The next touch cuts momentum short while it still moves the
         /// viewport. Snapping to the nearer row would take it back, and the
         /// new gesture forward again: a string of flicks on a Magic Mouse
@@ -291,8 +318,239 @@
             try rig.scroll(0, phase: .ended)
         }
 
-        /// `draggedToAStop`: the last two events move one point each, the
-        /// fingers all but still when they lift.
+        /// A trackpad at 120 Hz moving about 150 pt/s sends a point or two
+        /// an event. Lifted like that, the viewport is still moving: it
+        /// goes on to the row ahead, and at once rather than after the wait
+        /// for momentum. Judged by the last event's size, it settled back
+        /// to the nearer row after an 80 ms pause.
+        @Test(.timeLimit(.minutes(1)))
+        func `a slow lift still moving goes on to the row ahead at once`() async throws {
+            let harness = await GhosttySurfaceHarness.make()
+            defer { harness.tearDown() }
+            let rig = try await ScrollRig()
+            defer { rig.tearDown() }
+            let before = try #require(rig.firstVisibleLine)
+
+            let point = rig.pixelsPerPoint
+            let row = rig.cellHeight
+            try rig.scroll(0, phase: .began)
+            var step = 0
+            // Two rows and a bit, the last event a single point.
+            while rig.sentPixels < 2 * row + max(point, row / 5) {
+                try rig.scroll(pixels: (step % 3 == 2 ? 2 : 1) * point, phase: .changed)
+                step += 1
+                try await Task.sleep(for: .milliseconds(8))
+            }
+            try rig.scroll(pixels: point, phase: .changed)
+            let past = rig.sentPixels % row
+            try #require(past * 2 < row, "\(rig.sentPixels) px over \(row) px rows: the nearer row is not behind")
+            let start = try rig.pixels()
+
+            try rig.scroll(0, phase: .ended)
+            let lifted = ContinuousClock.now
+            var firstMove: Duration?
+            var furthest = start
+            while rig.settler.isSnapping || firstMove == nil, ContinuousClock.now - lifted < .seconds(1) {
+                let now = try rig.pixels()
+                #expect(now <= furthest + 0.01, "the snap went back by \(now - furthest) px")
+                furthest = min(furthest, now)
+                if firstMove == nil, start - now > 0.3 { firstMove = ContinuousClock.now - lifted }
+                try await Task.sleep(for: .milliseconds(1))
+            }
+            let moved = try #require(firstMove, "the viewport never went on")
+            #expect(moved < .milliseconds(40), "the snap waited \(moved) before it moved")
+            #expect(await rig.settles())
+            #expect(before - (rig.firstVisibleLine ?? before) == 3)
+        }
+
+        /// Fingers held still send no events, so the last one is from
+        /// before they stopped. Judged by its size, the viewport was still
+        /// moving and went on up to a whole row; by the speed, which fades
+        /// once events stop, it had stopped.
+        @Test(.timeLimit(.minutes(1)))
+        func `fingers held still before the lift settle on the nearer row`() async throws {
+            let harness = await GhosttySurfaceHarness.make()
+            defer { harness.tearDown() }
+            let rig = try await ScrollRig()
+            defer { rig.tearDown() }
+            let before = try #require(rig.firstVisibleLine)
+
+            // Four points an event, the last one too, until just past two
+            // rows.
+            let row = rig.cellHeight
+            try rig.scroll(0, phase: .began)
+            while rig.sentPixels <= 2 * row {
+                try rig.scroll(pixels: 4 * rig.pixelsPerPoint, phase: .changed)
+                try await Task.sleep(for: .milliseconds(12))
+            }
+            try #require(rig.sentPixels % row * 2 < row, "\(rig.sentPixels) px over \(row) px rows")
+            try await Task.sleep(for: .milliseconds(150))
+
+            try rig.scroll(0, phase: .ended)
+            #expect(await rig.settles())
+            #expect(before - (rig.firstVisibleLine ?? before) == 2)
+        }
+
+        /// A finger rests on the trackpad while momentum runs (the
+        /// momentum ends, the gesture may begin), then lifts without moving
+        /// (cancelled). To the nearer row, half the time that went back
+        /// against the momentum; it goes on the way the momentum went.
+        @Test(.timeLimit(.minutes(1)))
+        func `momentum stopped by a touch goes on the way it went`() async throws {
+            let harness = await GhosttySurfaceHarness.make()
+            defer { harness.tearDown() }
+            let rig = try await ScrollRig()
+            defer { rig.tearDown() }
+            let before = try #require(rig.firstVisibleLine)
+
+            let row = rig.cellHeight
+            try rig.scroll(0, phase: .began)
+            try rig.scroll(pixels: row, phase: .changed)
+            try rig.scroll(0, phase: .ended)
+            try rig.scroll(pixels: row / 2, momentum: .begin)
+            while rig.sentPixels < 2 * row + row / 4 {
+                try rig.scroll(pixels: 2 * rig.pixelsPerPoint, momentum: .continuing)
+                try await Task.sleep(for: .milliseconds(12))
+            }
+            try #require(rig.sentPixels % row * 2 < row, "\(rig.sentPixels) px over \(row) px rows")
+            try rig.scroll(0, momentum: .end)
+            try rig.scroll(0, phase: .mayBegin)
+            try await Task.sleep(for: .milliseconds(100))
+
+            try rig.scroll(0, phase: .cancelled)
+            #expect(await rig.settles())
+            #expect(before - (rig.firstVisibleLine ?? before) == 3)
+        }
+
+        /// Dragged to a stop a third of a row past a row and lifted: the
+        /// snap heads back to that row. A touch lands while it runs and
+        /// lifts without moving (cancelled). The snap it stopped was going
+        /// to the nearer row, and so does the lift; sent the way of the
+        /// drag instead, it turned round to the row ahead.
+        @Test(.timeLimit(.minutes(1)))
+        func `a touch on a snap from a stop does not turn it round`() async throws {
+            let harness = await GhosttySurfaceHarness.make()
+            defer { harness.tearDown() }
+            let rig = try await ScrollRig()
+            defer { rig.tearDown() }
+            let before = try #require(rig.firstVisibleLine)
+
+            let slow = 2 * rig.pixelsPerPoint
+            let total = rig.cellHeight * 33 / 10 - slow
+            let steps = 8
+            try rig.scroll(0, phase: .began)
+            for step in 0 ..< steps {
+                try rig.scroll(pixels: total * (step + 1) / steps - total * step / steps, phase: .changed)
+            }
+            for _ in 0 ..< 2 {
+                try rig.scroll(pixels: rig.pixelsPerPoint, phase: .changed)
+            }
+            try await Task.sleep(for: .milliseconds(120))
+            try rig.scroll(0, phase: .ended)
+
+            // Toward the scrollback the engine's position falls, so the
+            // snap back to the nearer row raises it.
+            let lifted = try rig.pixels()
+            let underWay = await ScrollRig.wait(seconds: 1) { [rig] in
+                rig.settler.isSnapping && (rig.position?.pixels ?? lifted) > lifted + 1
+            }
+            try #require(underWay, "the snap back never got under way")
+            try rig.scroll(0, phase: .mayBegin)
+            try #require(!rig.settler.isSnapping && rig.fraction != 0, "the touch did not stop the snap between rows")
+            try await Task.sleep(for: .milliseconds(100))
+
+            try rig.scroll(0, phase: .cancelled)
+            #expect(await rig.settles())
+            #expect(before - (rig.firstVisibleLine ?? before) == 3, "\(rig.sentPixels) px over \(rig.cellHeight) px rows")
+        }
+
+        /// Momentum running out at about 55 pt/s, most of a row short of
+        /// the row ahead. Eased out over 180 ms, the snap started at three
+        /// times its average and went faster than the momentum had (150
+        /// pt/s over its first 50 ms); now it carries on at the momentum's
+        /// speed and slows down from there.
+        @Test(.timeLimit(.minutes(1)))
+        func `the snap after momentum carries on at the momentum's speed`() async throws {
+            let harness = await GhosttySurfaceHarness.make()
+            defer { harness.tearDown() }
+            let rig = try await ScrollRig()
+            defer { rig.tearDown() }
+            let before = try #require(rig.firstVisibleLine)
+
+            let point = rig.pixelsPerPoint
+            let row = rig.cellHeight
+            try rig.scroll(0, phase: .began)
+            for _ in 0 ..< 4 {
+                try rig.scroll(pixels: row / 2, phase: .changed)
+                try await Task.sleep(for: .milliseconds(12))
+            }
+            try rig.scroll(0, phase: .ended)
+            for index in 0 ..< 5 {
+                try rig.scroll(pixels: 3 * point, momentum: index == 0 ? .begin : .continuing)
+                try await Task.sleep(for: .milliseconds(12))
+            }
+            // The tail, a point every 18 ms, until most of a row is left
+            // to the row ahead. Each step sleeps to 12 ms short of its
+            // time and spins the rest: a loaded host overshoots an 18 ms
+            // sleep by 3 to 11 ms, unevenly.
+            var tail: [ContinuousClock.Instant] = []
+            while tail.count < 6 || !(0.6 ... 0.9).contains(rig.fraction / Double(row)) {
+                try #require(tail.count < 200, "the tail never left most of a row to go")
+                try rig.scroll(pixels: point, momentum: .continuing)
+                let sent = ContinuousClock.now
+                tail.append(sent)
+                let next = sent + .milliseconds(18)
+                try await Task.sleep(until: next - .milliseconds(12), clock: .continuous)
+                while ContinuousClock.now < next {}
+            }
+            // What the momentum ended at: the tail's last four steps, the
+            // stretch the settler's 50 ms window slides over at the end.
+            // It counts the scrolls in that window, the speed while they
+            // come a frame or so apart, as a trackpad's do. A loaded test
+            // host stretches these 18 ms sleeps, unevenly (to 50 ms and
+            // more): one window then holds two events where the next holds
+            // one, and the snap sets off at up to twice the speed with
+            // nothing wrong. Only an even end is held to the bound.
+            let end = Array(tail.suffix(5))
+            let endSpan = try end[0].duration(to: #require(end.last))
+            let endSpeed = Double((end.count - 1) * point) / endSpan.seconds
+            let endGaps = zip(end, end.dropFirst()).map { $0.duration(to: $1) }
+            let endWasUneven = endGaps.contains { $0 > .milliseconds(22) }
+            let start = try rig.pixels()
+            let left = rig.fraction
+
+            try rig.scroll(0, momentum: .end)
+            var samples: [(time: ContinuousClock.Instant, pixels: Double)] = []
+            let ended = ContinuousClock.now
+            while ContinuousClock.now - ended < .milliseconds(700) {
+                try samples.append((.now, rig.pixels()))
+                try await Task.sleep(for: .milliseconds(1))
+            }
+            var peak = 0.0
+            for (index, from) in samples.enumerated() {
+                guard let to = samples[index...].first(where: { from.time.duration(to: $0.time) >= .milliseconds(50) })
+                else { break }
+                peak = max(peak, (from.pixels - to.pixels) / from.time.duration(to: to.time).seconds)
+            }
+            let back = zip(samples, samples.dropFirst()).reduce(0) { $0 + max(0, $1.1.pixels - $1.0.pixels) }
+            #expect(back < 0.01, "the snap went back by \(back) px")
+            #expect(abs(start - (samples.last?.pixels ?? start) - left) < 0.5, "did not go on to the row ahead")
+            withKnownIssue("the tail's last steps came unevenly: \(endGaps)", isIntermittent: true) {
+                #expect(
+                    peak < endSpeed * 1.5,
+                    "momentum ended at \(Int(endSpeed)) px/s (steps \(endGaps)), the snap reached \(Int(peak)) px/s",
+                )
+            } when: {
+                endWasUneven
+            }
+            #expect(await rig.settles())
+            #expect(before - (rig.firstVisibleLine ?? before) == (rig.sentPixels + row - 1) / row)
+        }
+
+        /// `draggedToAStop`: the last two events move one point each and
+        /// the fingers rest a moment before they lift. The viewport counts
+        /// as moving by its speed over the last 50 ms, and these events come
+        /// back to back.
         private func checkLift(tenthsOfARow tenths: Int, landsOn rows: Int, draggedToAStop: Bool) async throws {
             let harness = await GhosttySurfaceHarness.make()
             defer { harness.tearDown() }
@@ -314,6 +572,9 @@
             }
             // Between rows while the fingers are down.
             #expect(rig.fraction != 0)
+            if draggedToAStop {
+                try await Task.sleep(for: .milliseconds(120))
+            }
 
             try rig.scroll(0, phase: .ended)
             #expect(await rig.settles())
@@ -326,13 +587,19 @@
         }
     }
 
+    private extension Duration {
+        var seconds: Double {
+            Double(components.seconds) + Double(components.attoseconds) * 1e-18
+        }
+    }
+
     /// An ``AppKitInputRig`` on screen with scrollback, fed trackpad events.
     /// The window is ordered in: the scrollbar the view scrolls against is
     /// reported by the renderer, which draws nothing for a window that is
     /// not.
     @MainActor
     final class ScrollRig {
-        enum Phase: Int64 { case began = 1, changed = 2, ended = 4 }
+        enum Phase: Int64 { case began = 1, changed = 2, ended = 4, cancelled = 8, mayBegin = 128 }
         enum Momentum: Int64 { case begin = 1, continuing = 2, end = 3 }
 
         let rig: AppKitInputRig
