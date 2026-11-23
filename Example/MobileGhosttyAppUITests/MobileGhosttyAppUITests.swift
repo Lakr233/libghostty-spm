@@ -670,6 +670,129 @@ import XCTest
                 waitForExpectations(timeout: 4)
             }
 
+            func testInlineLongPressDragExtendsSelectionAndOpensMenuOnLift() throws {
+                app.terminate()
+                app.launchArguments = ["--ui-testing", "--ui-testing-link-fixture"]
+                launchApp()
+                let terminal = try requireTerminalInteractionTarget()
+                waitForOutputLine("alpha beta gamma")
+                let start = pointerCell(in: terminal, column: 2, row: 3)
+                let end = pointerCell(in: terminal, column: 9, row: 3)
+                start.press(forDuration: Self.longPressDuration, thenDragTo: end, withVelocity: .slow, thenHoldForDuration: 0.1)
+                XCTAssertTrue(app.menuItems["Copy"].waitForExistence(timeout: 4), app.debugDescription)
+                app.menuItems["Copy"].tap()
+                let copied = try XCTUnwrap(copiedSelectionText(in: terminal, timeout: 2))
+                XCTAssertTrue(copied.contains("alpha"), copied)
+                XCTAssertTrue(copied.contains("beta"), copied)
+            }
+
+            func testTouchTapOpensWebLinksAndRespectsCommand() throws {
+                app.terminate()
+                app.launchArguments = ["--ui-testing", "--ui-testing-open-url", "--ui-testing-link-fixture"]
+                launchApp()
+                let terminal = try requireTerminalInteractionTarget()
+                waitForOutputLine("alpha beta gamma")
+                XCTAssertTrue(waitForKeyboardFocus(in: terminal, timeout: 4))
+                let opened = app.staticTexts["terminal.openedURL"]
+                XCTAssertTrue(opened.waitForExistence(timeout: 4))
+
+                func shortTap(_ coordinate: XCUICoordinate) {
+                    if isIPad {
+                        coordinate.tap()
+                    } else {
+                        coordinate.press(forDuration: 0.01)
+                    }
+                }
+
+                // Plain tap on an http(s) URL opens it without toggling the keyboard.
+                shortTap(pointerCell(in: terminal, column: 10, row: 0))
+                let firstOpened = XCTNSPredicateExpectation(
+                    predicate: NSPredicate(format: "value == %@", "https://example.com/tap"),
+                    object: opened,
+                )
+                XCTAssertEqual(XCTWaiter.wait(for: [firstOpened], timeout: 4), .completed)
+                XCTAssertTrue(waitForKeyboardFocus(in: terminal, timeout: 1))
+
+                // Plain tap on an OSC 8 http(s) hyperlink opens its URI without toggling the keyboard.
+                shortTap(pointerCell(in: terminal, column: 4, row: 1))
+                let secondOpened = XCTNSPredicateExpectation(
+                    predicate: NSPredicate(format: "value CONTAINS %@", "https://example.com/osc8"),
+                    object: opened,
+                )
+                XCTAssertEqual(XCTWaiter.wait(for: [secondOpened], timeout: 4), .completed)
+                XCTAssertTrue(waitForKeyboardFocus(in: terminal, timeout: 1))
+
+                // Command armed on the accessory bar opens non-web links too, leaving the keyboard alone.
+                let command = app.buttons["Command"]
+                XCTAssertTrue(command.waitForExistence(timeout: 4))
+                command.tap()
+                shortTap(pointerCell(in: terminal, column: 4, row: 2))
+                let thirdOpened = XCTNSPredicateExpectation(
+                    predicate: NSPredicate(format: "value CONTAINS %@", "mailto:test@example.com"),
+                    object: opened,
+                )
+                XCTAssertEqual(XCTWaiter.wait(for: [thirdOpened], timeout: 4), .completed)
+                XCTAssertTrue(waitForKeyboardFocus(in: terminal, timeout: 1))
+
+                // Plain tap on a non-web link toggles the keyboard and does not open it again.
+                let beforePlainNonWeb = opened.value as? String ?? ""
+                shortTap(pointerCell(in: terminal, column: 4, row: 2))
+                expectation(for: NSPredicate(format: "hasKeyboardFocus == false"), evaluatedWith: terminal)
+                waitForExpectations(timeout: 4)
+                XCTAssertEqual(opened.value as? String ?? "", beforePlainNonWeb)
+
+                // If the host declines the URL, the plain tap falls back to toggling the keyboard.
+                app.terminate()
+                app.launchArguments = [
+                    "--ui-testing", "--ui-testing-open-url", "--ui-testing-decline-open-url",
+                    "--ui-testing-link-fixture",
+                ]
+                launchApp()
+                let declinedTerminal = try requireTerminalInteractionTarget()
+                waitForOutputLine("alpha beta gamma")
+                XCTAssertTrue(waitForKeyboardFocus(in: declinedTerminal, timeout: 4))
+                shortTap(pointerCell(in: declinedTerminal, column: 10, row: 0))
+                expectation(for: NSPredicate(format: "hasKeyboardFocus == false"), evaluatedWith: declinedTerminal)
+                waitForExpectations(timeout: 4)
+            }
+
+            func testInlineTouchMenuOpensLinks() throws {
+                app.terminate()
+                app.launchArguments = ["--ui-testing", "--ui-testing-open-url", "--ui-testing-link-fixture"]
+                launchApp()
+                let terminal = try requireTerminalInteractionTarget()
+                waitForOutputLine("alpha beta gamma")
+                let opened = app.staticTexts["terminal.openedURL"]
+                XCTAssertTrue(opened.waitForExistence(timeout: 4))
+
+                // Long press on a web link selects it and leads the menu with Open Link.
+                pointerCell(in: terminal, column: 10, row: 0).press(forDuration: Self.longPressDuration)
+                XCTAssertTrue(app.menuItems["Open Link"].waitForExistence(timeout: 4), app.debugDescription)
+                XCTAssertTrue(app.menuItems["Copy"].exists)
+                app.menuItems["Open Link"].tap()
+                let firstOpened = XCTNSPredicateExpectation(
+                    predicate: NSPredicate(format: "value CONTAINS %@", "https://example.com/tap"),
+                    object: opened,
+                )
+                XCTAssertEqual(XCTWaiter.wait(for: [firstOpened], timeout: 4), .completed)
+                XCTAssertTrue(app.menuItems["Copy"].waitForNonExistence(timeout: 4))
+
+                // Long press on a non-web OSC 8 link also leads the menu with Open Link.
+                pointerCell(in: terminal, column: 4, row: 2).press(forDuration: Self.longPressDuration)
+                XCTAssertTrue(app.menuItems["Open Link"].waitForExistence(timeout: 4), app.debugDescription)
+                app.menuItems["Open Link"].tap()
+                let secondOpened = XCTNSPredicateExpectation(
+                    predicate: NSPredicate(format: "value CONTAINS %@", "mailto:test@example.com"),
+                    object: opened,
+                )
+                XCTAssertEqual(XCTWaiter.wait(for: [secondOpened], timeout: 4), .completed)
+
+                // Plain text does not offer Open Link.
+                pointerCell(in: terminal, column: 2, row: 3).press(forDuration: Self.longPressDuration)
+                XCTAssertTrue(app.menuItems["Copy"].waitForExistence(timeout: 4), app.debugDescription)
+                XCTAssertFalse(app.menuItems["Open Link"].exists)
+            }
+
             func testInlineSelectionMenuAndCopy() throws {
                 app.terminate()
                 app.launchArguments = ["--ui-testing", "--ui-testing-pasteboard", "--ui-testing-host-menu"]
@@ -1450,7 +1573,12 @@ import XCTest
             }
         #endif
 
-        private func pointerCell(in element: XCUIElement, column: Int, fraction: CGFloat = 0.5) -> XCUICoordinate {
+        private func pointerCell(
+            in element: XCUIElement,
+            column: Int,
+            row: Int = 1,
+            fraction: CGFloat = 0.5,
+        ) -> XCUICoordinate {
             let geometry = app.staticTexts["terminal.grid"]
             XCTAssertTrue(geometry.waitForExistence(timeout: 4))
             let value = geometry.value as? String ?? ""
@@ -1461,7 +1589,7 @@ import XCTest
             }
             let offset = CGVector(
                 dx: numbers[2] + (CGFloat(column) + fraction) * numbers[0],
-                dy: numbers[2] + 1.5 * numbers[1],
+                dy: numbers[2] + (CGFloat(row) + 0.5) * numbers[1],
             )
             #if targetEnvironment(macCatalyst)
                 return element.coordinate(withNormalizedOffset: .zero).withOffset(offset)

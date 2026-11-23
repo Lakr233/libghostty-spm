@@ -205,6 +205,14 @@ state.onOpenURL = { url, _ in
 }
 ```
 
+On iOS a tap on an http or https link opens it without toggling the
+keyboard; a tap elsewhere, a file path included, clicks and toggles the
+keyboard as usual. Any link opens through the touch menu's Open Link, or
+with a tap while ⌘ is armed on the keyboard bar or held on a hardware
+keyboard. A tap finds a link's URL through Ghostty's link preview, so with
+`link-previews = false` only the menu and ⌘ open links, and with
+`link-previews = osc8` a tap opens only OSC 8 hyperlinks.
+
 `TerminalViewState.onHoverLink` hears the link before the click: the URL of
 the highlighted link under the pointer (Cmd held, by default), an OSC 8
 hyperlink's URI whatever text it shows, and `nil` as the pointer leaves it.
@@ -264,16 +272,18 @@ the software keyboard.
 
 On iOS, inline touch selection is on by default (`usesInlineTextSelection`;
 Mac Catalyst uses pointer selection instead). A single tap first clears an active selection
-or dismisses an open edit menu. Otherwise it sends the terminal click and
-toggles the software keyboard, including in mouse-reporting applications.
+or dismisses an open edit menu. On an http or https link it opens the link.
+Otherwise it sends the terminal click and toggles the software keyboard,
+including in mouse-reporting applications.
 Double/triple taps select a word/row. A long press selects the word under
 the finger, a drag before the lift extends the selection and the lift opens
 the edit menu; over blank cells a long press opens the edit menu alone.
 Those gestures do not also toggle the keyboard. Pinch zoom stays available.
 Hosts should not add a second tap-to-focus handler around the terminal view.
 Set `usesInlineTextSelection = false` to turn touch selection off; a tap then
-only clicks and toggles the keyboard. The long-press viewport-snapshot sheet
-(`TerminalTextSelectionRequest`, `TerminalSurfaceTextSelectionRequestDelegate`,
+only opens a link, or clicks and toggles the keyboard. The long-press
+viewport-snapshot sheet (`TerminalTextSelectionRequest`,
+`TerminalSurfaceTextSelectionRequestDelegate`,
 `TerminalViewState.onTextSelectionRequest`) has been removed.
 
 On a Mac with a touch display (macOS 27, or a Sidecar iPad), one finger

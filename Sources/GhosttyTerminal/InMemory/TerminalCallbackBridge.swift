@@ -8,6 +8,12 @@
 import Foundation
 import GhosttyKit
 
+struct TerminalLinkProbe {
+    var found = false
+    var url: String?
+    var opened = false
+}
+
 /// Dispatches C runtime callbacks to a ``TerminalSurfaceViewDelegate``.
 ///
 /// An instance of this class is passed as the `userdata` pointer in the
@@ -25,6 +31,11 @@ final class TerminalCallbackBridge {
     var onRenderRequest: (() -> Void)?
     var onMouseShape: ((ghostty_action_mouse_shape_e) -> Void)?
     var onConfigChange: (() -> Void)?
+    /// Set while a view moves Ghostty's pointer to ask for the link under
+    /// it: the hover it causes stays here. Ghostty sets the pointer shape
+    /// over a link whatever `link-previews` says, and reports the link's
+    /// URL only while `link-previews` previews it.
+    var linkProbe: TerminalLinkProbe?
 
     init(delegate: (any TerminalSurfaceViewDelegate)? = nil) {
         self.delegate = delegate
@@ -129,6 +140,12 @@ final class TerminalCallbackBridge {
 
         case GHOSTTY_ACTION_MOUSE_SHAPE:
             let shape = action.action.mouse_shape
+            if linkProbe != nil {
+                if shape == GHOSTTY_MOUSE_SHAPE_POINTER {
+                    linkProbe?.found = true
+                }
+                return
+            }
             TerminalDebugLog.log(
                 .actions,
                 "callback action=mouse_shape value=\(shape.rawValue)",
@@ -145,6 +162,10 @@ final class TerminalCallbackBridge {
                 let buf = UnsafeBufferPointer(start: ptr, count: Int(payload.len))
                 return String(decoding: buf.map(UInt8.init), as: UTF8.self)
             }()
+            if linkProbe != nil {
+                linkProbe?.url = url
+                return
+            }
             TerminalDebugLog.log(
                 .actions,
                 "callback action=mouse_over_link url=\(url.map { TerminalDebugLog.describe($0) } ?? "nil")",
@@ -240,14 +261,19 @@ final class TerminalCallbackBridge {
             .actions,
             "callback action=open_url kind=\(kind) url=\(TerminalDebugLog.describe(url))",
         )
+        let handled: Bool
         if let handler = delegate as? any TerminalSurfaceOpenURLHandlingDelegate {
-            return handler.terminalShouldHandleOpenURL(url, kind: kind)
+            handled = handler.terminalShouldHandleOpenURL(url, kind: kind)
+        } else if let observer = delegate as? any TerminalSurfaceOpenURLDelegate {
+            observer.terminalDidRequestOpenURL(url, kind: kind)
+            handled = true
+        } else {
+            handled = false
         }
-        guard let observer = delegate as? any TerminalSurfaceOpenURLDelegate else {
-            return false
+        if handled {
+            linkProbe?.opened = true
         }
-        observer.terminalDidRequestOpenURL(url, kind: kind)
-        return true
+        return handled
     }
 
     func handleClose(processAlive: Bool) {

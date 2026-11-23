@@ -41,8 +41,30 @@
             ) { [weak self] _ in
                 _ = self?.copyTouchSelection()
             }
+            let linkPoint: CGPoint? = if selecting {
+                if let before = touchSelection.viewportBeforeSelection, before.offset != touchViewportOffset {
+                    nil
+                } else {
+                    touchSelection.menuPoint ?? point
+                }
+            } else {
+                point
+            }
+            let linkItems: [UIMenuElement] = if let linkPoint, touchLinkExists(at: linkPoint) {
+                [UIAction(
+                    title: String(localized: "Open Link", bundle: .ghosttyTerminal),
+                    image: UIImage(systemName: "safari"),
+                    identifier: UIAction.Identifier("terminal.openLink"),
+                ) { [weak self] _ in
+                    guard let self, let surface else { return }
+                    sendCommandClick(at: linkPoint, mods: .super_, on: surface)
+                    dismissTouchSelection()
+                }]
+            } else {
+                []
+            }
             let pasteItems: [UIMenuElement] = TerminalPasteboardContent.hasContent() ? [paste] : []
-            return selecting ? [copy] + pasteItems + [selectAll] : pasteItems + [select, selectAll]
+            return linkItems + (selecting ? [copy] + pasteItems + [selectAll] : pasteItems + [select, selectAll])
         }
     }
 #endif

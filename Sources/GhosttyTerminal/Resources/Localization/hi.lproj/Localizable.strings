@@ -4,6 +4,8 @@
 <dict>
 	<key>Copy</key>
 	<string>कॉपी करें</string>
+	<key>Open Link</key>
+	<string>लिंक खोलें</string>
 	<key>Paste</key>
 	<string>पेस्ट करें</string>
 	<key>Select</key>

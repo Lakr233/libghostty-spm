@@ -4,6 +4,8 @@
 <dict>
 	<key>Copy</key>
 	<string>コピー</string>
+	<key>Open Link</key>
+	<string>リンクを開く</string>
 	<key>Paste</key>
 	<string>ペースト</string>
 	<key>Select</key>

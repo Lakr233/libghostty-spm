@@ -84,12 +84,13 @@
         #endif
 
         /// Terminal-local touch selection and the native edit menu on iOS, on by default.
-        /// Single tap clears selection or a menu, otherwise clicks and toggles the keyboard.
+        /// Single tap clears selection or a menu, otherwise opens an http or https link,
+        /// or clicks and toggles the keyboard.
         /// Double tap selects a word, triple tap selects a row.
         /// Selection gestures and menus leave keyboard visibility unchanged.
         /// Long press selects a word, or opens the menu over blank cells;
         /// one finger extends a selection and two fingers scroll locally.
-        /// Set false to opt out: no touch selection at all, a tap clicks and toggles the keyboard.
+        /// Set false to opt out: no touch selection at all, a tap opens a link or clicks and toggles the keyboard.
         /// Mac Catalyst always uses the pointer selection path; there this stays false.
         open var usesInlineTextSelection: Bool {
             get { touchSelection.enabled }
@@ -127,7 +128,7 @@
 
         /// Builds the menu when no text is selected, on iOS 16 and later.
         /// Override to localize, group or reorder the default actions and system menus.
-        /// Action identifiers are terminal.paste, terminal.select and terminal.selectAll.
+        /// Action identifiers are terminal.openLink, terminal.paste, terminal.select and terminal.selectAll.
         /// The returned elements include UIKit's AutoFill menu when available.
         /// The host owns the complete menu, including grouping and separators.
         open func touchMenuItems(for context: TerminalTouchMenuContext) -> [UIMenuElement] {
@@ -135,7 +136,7 @@
         }
 
         /// Builds the menu while text is selected, independently of touchMenuItems(for:).
-        /// Action identifiers are terminal.copy, terminal.paste and terminal.selectAll.
+        /// Action identifiers are terminal.openLink, terminal.copy, terminal.paste and terminal.selectAll.
         /// The returned elements include UIKit's AutoFill menu when available.
         /// Use the context's text snapshot in host handlers and capture owners weakly.
         open func touchSelectionMenuItems(for context: TerminalTouchSelectionMenuContext) -> [UIMenuElement] {

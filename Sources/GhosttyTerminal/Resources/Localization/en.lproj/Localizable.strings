@@ -4,6 +4,8 @@
 <dict>
 	<key>Copy</key>
 	<string>Copy</string>
+	<key>Open Link</key>
+	<string>Open Link</string>
 	<key>Paste</key>
 	<string>Paste</string>
 	<key>Select</key>

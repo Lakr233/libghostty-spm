@@ -478,7 +478,12 @@ so in the code — "it's just text" is the mistake this section exists to preven
   left click first (`sendTapClick`: mouse position, press, release) and a
   keyboard toggle second, in both directions. A mouse-tracking TUI gets the
   press before the keyboard's resize; the shell sees click-to-move at its
-  prompt. With inline selection on (the iOS default) the single-tap
+  prompt. The click carries the pointer's modifiers and the accessory bar's
+  sticky ones, spent as a key spends them; with ⌘ among them it is a
+  Command-click on the cell under the finger, not clamped to the cursor's
+  row (`tapClickPoint`), and no keyboard toggle follows. Without
+  modifiers, a tap on an http or https link Command-clicks it the same way
+  (see "Opening Links"). With inline selection on (the iOS default) the single-tap
   recognizer in `+TouchGestures` sends it, after clearing a selection or
   menu (see "iOS Touch Text Selection"). With it off, `touchesEnded` in
   `+Interaction` does, from a tap candidate in `SoftwareKeyboardState`:
@@ -831,6 +836,30 @@ detected in the text) and `.osc8` with `error.UntrustedLink` and spawns
 open only when the host takes them. Tests in
 `Tests/GhosttyKitTest/Surface/TerminalOpenURLDelegateTests.swift`.
 
+On iOS a finger Command-clicks three ways (`UITerminalView+TouchLink`): the
+touch menu leads with Open Link (`terminal.openLink`) when a link lies at
+its point — for a selection, where the selection began
+(`touchSelection.menuPoint`) while the viewport has not moved, not where a
+handle was let go — a tap with
+⌘ armed on the accessory bar, or held on a hardware keyboard, leaves the
+keyboard alone, and so does a tap without modifiers on an http or https
+link when the host handles it (`openWebLink`, `linkProbe.opened`). Any other link a plain tap lands on, a file path in
+particular, is clicked plainly and toggles the keyboard: Ghostty's default
+link regex matches paths, and tapping the prompt must still raise the
+keyboard. Ghostty matches a link only under ⌘ alone
+(`ctrlOrSuper` is super on Darwin) and with the mouse untracked, and looks
+again only when the pointer reaches another cell (`link_point`), behind
+the embedded apprt's drop of sub-pixel moves, so each probe and click moves
+the pointer in from (-1, -1) and back out. Meanwhile the bridge's
+`linkProbe` keeps the `MOUSE_SHAPE` and `MOUSE_OVER_LINK` it causes from
+the pointer interaction and `onHoverLink`. The pointer shape, which Ghostty
+sets over any link whatever `link-previews` says, answers whether there is
+a link; its URL comes only with `MOUSE_OVER_LINK`, which Ghostty sends for
+a matched link while `link-previews` is `true` and for an OSC 8 hyperlink
+unless it is `false`, so a plain tap opens no link the config keeps from
+previewing. Ghostty reads an OSC 8 link's URI from the cell, so a link a
+program wraps across rows with hard line breaks opens whole.
+
 The link under the pointer is `GHOSTTY_ACTION_MOUSE_OVER_LINK`
 (`TerminalSurfaceHoverLinkDelegate`), and `TerminalViewState` forwards it to
 `onHoverLink`: the URL while a highlighted link is under the pointer, nil
@@ -905,8 +934,9 @@ direct-touch selection. Long press (0.7 s) selects the word under the finger,
 a drag before the lift extends it, and the lift presents a native
 `UIEditMenuInteraction`; over blank cells it presents the menu alone.
 Double/triple taps select a word/row, and a
-single tap clears selection or dismisses its menu; otherwise it sends the
-terminal click before toggling the keyboard, including in mouse-captured TUIs.
+single tap clears selection or dismisses its menu; otherwise it opens the
+http or https link under it, or sends the terminal click before toggling the
+keyboard, including in mouse-captured TUIs.
 One-finger pans extend an active selection around a fixed endpoint; two-finger
 pans scroll local history using `scrollToRow`, without reporting mouse events.
 `TouchSelectionState` owns this state. Selection reads exact screen cells and
@@ -934,7 +964,8 @@ UIKit owns menu folding, overflow and expansion. Preserve its supplied AutoFill
 menu; override the independent `touchMenuItems(for:)` and
 `touchSelectionMenuItems(for:)` methods before/after selection. Like the AppKit
 menu hook, each returns default actions that the host can localize by identifier
-(`terminal.copy`, `terminal.paste`, `terminal.select`, `terminal.selectAll`) and
+(`terminal.openLink`, `terminal.copy`, `terminal.paste`, `terminal.select`,
+`terminal.selectAll`) and
 extend. The contexts carry `systemMenuItems`, and the default return values include
 those system menus after the terminal actions. The host's final return value is
 presented as-is; the wrapper does not append AutoFill again. Preserve returned
@@ -948,8 +979,8 @@ the selection, the system loupe (`UITextLoupeSession`, iOS 17+, not visionOS)
 magnifies the moving endpoint (`+TouchSelectionLoupe`); the endpoint is the
 bound the drag carried away from `pivot`. `usesTouchSelectionLoupe` turns it off and
 `touchSelectionLoupeCaretRect(forEndpointCell:isStart:)` shapes the caret it
-tracks; both are `open` in the class body. The default menu titles (Copy,
-Paste, Select, Select All, and AppKit's Copy) come from
+tracks; both are `open` in the class body. The default menu titles (Open
+Link, Copy, Paste, Select, Select All, and AppKit's Copy) come from
 `Resources/Localization/<lang>.lproj/Localizable.strings` through
 `String(localized:bundle: .ghosttyTerminal)`,
 in the 18 languages `TerminalLocalizationTests` lists; a new title gets every
@@ -970,8 +1001,8 @@ the gesture and menu contracts.
 Setting `usesInlineTextSelection = false` opts out of touch selection
 entirely: the tap recognizers are disabled, the long-press recognizer never
 begins (`gestureRecognizerShouldBegin`), the scroll pan takes one finger,
-and a single tap is the tap-candidate click and keyboard toggle in
-`touchesEnded`. There is no fallback UI. Mac Catalyst keeps its pointer
+and a single tap is the tap candidate in `touchesEnded`, opening a link or
+clicking and toggling the keyboard as above. There is no fallback UI. Mac Catalyst keeps its pointer
 selection path; the property stays false there and setting it does nothing.
 
 The earlier long-press flow that handed a viewport snapshot to a host sheet
