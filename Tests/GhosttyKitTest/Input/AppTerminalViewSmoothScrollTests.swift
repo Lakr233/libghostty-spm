@@ -373,7 +373,7 @@
             withKnownIssue("the main thread was away for \(longestAway) at a time", isIntermittent: true) {
                 #expect(moved < .milliseconds(40), "the snap waited \(moved) before it moved")
             } when: {
-                longestAway > .milliseconds(20)
+                longestAway > .milliseconds(20) || ScrollRig.timingIsUnreliable
             }
             #expect(await rig.settles())
             #expect(before - (rig.firstVisibleLine ?? before) == 3)
@@ -555,7 +555,7 @@
                     "momentum ended at \(Int(endSpeed)) px/s (steps \(endGaps)), the snap reached \(Int(peak)) px/s",
                 )
             } when: {
-                endWasUneven
+                endWasUneven || ScrollRig.timingIsUnreliable
             }
             #expect(await rig.settles())
             #expect(before - (rig.firstVisibleLine ?? before) == (rig.sentPixels + row - 1) / row)
@@ -727,6 +727,16 @@
         /// back 21 to 29 ms later on a loaded Mac and about 50 ms later
         /// on a CI runner, so a lift meant to be still moving was a stop
         /// and a momentum tail was half as fast as it said.
+        /// A hosted CI runner, a virtual Mac: paced evenly and with the
+        /// main thread never away 20 ms between looks, a snap there still
+        /// first moved 71 ms after the lift, and one after an even
+        /// momentum tail read as 1.8 times its speed. How soon a snap
+        /// moves and how fast it goes are bounds measured on a Mac; on a
+        /// runner a miss is recorded as a known issue. Where it goes,
+        /// that it never goes back and where it lands are checked
+        /// everywhere.
+        static let timingIsUnreliable = ProcessInfo.processInfo.environment["GITHUB_ACTIONS"] == "true"
+
         static func spin(_ interval: Duration, from since: ContinuousClock.Instant) {
             let until = since + interval
             while ContinuousClock.now < until {}
