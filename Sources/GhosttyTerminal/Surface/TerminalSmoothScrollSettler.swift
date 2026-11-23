@@ -80,6 +80,11 @@ final class TerminalSmoothScrollSettler {
     /// The precision scrolls of the last `velocityWindow`.
     private var recentScrolls: [(time: CFTimeInterval, pixels: Double)] = []
     private var settleToken = 0
+    /// Which way the settle last scheduled was to go: on the way the
+    /// viewport went, or to the nearer row.
+    private var settleFollowsTravel = false
+    /// What a lift that never moved resumes (`touchDown`).
+    private(set) var touchFollowsTravel = false
 
     private(set) var snapTimer: Timer?
     /// The row the snap lands on, and the scroll it set out to make.
@@ -118,6 +123,17 @@ final class TerminalSmoothScrollSettler {
         return pixels / Self.velocityWindow * fade
     }
 
+    /// Fingers came down on the viewport; call before the `hold` that
+    /// stops whatever moved it. A lift that never moves resumes it: on
+    /// the way the viewport was going while it was still `moving`
+    /// (momentum) or a snap that way was pending or under way, and to the
+    /// nearer row otherwise, the way a snap from a stop was already
+    /// heading. Sent the way of the travel, that snap turned round, by up
+    /// to a whole row.
+    func touchDown(moving: Bool) {
+        touchFollowsTravel = moving || settleFollowsTravel
+    }
+
     /// A gesture is moving the viewport: nothing settles until `release`.
     func hold() {
         isHeld = true
@@ -151,6 +167,7 @@ final class TerminalSmoothScrollSettler {
 
     private func schedule(after delay: TimeInterval, followingTravel: Bool) {
         settleToken += 1
+        settleFollowsTravel = followingTravel
         guard settlesAutomatically else { return }
         let token = settleToken
         guard delay > 0 else {

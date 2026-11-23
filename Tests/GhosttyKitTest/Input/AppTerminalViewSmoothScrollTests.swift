@@ -422,6 +422,48 @@
             #expect(before - (rig.firstVisibleLine ?? before) == 3)
         }
 
+        /// Dragged to a stop a third of a row past a row and lifted: the
+        /// snap heads back to that row. A touch lands while it runs and
+        /// lifts without moving (cancelled). The snap it stopped was going
+        /// to the nearer row, and so does the lift; sent the way of the
+        /// drag instead, it turned round to the row ahead.
+        @Test(.timeLimit(.minutes(1)))
+        func `a touch on a snap from a stop does not turn it round`() async throws {
+            let harness = await GhosttySurfaceHarness.make()
+            defer { harness.tearDown() }
+            let rig = try await ScrollRig()
+            defer { rig.tearDown() }
+            let before = try #require(rig.firstVisibleLine)
+
+            let slow = 2 * rig.pixelsPerPoint
+            let total = rig.cellHeight * 33 / 10 - slow
+            let steps = 8
+            try rig.scroll(0, phase: .began)
+            for step in 0 ..< steps {
+                try rig.scroll(pixels: total * (step + 1) / steps - total * step / steps, phase: .changed)
+            }
+            for _ in 0 ..< 2 {
+                try rig.scroll(pixels: rig.pixelsPerPoint, phase: .changed)
+            }
+            try await Task.sleep(for: .milliseconds(120))
+            try rig.scroll(0, phase: .ended)
+
+            // Toward the scrollback the engine's position falls, so the
+            // snap back to the nearer row raises it.
+            let lifted = try rig.pixels()
+            let underWay = await ScrollRig.wait(seconds: 1) { [rig] in
+                rig.settler.isSnapping && (rig.position?.pixels ?? lifted) > lifted + 1
+            }
+            try #require(underWay, "the snap back never got under way")
+            try rig.scroll(0, phase: .mayBegin)
+            try #require(!rig.settler.isSnapping && rig.fraction != 0, "the touch did not stop the snap between rows")
+            try await Task.sleep(for: .milliseconds(100))
+
+            try rig.scroll(0, phase: .cancelled)
+            #expect(await rig.settles())
+            #expect(before - (rig.firstVisibleLine ?? before) == 3, "\(rig.sentPixels) px over \(rig.cellHeight) px rows")
+        }
+
         /// Momentum running out at about 55 pt/s, most of a row short of
         /// the row ahead. Eased out over 180 ms, the snap started at three
         /// times its average and went faster than the momentum had (150

@@ -20,8 +20,10 @@
     /// settler and carries on from wherever the snap got to, the same way.
     /// When they lift from a viewport dragged to a stop it waits
     /// `smoothScrollLiftDelay` for momentum, then goes to the nearer row. A
-    /// touch that stopped momentum and lifted goes on to the row ahead the
-    /// way the momentum went. A precise event with no phase at all (a
+    /// touch that lifts without moving resumes what it stopped: after
+    /// momentum, or a snap on the way it went, on to the row ahead that
+    /// way; after a snap from a stop, on to the nearer row it was heading
+    /// for. A precise event with no phase at all (a
     /// synthesized pixel scroll, a smooth-scrolling utility) is left to the
     /// settler's own idle delay.
     extension AppTerminalView {
@@ -42,6 +44,9 @@
         /// Before the event's scroll goes to the surface.
         func smoothScrollWillScroll(_ event: NSEvent) {
             guard event.hasPreciseScrollingDeltas else { return }
+            if !event.phase.isDisjoint(with: [.mayBegin, .began]) {
+                core.scrollSettler.touchDown(moving: smoothScrollIsMoving)
+            }
             let gesture: NSEvent.Phase = [.mayBegin, .began, .changed, .stationary]
             if !event.phase.isDisjoint(with: gesture) || !event.momentumPhase.isDisjoint(with: [.began, .changed]) {
                 core.scrollSettler.hold()
@@ -64,15 +69,23 @@
                 // one sets off at once rather than pausing for momentum: the
                 // momentum that follows holds the settler and carries on the
                 // same way from wherever the snap got to.
-                let pixelsPerPoint = Double(currentScaleFactor())
-                let moving = abs(settler.velocity()) >= Self.smoothScrollMovingSpeed * pixelsPerPoint
+                let moving = smoothScrollIsMoving
                 settler.release(after: moving ? 0 : Self.smoothScrollLiftDelay, followingTravel: moving)
             } else if event.phase.contains(.cancelled) {
-                // Fingers rested on a moving scroll and lifted: on the way
-                // it was going, as momentum that ends. To the nearer row,
-                // half the time that went back against the momentum.
-                settler.release(followingTravel: true)
+                // Fingers rested on the viewport and lifted: on with what
+                // they stopped (`touchDown`). Momentum, or the snap after
+                // it, goes on the way it went: to the nearer row, half the
+                // time that went back against it. A snap from a stop goes
+                // on to the nearer row it was heading for: sent the way of
+                // the drag, it turned round.
+                settler.release(followingTravel: settler.touchFollowsTravel || smoothScrollIsMoving)
             }
+        }
+
+        /// The viewport moves at `smoothScrollMovingSpeed` or more.
+        private var smoothScrollIsMoving: Bool {
+            let pixelsPerPoint = Double(currentScaleFactor())
+            return abs(core.scrollSettler.velocity()) >= Self.smoothScrollMovingSpeed * pixelsPerPoint
         }
     }
 #endif

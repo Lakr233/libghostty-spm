@@ -571,8 +571,10 @@ so in the code — "it's just text" is the mistake this section exists to preven
   `AppTerminalView+SmoothScroll.swift` tells the settler about the
   trackpad's phases (a lift at 30 pt/s or more and momentum's end settle
   at once, momentum that follows holding the settler again; a lift from a
-  stop waits 80 ms for momentum; a touch that stopped momentum and lifted,
-  `.cancelled`, goes on the way the momentum went), `+DirectTouch` about
+  stop waits 80 ms for momentum; a touch that lifts without moving,
+  `.cancelled`, resumes what it stopped (`touchDown`): momentum or a snap
+  on the way it went goes on that way, a snap from a stop on to the nearer
+  row it was heading for, never turned round), `+DirectTouch` about
   the finger and its glide. UIKit:
   `+Scroll` for the wheel, the touch pan and its momentum, `+ScrollSettle`
   for the rest. A wheel notch, a program tracking the mouse and a screen
