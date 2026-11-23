@@ -8,6 +8,11 @@
 import Foundation
 import GhosttyKit
 
+struct TerminalLinkProbe {
+    var found = false
+    var url: String?
+}
+
 /// Dispatches C runtime callbacks to a ``TerminalSurfaceViewDelegate``.
 ///
 /// An instance of this class is passed as the `userdata` pointer in the
@@ -26,9 +31,10 @@ final class TerminalCallbackBridge {
     var onMouseShape: ((ghostty_action_mouse_shape_e) -> Void)?
     var onConfigChange: (() -> Void)?
     /// Set while a view moves Ghostty's pointer to ask for the link under
-    /// it: the hover it causes stays here, and the pointer shape, which
-    /// Ghostty sets over a link whatever `link-previews` says, turns it true.
-    var linkProbe: Bool?
+    /// it: the hover it causes stays here. Ghostty sets the pointer shape
+    /// over a link whatever `link-previews` says, and reports the link's
+    /// URL only while `link-previews` previews it.
+    var linkProbe: TerminalLinkProbe?
 
     init(delegate: (any TerminalSurfaceViewDelegate)? = nil) {
         self.delegate = delegate
@@ -133,8 +139,10 @@ final class TerminalCallbackBridge {
 
         case GHOSTTY_ACTION_MOUSE_SHAPE:
             let shape = action.action.mouse_shape
-            if let probe = linkProbe {
-                linkProbe = probe || shape == GHOSTTY_MOUSE_SHAPE_POINTER
+            if linkProbe != nil {
+                if shape == GHOSTTY_MOUSE_SHAPE_POINTER {
+                    linkProbe?.found = true
+                }
                 return
             }
             TerminalDebugLog.log(
@@ -146,7 +154,6 @@ final class TerminalCallbackBridge {
                 .terminalDidChangeMouseShape(TerminalMouseShape(shape))
 
         case GHOSTTY_ACTION_MOUSE_OVER_LINK:
-            guard linkProbe == nil else { return }
             let payload = action.action.mouse_over_link
             let urlPointer: UnsafePointer<CChar>? = payload.url
             let url: String? = {
@@ -154,6 +161,10 @@ final class TerminalCallbackBridge {
                 let buf = UnsafeBufferPointer(start: ptr, count: Int(payload.len))
                 return String(decoding: buf.map(UInt8.init), as: UTF8.self)
             }()
+            if linkProbe != nil {
+                linkProbe?.url = url
+                return
+            }
             TerminalDebugLog.log(
                 .actions,
                 "callback action=mouse_over_link url=\(url.map { TerminalDebugLog.describe($0) } ?? "nil")",

@@ -215,28 +215,34 @@
             /// One left click at `point`, the way a finger tap reaches the
             /// terminal: a press and a release with no drag between them.
             /// Any pointer-drag selection is over by definition — ghostty
-            /// clears its selection on the click.
+            /// clears its selection on the click. Returns true when the tap
+            /// opened a link or carried ⌘, which leave the keyboard alone.
             func sendTapClick(at point: CGPoint) -> Bool {
                 guard let surface else { return false }
                 var mods = TerminalInputModifiers(rawValue: pointerMods().rawValue)
                 mods.formUnion(stickyModifiers.consumeForNextKey())
-                if mods.contains(.super_), !surface.isMouseCaptured {
-                    sendCommandClick(at: point, mods: mods, on: surface)
-                } else {
-                    sendPointerPosition(at: tapClickPoint(for: point, on: surface))
-                    surface.sendMouseButton(
-                        state: GHOSTTY_MOUSE_PRESS,
-                        button: GHOSTTY_MOUSE_LEFT,
-                        modifiers: mods,
-                    )
-                    surface.sendMouseButton(
-                        state: GHOSTTY_MOUSE_RELEASE,
-                        button: GHOSTTY_MOUSE_LEFT,
-                        modifiers: mods,
-                    )
-                }
                 pointer.lastSelectionRect = nil
                 pointer.selectionStartPoint = nil
+                if !surface.isMouseCaptured {
+                    if mods.contains(.super_) {
+                        sendCommandClick(at: point, mods: mods, on: surface)
+                        return true
+                    }
+                    if mods.isDisjoint(with: [.shift, .ctrl, .alt]), openWebLink(at: point, on: surface) {
+                        return true
+                    }
+                }
+                sendPointerPosition(at: tapClickPoint(for: point, on: surface))
+                surface.sendMouseButton(
+                    state: GHOSTTY_MOUSE_PRESS,
+                    button: GHOSTTY_MOUSE_LEFT,
+                    modifiers: mods,
+                )
+                surface.sendMouseButton(
+                    state: GHOSTTY_MOUSE_RELEASE,
+                    button: GHOSTTY_MOUSE_LEFT,
+                    modifiers: mods,
+                )
                 return mods.contains(.super_)
             }
 
