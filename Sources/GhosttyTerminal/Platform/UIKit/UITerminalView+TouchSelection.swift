@@ -66,7 +66,12 @@
             )
         }
 
-        func beginTouchSelection(at point: CGPoint, selectAll: Bool, selectLine: Bool = false) {
+        func beginTouchSelection(
+            at point: CGPoint,
+            selectAll: Bool,
+            selectLine: Bool = false,
+            fromLongPress: Bool = false,
+        ) {
             guard usesInlineTextSelection, window != nil, let surface, let grid = touchSelectionGrid() else { return }
             stopMomentumScrolling(settle: .none)
             let point = settleScrollNow(keeping: point)
@@ -89,6 +94,10 @@
                    !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                 {
                     range = word
+                } else if fromLongPress {
+                    dismissTouchSelection(restoringViewport: false)
+                    presentTouchMenu(at: point)
+                    return
                 } else {
                     let visibleRows = viewportOffset ..< min(total, viewportOffset + grid.rows)
                     guard let row = surface.nearestTextRow(
@@ -116,7 +125,7 @@
             touchSelection.grid = grid
             touchSelection.surface = surface
             touchSelection.text = text
-            touchSelection.pivot = surface.glyphCells(at: range.lowerBound, columns: grid.columns)
+            touchSelection.pivot = fromLongPress ? range : surface.glyphCells(at: range.lowerBound, columns: grid.columns)
             touchSelection.selectsRows = selectLine
             touchSelection.menuPoint = point
             let overlay = TerminalTouchSelectionOverlay(frame: bounds)
@@ -124,7 +133,12 @@
             touchSelection.overlay = overlay
             addSubview(overlay)
             overlay.update(grid: grid, range: range, offset: viewportOffset, textCells: touchSelectionTextCells)
-            presentTouchSelectionMenu(at: point)
+            if fromLongPress {
+                touchSelection.endpoint = .end
+                beginTouchSelectionLoupe(at: point, from: nil)
+            } else {
+                presentTouchSelectionMenu(at: point)
+            }
         }
 
         /// Takes the selection down. With `restoringViewport`, a viewport a

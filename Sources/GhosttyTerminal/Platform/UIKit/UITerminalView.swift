@@ -87,7 +87,8 @@
         /// Single tap clears selection or a menu, otherwise clicks and toggles the keyboard.
         /// Double tap selects a word, triple tap selects a row.
         /// Selection gestures and menus leave keyboard visibility unchanged.
-        /// Long press opens the menu; one finger extends a selection and two fingers scroll locally.
+        /// Long press selects a word, or opens the menu over blank cells;
+        /// one finger extends a selection and two fingers scroll locally.
         /// Set false to opt out: no touch selection at all, a tap clicks and toggles the keyboard.
         /// Mac Catalyst always uses the pointer selection path; there this stays false.
         open var usesInlineTextSelection: Bool {

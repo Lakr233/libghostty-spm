@@ -9,7 +9,7 @@
 
         extension UITerminalView {
             /// Direct-touch grammar: single tap for selection dismissal/keyboard,
-            /// double tap for a word, triple tap for a row, long press for the menu.
+            /// double tap for a word, triple tap for a row, long press for a word or the menu.
             func setupTouchSelectionGestures() {
                 for count in 1 ... 3 {
                     let tap = UITapGestureRecognizer(target: self, action: #selector(handleSelectionTap(_:)))

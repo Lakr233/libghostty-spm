@@ -253,7 +253,7 @@ Files in `Platform/UIKit/`:
 - `UITerminalView+UITextInput.swift` — full UITextInput conformance (UIKeyInput, marked text, positions, geometry), `TextInputBridgeState`
 - `UITerminalView+Keyboard.swift` — hardware key handling via UIPress, Ctrl `UIKeyCommand`s, input-method key deferral, modifier translation; `HardwareKeyboardState`, `SoftwareKeyboardState`
 - `InputAccessory/UITerminalView+InputAccessory.swift` — input accessory bar integration (iOS only), key actions, sticky modifier dispatch, `sendSyntheticKey` / `sendControlByte` / `sendModifiedTextKey`
-- `UITerminalView+Interaction.swift` — tap-to-click and keyboard toggle, touch scrolling, momentum scroll via CADisplayLink, scroll-wheel recognizer, indirect-pointer selection, long-press menu, copy/paste actions; `PointerInteractionState`, `MomentumScrollState`
+- `UITerminalView+Interaction.swift` — tap-to-click and keyboard toggle, touch scrolling, momentum scroll via CADisplayLink, scroll-wheel recognizer, indirect-pointer selection, long-press word selection, copy/paste actions; `PointerInteractionState`, `MomentumScrollState`
 - `UITerminalView+ScrollSettle.swift` — bringing a viewport left between rows to a row when a scroll stops: through the system scroll view when it drives the viewport, else through the coordinator's `TerminalSmoothScrollSettler`
 - `UITerminalView+SystemScroll.swift` — one-finger scrolling over scrollback through a hidden `UIScrollView` (`TerminalScrollDriverView`; iOS and visionOS, not Catalyst): whether it takes a drag, installing it; `SystemScrollState`. `+SystemScrollDelegate` (`TerminalScrollDriverDelegate`, a separate object) maps its offset onto the engine's position (`TerminalScrollOffsetMapping` in `Metrics/`, unit-tested), `+SystemScrollAlign` stops it and aligns it to a row, `+SystemScrollSync` brings it to the engine at rest and shows the rubber band
 - `UITerminalView+Drop.swift` — drag and drop: files staged to paths, text and links as text (see "Key Path vs Text Path")
@@ -901,8 +901,10 @@ covers it, at a content scale of 2 for the units.
 
 Inline touch selection is the iOS default: `UITerminalView.usesInlineTextSelection`
 starts true, and `+TouchGestures`, `+TouchSelection` and `+TouchMenu` own
-direct-touch selection. Long press (0.7 s) presents a
-native `UIEditMenuInteraction`; double/triple taps select a word/row, and a
+direct-touch selection. Long press (0.7 s) selects the word under the finger,
+a drag before the lift extends it, and the lift presents a native
+`UIEditMenuInteraction`; over blank cells it presents the menu alone.
+Double/triple taps select a word/row, and a
 single tap clears selection or dismisses its menu; otherwise it sends the
 terminal click before toggling the keyboard, including in mouse-captured TUIs.
 One-finger pans extend an active selection around a fixed endpoint; two-finger
@@ -941,10 +943,10 @@ on `pasteFromPasteboard`. While a selection is active the menu targets the
 whole highlight plus both handles (`touchMenuTargetRect`, the edit-menu
 delegate's `targetRectFor`), so UIKit places it clear of the selection —
 pointed at the touch it covered the lower handle and nothing could drag it.
-While a finger drags a handle or a one-finger pan extends the selection, the
-system loupe (`UITextLoupeSession`, iOS 17+, not visionOS) magnifies the moving
-endpoint (`+TouchSelectionLoupe`); the endpoint is the bound the drag carried
-away from `pivot`. `usesTouchSelectionLoupe` turns it off and
+While a finger drags a handle, or a one-finger pan or held long press extends
+the selection, the system loupe (`UITextLoupeSession`, iOS 17+, not visionOS)
+magnifies the moving endpoint (`+TouchSelectionLoupe`); the endpoint is the
+bound the drag carried away from `pivot`. `usesTouchSelectionLoupe` turns it off and
 `touchSelectionLoupeCaretRect(forEndpointCell:isStart:)` shapes the caret it
 tracks; both are `open` in the class body. The default menu titles (Copy,
 Paste, Select, Select All, and AppKit's Copy) come from
