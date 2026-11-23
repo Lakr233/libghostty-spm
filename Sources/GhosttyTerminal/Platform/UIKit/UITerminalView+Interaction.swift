@@ -264,14 +264,30 @@
                 return CGPoint(x: cursor.x, y: cursor.y - cursor.height / 2)
             }
 
-            /// Long press opens the touch menu; with inline selection off
-            /// the recognizer never begins (see `gestureRecognizerShouldBegin`).
+            /// Long press selects the word under the finger, or opens the touch
+            /// menu over blank cells; with inline selection off the recognizer
+            /// never begins (see `gestureRecognizerShouldBegin`).
             @objc func handleLongPressForSelection(
                 _ gesture: UILongPressGestureRecognizer,
             ) {
-                guard gesture.state == .began, usesInlineTextSelection else { return }
-                softwareKeyboard.tapCandidateArmed = false
-                presentTouchMenu(at: gesture.location(in: self))
+                guard usesInlineTextSelection else { return }
+                let point = gesture.location(in: self)
+                switch gesture.state {
+                case .began:
+                    softwareKeyboard.tapCandidateArmed = false
+                    beginTouchSelection(at: point, selectAll: false, fromLongPress: true)
+                case .changed:
+                    guard touchSelection.endpoint != nil else { return }
+                    touchSelection.dragPoint = point
+                    extendTouchSelection(to: point, endpoint: .end)
+                    moveTouchSelectionLoupe(to: point)
+                    startTouchSelectionScrolling()
+                case .ended, .cancelled, .failed:
+                    guard touchSelection.endpoint != nil else { return }
+                    finishTouchSelectionDrag(at: point)
+                default:
+                    break
+                }
             }
         #endif
 
