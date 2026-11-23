@@ -335,11 +335,12 @@
             let row = rig.cellHeight
             try rig.scroll(0, phase: .began)
             var step = 0
-            // Two rows and a bit, the last event a single point.
+            // Two rows and a bit, the last event a single point, 8 ms
+            // apart by the clock (`ScrollRig.spin`).
             while rig.sentPixels < 2 * row + max(point, row / 5) {
                 try rig.scroll(pixels: (step % 3 == 2 ? 2 : 1) * point, phase: .changed)
+                ScrollRig.spin(.milliseconds(8), from: .now)
                 step += 1
-                try await Task.sleep(for: .milliseconds(8))
             }
             try rig.scroll(pixels: point, phase: .changed)
             let past = rig.sentPixels % row
@@ -347,18 +348,33 @@
             let start = try rig.pixels()
 
             try rig.scroll(0, phase: .ended)
+            // At once: the snap is under way before the lift returns, not
+            // after the wait for momentum.
+            #expect(rig.settler.isSnapping, "the lift waited for momentum")
             let lifted = ContinuousClock.now
             var firstMove: Duration?
             var furthest = start
+            // The longest the main thread was away between two looks
+            // before the viewport moved: a snap cannot move while it is.
+            var longestAway = Duration.zero
+            var looked = lifted
             while rig.settler.isSnapping || firstMove == nil, ContinuousClock.now - lifted < .seconds(1) {
                 let now = try rig.pixels()
                 #expect(now <= furthest + 0.01, "the snap went back by \(now - furthest) px")
                 furthest = min(furthest, now)
-                if firstMove == nil, start - now > 0.3 { firstMove = ContinuousClock.now - lifted }
+                if firstMove == nil {
+                    longestAway = max(longestAway, looked.duration(to: .now))
+                    looked = .now
+                    if start - now > 0.3 { firstMove = ContinuousClock.now - lifted }
+                }
                 try await Task.sleep(for: .milliseconds(1))
             }
             let moved = try #require(firstMove, "the viewport never went on")
-            #expect(moved < .milliseconds(40), "the snap waited \(moved) before it moved")
+            withKnownIssue("the main thread was away for \(longestAway) at a time", isIntermittent: true) {
+                #expect(moved < .milliseconds(40), "the snap waited \(moved) before it moved")
+            } when: {
+                longestAway > .milliseconds(20)
+            }
             #expect(await rig.settles())
             #expect(before - (rig.firstVisibleLine ?? before) == 3)
         }
@@ -489,28 +505,26 @@
                 try rig.scroll(pixels: 3 * point, momentum: index == 0 ? .begin : .continuing)
                 try await Task.sleep(for: .milliseconds(12))
             }
-            // The tail, a point every 18 ms, until most of a row is left
-            // to the row ahead. Each step sleeps to 12 ms short of its
-            // time and spins the rest: a loaded host overshoots an 18 ms
-            // sleep by 3 to 11 ms, unevenly.
+            // The tail, a point every 18 ms by the clock
+            // (`ScrollRig.spin`), until most of a row is left to the row
+            // ahead.
             var tail: [ContinuousClock.Instant] = []
             while tail.count < 6 || !(0.6 ... 0.9).contains(rig.fraction / Double(row)) {
                 try #require(tail.count < 200, "the tail never left most of a row to go")
                 try rig.scroll(pixels: point, momentum: .continuing)
                 let sent = ContinuousClock.now
                 tail.append(sent)
-                let next = sent + .milliseconds(18)
-                try await Task.sleep(until: next - .milliseconds(12), clock: .continuous)
-                while ContinuousClock.now < next {}
+                ScrollRig.spin(.milliseconds(18), from: sent)
             }
             // What the momentum ended at: the tail's last four steps, the
             // stretch the settler's 50 ms window slides over at the end.
             // It counts the scrolls in that window, the speed while they
-            // come a frame or so apart, as a trackpad's do. A loaded test
-            // host stretches these 18 ms sleeps, unevenly (to 50 ms and
-            // more): one window then holds two events where the next holds
-            // one, and the snap sets off at up to twice the speed with
-            // nothing wrong. Only an even end is held to the bound.
+            // come a frame or so apart, as a trackpad's do. Steps that came
+            // late anyway (a host that took the thread away from the spin)
+            // come unevenly: one window then holds two events where the
+            // next holds one, and the snap sets off at up to twice the
+            // speed with nothing wrong. Only an even end is held to the
+            // bound.
             let end = Array(tail.suffix(5))
             let endSpan = try end[0].duration(to: #require(end.last))
             let endSpeed = Double((end.count - 1) * point) / endSpan.seconds
@@ -705,6 +719,17 @@
             await Self.wait(seconds: 3) { [self] in
                 !settler.isSnapping && fraction == 0
             }
+        }
+
+        /// Waits until `interval` after `since` without giving up the main
+        /// thread, for events that must come at a set pace. Paced by
+        /// sleeps they came late, and unevenly: an 8 or 18 ms sleep came
+        /// back 21 to 29 ms later on a loaded Mac and about 50 ms later
+        /// on a CI runner, so a lift meant to be still moving was a stop
+        /// and a momentum tail was half as fast as it said.
+        static func spin(_ interval: Duration, from since: ContinuousClock.Instant) {
+            let until = since + interval
+            while ContinuousClock.now < until {}
         }
 
         static func wait(seconds: Double, until condition: @MainActor () -> Bool) async -> Bool {
