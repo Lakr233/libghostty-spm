@@ -4,6 +4,8 @@
 <dict>
 	<key>Copy</key>
 	<string>Salin</string>
+	<key>Open Link</key>
+	<string>Buka Tautan</string>
 	<key>Paste</key>
 	<string>Tempel</string>
 	<key>Select</key>

@@ -4,6 +4,8 @@
 <dict>
 	<key>Copy</key>
 	<string>Kopyala</string>
+	<key>Open Link</key>
+	<string>Bağlantıyı Aç</string>
 	<key>Paste</key>
 	<string>Yapıştır</string>
 	<key>Select</key>

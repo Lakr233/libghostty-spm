@@ -111,11 +111,12 @@
                         // mouse gets its press before the resize the
                         // keyboard causes, and the shell sees the
                         // click-to-move at its prompt either way.
-                        sendTapClick(at: touch.location(in: self))
                         // Overridable: a host keyboard lock overrides
                         // `toggleSoftwareKeyboard()` to swallow the toggle;
-                        // the click above still lands either way.
-                        toggleSoftwareKeyboard()
+                        // the click still lands either way.
+                        if !sendTapClick(at: touch.location(in: self)) {
+                            toggleSoftwareKeyboard()
+                        }
                     }
                 }
             #endif
@@ -215,22 +216,28 @@
             /// terminal: a press and a release with no drag between them.
             /// Any pointer-drag selection is over by definition — ghostty
             /// clears its selection on the click.
-            func sendTapClick(at point: CGPoint) {
-                guard let surface else { return }
-                let mods = pointerMods()
-                sendPointerPosition(at: tapClickPoint(for: point, on: surface))
-                surface.sendMouseButton(
-                    state: GHOSTTY_MOUSE_PRESS,
-                    button: GHOSTTY_MOUSE_LEFT,
-                    mods: mods,
-                )
-                surface.sendMouseButton(
-                    state: GHOSTTY_MOUSE_RELEASE,
-                    button: GHOSTTY_MOUSE_LEFT,
-                    mods: mods,
-                )
+            func sendTapClick(at point: CGPoint) -> Bool {
+                guard let surface else { return false }
+                var mods = TerminalInputModifiers(rawValue: pointerMods().rawValue)
+                mods.formUnion(stickyModifiers.consumeForNextKey())
+                if mods.contains(.super_), !surface.isMouseCaptured {
+                    sendCommandClick(at: point, mods: mods, on: surface)
+                } else {
+                    sendPointerPosition(at: tapClickPoint(for: point, on: surface))
+                    surface.sendMouseButton(
+                        state: GHOSTTY_MOUSE_PRESS,
+                        button: GHOSTTY_MOUSE_LEFT,
+                        modifiers: mods,
+                    )
+                    surface.sendMouseButton(
+                        state: GHOSTTY_MOUSE_RELEASE,
+                        button: GHOSTTY_MOUSE_LEFT,
+                        modifiers: mods,
+                    )
+                }
                 pointer.lastSelectionRect = nil
                 pointer.selectionStartPoint = nil
+                return mods.contains(.super_)
             }
 
             /// Where a tap's click lands. A program tracking the mouse gets

@@ -25,6 +25,10 @@ final class TerminalCallbackBridge {
     var onRenderRequest: (() -> Void)?
     var onMouseShape: ((ghostty_action_mouse_shape_e) -> Void)?
     var onConfigChange: (() -> Void)?
+    /// Set while a view moves Ghostty's pointer to ask for the link under
+    /// it: the hover it causes stays here, and the pointer shape, which
+    /// Ghostty sets over a link whatever `link-previews` says, turns it true.
+    var linkProbe: Bool?
 
     init(delegate: (any TerminalSurfaceViewDelegate)? = nil) {
         self.delegate = delegate
@@ -129,6 +133,10 @@ final class TerminalCallbackBridge {
 
         case GHOSTTY_ACTION_MOUSE_SHAPE:
             let shape = action.action.mouse_shape
+            if let probe = linkProbe {
+                linkProbe = probe || shape == GHOSTTY_MOUSE_SHAPE_POINTER
+                return
+            }
             TerminalDebugLog.log(
                 .actions,
                 "callback action=mouse_shape value=\(shape.rawValue)",
@@ -138,6 +146,7 @@ final class TerminalCallbackBridge {
                 .terminalDidChangeMouseShape(TerminalMouseShape(shape))
 
         case GHOSTTY_ACTION_MOUSE_OVER_LINK:
+            guard linkProbe == nil else { return }
             let payload = action.action.mouse_over_link
             let urlPointer: UnsafePointer<CChar>? = payload.url
             let url: String? = {

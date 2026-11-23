@@ -4,6 +4,8 @@
 <dict>
 	<key>Copy</key>
 	<string>复制</string>
+	<key>Open Link</key>
+	<string>打开链接</string>
 	<key>Paste</key>
 	<string>粘贴</string>
 	<key>Select</key>

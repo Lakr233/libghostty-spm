@@ -205,6 +205,9 @@ state.onOpenURL = { url, _ in
 }
 ```
 
+On iOS a finger opens a link through the touch menu's Open Link, or with a
+tap while ⌘ is armed on the keyboard bar or held on a hardware keyboard.
+
 `TerminalViewState.onHoverLink` hears the link before the click: the URL of
 the highlighted link under the pointer (Cmd held, by default), an OSC 8
 hyperlink's URI whatever text it shows, and `nil` as the pointer leaves it.

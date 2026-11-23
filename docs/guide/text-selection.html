@@ -43,12 +43,12 @@
 <li>Long press (0.7 seconds) opens the edit menu.</li>
 <li>Double tap selects a word; triple tap selects a row.</li>
 <li>Select on whitespace selects the nearest visible row's text, excluding surrounding whitespace. Both handles can then adjust the selection character by character.</li>
-<li>A single tap clears a selection or closes the menu; otherwise it clicks the terminal and toggles the software keyboard.</li>
+<li>A single tap clears a selection or closes the menu; otherwise it clicks the terminal and toggles the software keyboard. With ⌘ armed on the keyboard bar or held on a hardware keyboard, the tap is a ⌘-click that opens the link under it and leaves the keyboard alone.</li>
 <li>With a selection active, one finger drags its handles or extends it; two fingers scroll local history.</li>
 </ul>
 
 <h2 id="menus">Menus</h2>
-<p>Override <code>touchMenuItems(for:)</code> and <code>touchSelectionMenuItems(for:)</code> in a <code>TerminalView</code> subclass to localize, reorder or extend the menu. The default actions carry the identifiers <code>terminal.copy</code>, <code>terminal.paste</code>, <code>terminal.select</code> and <code>terminal.selectAll</code>.</p>
+<p>Override <code>touchMenuItems(for:)</code> and <code>touchSelectionMenuItems(for:)</code> in a <code>TerminalView</code> subclass to localize, reorder or extend the menu. The default actions carry the identifiers <code>terminal.openLink</code>, <code>terminal.copy</code>, <code>terminal.paste</code>, <code>terminal.select</code> and <code>terminal.selectAll</code>. Open Link leads the menu when it opens over a link, or a selection begins on one.</p>
 <pre><code class="language-swift">final class HostTerminalView: TerminalView {
     override func touchSelectionMenuItems(for context: TerminalTouchSelectionMenuContext) -&gt; [UIMenuElement] {
         super.touchSelectionMenuItems(for: context) + [

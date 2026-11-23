@@ -41,8 +41,19 @@
             ) { [weak self] _ in
                 _ = self?.copyTouchSelection()
             }
+            let linkPoint = selecting ? touchSelection.menuPoint ?? point : point
+            let openLink = UIAction(
+                title: String(localized: "Open Link", bundle: .ghosttyTerminal),
+                image: UIImage(systemName: "safari"),
+                identifier: UIAction.Identifier("terminal.openLink"),
+            ) { [weak self] _ in
+                guard let self, let surface else { return }
+                sendCommandClick(at: linkPoint, mods: .super_, on: surface)
+                dismissTouchSelection()
+            }
+            let linkItems: [UIMenuElement] = touchLinkExists(at: linkPoint) ? [openLink] : []
             let pasteItems: [UIMenuElement] = TerminalPasteboardContent.hasContent() ? [paste] : []
-            return selecting ? [copy] + pasteItems + [selectAll] : pasteItems + [select, selectAll]
+            return linkItems + (selecting ? [copy] + pasteItems + [selectAll] : pasteItems + [select, selectAll])
         }
     }
 #endif
