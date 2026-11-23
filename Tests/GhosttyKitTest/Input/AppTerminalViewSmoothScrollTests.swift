@@ -490,16 +490,32 @@
                 try await Task.sleep(for: .milliseconds(12))
             }
             // The tail, a point every 18 ms, until most of a row is left
-            // to the row ahead.
+            // to the row ahead. Each step sleeps to 12 ms short of its
+            // time and spins the rest: a loaded host overshoots an 18 ms
+            // sleep by 3 to 11 ms, unevenly.
             var tail: [ContinuousClock.Instant] = []
             while tail.count < 6 || !(0.6 ... 0.9).contains(rig.fraction / Double(row)) {
                 try #require(tail.count < 200, "the tail never left most of a row to go")
                 try rig.scroll(pixels: point, momentum: .continuing)
-                tail.append(.now)
-                try await Task.sleep(for: .milliseconds(18))
+                let sent = ContinuousClock.now
+                tail.append(sent)
+                let next = sent + .milliseconds(18)
+                try await Task.sleep(until: next - .milliseconds(12), clock: .continuous)
+                while ContinuousClock.now < next {}
             }
-            let span = try tail[0].duration(to: #require(tail.last))
-            let endSpeed = Double((tail.count - 1) * point) / span.seconds
+            // What the momentum ended at: the tail's last four steps, the
+            // stretch the settler's 50 ms window slides over at the end.
+            // It counts the scrolls in that window, the speed while they
+            // come a frame or so apart, as a trackpad's do. A loaded test
+            // host stretches these 18 ms sleeps, unevenly (to 50 ms and
+            // more): one window then holds two events where the next holds
+            // one, and the snap sets off at up to twice the speed with
+            // nothing wrong. Only an even end is held to the bound.
+            let end = Array(tail.suffix(5))
+            let endSpan = try end[0].duration(to: #require(end.last))
+            let endSpeed = Double((end.count - 1) * point) / endSpan.seconds
+            let endGaps = zip(end, end.dropFirst()).map { $0.duration(to: $1) }
+            let endWasUneven = endGaps.contains { $0 > .milliseconds(22) }
             let start = try rig.pixels()
             let left = rig.fraction
 
@@ -519,7 +535,14 @@
             let back = zip(samples, samples.dropFirst()).reduce(0) { $0 + max(0, $1.1.pixels - $1.0.pixels) }
             #expect(back < 0.01, "the snap went back by \(back) px")
             #expect(abs(start - (samples.last?.pixels ?? start) - left) < 0.5, "did not go on to the row ahead")
-            #expect(peak < endSpeed * 1.5, "momentum ended at \(Int(endSpeed)) px/s, the snap reached \(Int(peak)) px/s")
+            withKnownIssue("the tail's last steps came unevenly: \(endGaps)", isIntermittent: true) {
+                #expect(
+                    peak < endSpeed * 1.5,
+                    "momentum ended at \(Int(endSpeed)) px/s (steps \(endGaps)), the snap reached \(Int(peak)) px/s",
+                )
+            } when: {
+                endWasUneven
+            }
             #expect(await rig.settles())
             #expect(before - (rig.firstVisibleLine ?? before) == (rig.sentPixels + row - 1) / row)
         }
