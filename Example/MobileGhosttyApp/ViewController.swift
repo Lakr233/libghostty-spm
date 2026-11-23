@@ -29,6 +29,7 @@ final class ViewController: UIViewController {
     #if DEBUG
         private var gridAccessibility: TerminalGridAccessibilityView?
         private weak var scrollAccessibility: UIView?
+        private var openedURLAccessibility: TerminalOpenedURLAccessibilityView?
     #endif
 
     override func viewDidLoad() {
@@ -163,6 +164,10 @@ final class ViewController: UIViewController {
                 scrollAccessibility = scroll
                 scroll.translatesAutoresizingMaskIntoConstraints = false
                 view.addSubview(scroll)
+                let openedURL = TerminalOpenedURLAccessibilityView()
+                openedURLAccessibility = openedURL
+                openedURL.translatesAutoresizingMaskIntoConstraints = false
+                view.addSubview(openedURL)
                 if ProcessInfo.processInfo.arguments.contains("--ui-testing-scroll-anywhere") {
                     terminalView.configuration.scrollBehavior = .restsAnywhere
                 }
@@ -170,6 +175,10 @@ final class ViewController: UIViewController {
                     terminalView.configuration.scrollBehavior = .rowAtATime
                 }
                 NSLayoutConstraint.activate([
+                    openedURL.topAnchor.constraint(equalTo: view.topAnchor),
+                    openedURL.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+                    openedURL.widthAnchor.constraint(equalToConstant: 1),
+                    openedURL.heightAnchor.constraint(equalToConstant: 1),
                     scroll.topAnchor.constraint(equalTo: view.topAnchor),
                     scroll.leadingAnchor.constraint(equalTo: view.leadingAnchor),
                     scroll.widthAnchor.constraint(equalToConstant: 1),
@@ -249,6 +258,16 @@ final class ViewController: UIViewController {
 
     private func activateTerminal() {
         #if DEBUG
+            if ProcessInfo.processInfo.arguments.contains("--ui-testing-link-fixture") {
+                terminalView.becomeFirstResponder()
+                let text = "\u{1B}[2J\u{1B}[H"
+                    + "https://example.com/tap\r\n"
+                    + "\u{1B}]8;;https://example.com/osc8\u{1B}\\open-here\u{1B}]8;;\u{1B}\\\r\n"
+                    + "\u{1B}]8;;mailto:test@example.com\u{1B}\\mail-link\u{1B}]8;;\u{1B}\\\r\n"
+                    + "alpha beta gamma\r\n"
+                shellSession.terminalSession.receive(text)
+                return
+            }
             if ProcessInfo.processInfo.arguments.contains("--ui-testing-hidden-selection") {
                 var text = "\u{1B}[2J\u{1B}[H" + String(repeating: "touch-copy-ready\r\n", count: 80)
                 if ProcessInfo.processInfo.arguments.contains("--ui-testing-mouse-capture") {
@@ -554,6 +573,30 @@ final class ViewController: UIViewController {
             set {}
         }
     }
+
+    private final class TerminalOpenedURLAccessibilityView: UIView {
+        var urls: [String] = []
+
+        override init(frame: CGRect) {
+            super.init(frame: frame)
+            isAccessibilityElement = true
+            accessibilityTraits = .staticText
+            accessibilityIdentifier = "terminal.openedURL"
+            accessibilityLabel = "Terminal Opened URLs"
+            isUserInteractionEnabled = false
+            alpha = 0.01
+        }
+
+        @available(*, unavailable)
+        required init?(coder _: NSCoder) {
+            fatalError("init(coder:) has not been implemented")
+        }
+
+        override var accessibilityValue: String? {
+            get { urls.joined(separator: "\n") }
+            set {}
+        }
+    }
 #endif
 
 // MARK: - Terminal Callbacks
@@ -561,8 +604,26 @@ final class ViewController: UIViewController {
 extension ViewController:
     TerminalSurfaceTitleDelegate,
     TerminalSurfaceCloseDelegate,
-    TerminalSurfaceGridResizeDelegate
+    TerminalSurfaceGridResizeDelegate,
+    TerminalSurfaceOpenURLHandlingDelegate
 {
+    func terminalShouldHandleOpenURL(_ url: String, kind _: TerminalOpenURLKind) -> Bool {
+        #if DEBUG
+            if ProcessInfo.processInfo.arguments.contains("--ui-testing-open-url") {
+                openedURLAccessibility?.urls.append(url)
+                return !ProcessInfo.processInfo.arguments.contains("--ui-testing-decline-open-url")
+            }
+            if ProcessInfo.processInfo.arguments.contains("--ui-testing") {
+                return false
+            }
+        #endif
+        guard let parsed = URL(string: url),
+              let scheme = parsed.scheme?.lowercased(),
+              scheme == "http" || scheme == "https"
+        else { return false }
+        UIApplication.shared.open(parsed)
+        return true
+    }
     func terminalDidResize(_ size: TerminalGridMetrics) {
         #if DEBUG
             let scale = terminalView.traitCollection.displayScale

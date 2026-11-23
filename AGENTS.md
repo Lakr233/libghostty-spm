@@ -839,10 +839,11 @@ open only when the host takes them. Tests in
 On iOS a finger Command-clicks three ways (`UITerminalView+TouchLink`): the
 touch menu leads with Open Link (`terminal.openLink`) when a link lies at
 its point — for a selection, where the selection began
-(`touchSelection.menuPoint`), not where a handle was let go — a tap with
+(`touchSelection.menuPoint`) while the viewport has not moved, not where a
+handle was let go — a tap with
 ⌘ armed on the accessory bar, or held on a hardware keyboard, leaves the
 keyboard alone, and so does a tap without modifiers on an http or https
-link (`openWebLink`). Any other link a plain tap lands on, a file path in
+link when the host handles it (`openWebLink`, `linkProbe.opened`). Any other link a plain tap lands on, a file path in
 particular, is clicked plainly and toggles the keyboard: Ghostty's default
 link regex matches paths, and tapping the prompt must still raise the
 keyboard. Ghostty matches a link only under ⌘ alone

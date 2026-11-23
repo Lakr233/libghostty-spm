@@ -4,6 +4,7 @@
 //
 
 #if canImport(UIKit)
+    import Foundation
     import GhosttyKit
     import UIKit
 
@@ -23,7 +24,7 @@
         }
 
         /// Command-clicks the http or https link at `point`, and says whether
-        /// there was one.
+        /// the host handled it.
         func openWebLink(at point: CGPoint, on surface: TerminalSurface) -> Bool {
             hoveringLink(at: point, mods: .super_, on: surface) { link in
                 guard let url = link.url,
@@ -31,7 +32,7 @@
                 else { return false }
                 surface.sendMouseButton(state: GHOSTTY_MOUSE_PRESS, button: GHOSTTY_MOUSE_LEFT, modifiers: .super_)
                 surface.sendMouseButton(state: GHOSTTY_MOUSE_RELEASE, button: GHOSTTY_MOUSE_LEFT, modifiers: .super_)
-                return true
+                return core.bridge.linkProbe?.opened == true
             }
         }
 
@@ -47,11 +48,12 @@
             let sent = surfacePoint(point)
             surface.sendMousePos(x: -1, y: -1, mods: GHOSTTY_MODS_NONE)
             core.bridge.linkProbe = TerminalLinkProbe()
+            defer {
+                surface.sendMousePos(x: -1, y: -1, mods: GHOSTTY_MODS_NONE)
+                core.bridge.linkProbe = nil
+            }
             surface.sendMousePos(x: Double(sent.x), y: Double(sent.y), modifiers: mods)
-            let result = body(core.bridge.linkProbe!)
-            surface.sendMousePos(x: -1, y: -1, mods: GHOSTTY_MODS_NONE)
-            core.bridge.linkProbe = nil
-            return result
+            return body(core.bridge.linkProbe!)
         }
     }
 #endif

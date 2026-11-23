@@ -47,7 +47,7 @@ esac
 # LIBGHOSTTY_SIM_IOS=18 picks the newest iOS 18.x runtime; the default is the
 # newest installed.
 RUNTIME=$(xcrun simctl list runtimes available | awk -v version="${LIBGHOSTTY_SIM_IOS:-}" '
-    /^iOS .*com\.apple\.CoreSimulator\.SimRuntime\.iOS/ && index($2, version) == 1 { runtime=$NF }
+    /^iOS .*com\.apple\.CoreSimulator\.SimRuntime\.iOS-[0-9]+(-[0-9]+)+$/ && index($2, version) == 1 { runtime=$NF }
     END { print runtime }')
 [ -n "$RUNTIME" ] || { echo "[!] no available iOS ${LIBGHOSTTY_SIM_IOS:-} simulator runtime"; exit 1; }
 # The first device type the runtime accepts: an older runtime cannot create

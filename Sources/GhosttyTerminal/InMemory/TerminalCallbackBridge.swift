@@ -11,6 +11,7 @@ import GhosttyKit
 struct TerminalLinkProbe {
     var found = false
     var url: String?
+    var opened = false
 }
 
 /// Dispatches C runtime callbacks to a ``TerminalSurfaceViewDelegate``.
@@ -260,14 +261,19 @@ final class TerminalCallbackBridge {
             .actions,
             "callback action=open_url kind=\(kind) url=\(TerminalDebugLog.describe(url))",
         )
+        let handled: Bool
         if let handler = delegate as? any TerminalSurfaceOpenURLHandlingDelegate {
-            return handler.terminalShouldHandleOpenURL(url, kind: kind)
+            handled = handler.terminalShouldHandleOpenURL(url, kind: kind)
+        } else if let observer = delegate as? any TerminalSurfaceOpenURLDelegate {
+            observer.terminalDidRequestOpenURL(url, kind: kind)
+            handled = true
+        } else {
+            handled = false
         }
-        guard let observer = delegate as? any TerminalSurfaceOpenURLDelegate else {
-            return false
+        if handled {
+            linkProbe?.opened = true
         }
-        observer.terminalDidRequestOpenURL(url, kind: kind)
-        return true
+        return handled
     }
 
     func handleClose(processAlive: Bool) {
