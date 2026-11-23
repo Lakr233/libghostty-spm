@@ -29,6 +29,33 @@
             try await checkLift(tenthsOfARow: 33, landsOn: 4, draggedToAStop: false)
         }
 
+        /// Patches/ghostty/0023: a step made with `smoothScrollTracked`
+        /// is numbered, and `smoothScrollPresented` turns true once the
+        /// renderer has handed over a frame that holds it. iOS system
+        /// scrolling waits on that every frame; if it never came true,
+        /// every frame there would wait out its budget.
+        @Test(.timeLimit(.minutes(1)))
+        func `a tracked scroll reports the frame that holds it`() async throws {
+            let harness = await GhosttySurfaceHarness.make()
+            defer { harness.tearDown() }
+            let rig = try await ScrollRig()
+            defer { rig.tearDown() }
+            let surface = try #require(rig.view.surface)
+            let before = try rig.pixels()
+
+            for step in 1 ... 5 {
+                surface.smoothScrollTracked(byPixels: 3)
+                // The mark is set on the renderer's side: waiting here, on
+                // the main thread, is exactly what the scroll view does.
+                let deadline = ContinuousClock.now + .seconds(5)
+                while !surface.smoothScrollPresented() {
+                    try #require(ContinuousClock.now < deadline, "step \(step): no frame holding it was handed over")
+                    usleep(200)
+                }
+            }
+            #expect(try abs(rig.pixels() - before) == 15)
+        }
+
         /// The next touch cuts momentum short while it still moves the
         /// viewport. Snapping to the nearer row would take it back, and the
         /// new gesture forward again: a string of flicks on a Magic Mouse

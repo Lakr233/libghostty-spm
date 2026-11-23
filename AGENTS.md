@@ -656,7 +656,18 @@ so in the code — "it's just text" is the mistake this section exists to preven
   (`holdDisplayLinkForScroll`): UIKit's deceleration otherwise drops to
   80 Hz and then 40 Hz on its way to rest, frames 8 and 17 ms apart in
   turn, and a picture a fixed number of frames behind the scroll view
-  speeds up and slows down with them. Output arriving at the
+  speeds up and slows down with them. Each step goes to the engine
+  numbered (`smoothScrollTracked`, `0023-smooth-scroll-presented.sh`) and
+  `scrollViewDidScroll` then waits for the frame that holds it
+  (`systemScrollWaitForFrame`, `smoothScrollPresented`): the renderer
+  thread queues its present on the main queue, and only a present queued
+  before the callback returns is committed with UIKit's frame instead of
+  a refresh later. The wait ends `frameWaitBudget` into the turn of the
+  run loop (`TerminalMainTurnClock`), counted from the wake so a turn the
+  touch delivery already used up does not wait at all, and stands down
+  for a while after three misses in a row. Do not replace it with a fixed
+  sleep, and do not draw on the main thread instead: `draw()` shows what
+  the renderer thread last updated, not the step just made. Output arriving at the
   bottom under a finger or a bounce is absorbed in
   `SystemScrollState.shiftPixels`. The view's own pan
   (`gestureRecognizerShouldBegin` stands it down otherwise) keeps a
@@ -1138,7 +1149,7 @@ Two release tracks, decoupled since 1.4.0:
   `ghostty_config_load_file` on its rendered config; `ghostty_config_get`
   is bound for `background` alone — `TerminalController.backgroundColor`)
   and `ghostty_surface_quicklook_font` have no Swift wrapper yet. The
-  smooth-scroll functions `0022` adds are bound internally only
+  smooth-scroll functions `0022` and `0023` add are bound internally only
   (`TerminalSurface+SmoothScroll.swift`): a surface that moves by the pixel
   needs something to bring it back to a row, and that is the views'
   settler

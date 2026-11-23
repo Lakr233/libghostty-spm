@@ -47,4 +47,22 @@ extension TerminalSurface {
         guard let surface = rawValue, pixels != 0 else { return }
         ghostty_surface_smooth_scroll_by(surface, pixels)
     }
+
+    /// `smoothScroll(byPixels:)`, numbered (Patches/ghostty/0023), so
+    /// `smoothScrollPresented()` can tell when a frame holding this step
+    /// has been handed to the layer. What UIKit's system scrolling moves
+    /// the viewport with, every frame.
+    func smoothScrollTracked(byPixels pixels: Double) {
+        guard let surface = rawValue, pixels != 0 else { return }
+        ghostty_surface_smooth_scroll_by_tracked(surface, pixels)
+    }
+
+    /// Whether a frame holding the last `smoothScrollTracked(byPixels:)`
+    /// has been handed to the layer: the renderer thread drew it and its
+    /// present is queued on the main queue. Lock-free; ask on the thread
+    /// that scrolls.
+    func smoothScrollPresented() -> Bool {
+        guard let surface = rawValue else { return true }
+        return ghostty_surface_smooth_scroll_presented(surface)
+    }
 }

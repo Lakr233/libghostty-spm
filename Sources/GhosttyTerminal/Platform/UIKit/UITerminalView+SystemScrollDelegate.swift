@@ -71,7 +71,53 @@
                 // place the offset stands for.
                 let delta = position.pixels(to: mapping.enginePixels(offsetPixels: offsetPixels))
                 guard position.isAvailable, abs(delta) > 0.001 else { return }
-                surface?.smoothScroll(byPixels: delta)
+                surface?.smoothScrollTracked(byPixels: delta)
+                systemScrollWaitForFrame()
+            }
+
+            /// How late into a turn of the run loop the wait for a step's
+            /// frame may run. On a 120 Hz iPhone a turn that ends by 6 to
+            /// 7 ms still commits in time and one of 9 ms does not; the
+            /// renderer hands a frame over 2.4 ms after the step at the
+            /// median and 4.6 at the 99th percentile.
+            static let frameWaitBudget: CFTimeInterval = 0.0065
+            static let frameWaitMissLimit = 3
+            static let frameWaitBackoff: CFTimeInterval = 0.25
+
+            /// The step is with the engine; stay here until the frame that
+            /// holds it has been handed to the layer.
+            ///
+            /// The renderer thread draws the step and queues its present on
+            /// the main queue. Returning at once, UIKit commits this frame
+            /// without it and the picture reaches the glass a refresh after
+            /// the scroll view's own content: 34.0 ms from here to the swap
+            /// on a 120 Hz iPhone against 25.7, which a finger dragging back
+            /// and forth sees as the text trailing it at each turn. Waiting,
+            /// the present is queued behind this callback, runs in the same
+            /// turn of the run loop and is committed with it.
+            ///
+            /// Not waited for: a frame later than `frameWaitBudget` into the
+            /// turn (it shows one refresh late, as every frame did before),
+            /// and anything for `frameWaitBackoff` after `frameWaitMissLimit`
+            /// misses in a row — a renderer that cannot keep up, a program
+            /// holding synchronized output, a surface that is not drawing.
+            private func systemScrollWaitForFrame() {
+                guard let surface else { return }
+                let start = CACurrentMediaTime()
+                guard start >= systemScroll.frameWaitSuspendedUntil else { return }
+                let deadline = TerminalMainTurnClock.turnStart + Self.frameWaitBudget
+                while !surface.smoothScrollPresented() {
+                    if CACurrentMediaTime() >= deadline {
+                        systemScroll.frameWaitMisses += 1
+                        if systemScroll.frameWaitMisses >= Self.frameWaitMissLimit {
+                            systemScroll.frameWaitMisses = 0
+                            systemScroll.frameWaitSuspendedUntil = CACurrentMediaTime() + Self.frameWaitBackoff
+                        }
+                        return
+                    }
+                    usleep(50)
+                }
+                systemScroll.frameWaitMisses = 0
             }
 
             func systemScrollWillBeginDragging(_ scrollView: UIScrollView) {

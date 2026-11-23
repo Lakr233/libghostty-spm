@@ -69,6 +69,11 @@
             /// the row ahead that way: to the nearer row, half the time it
             /// went back against the glide.
             var caughtDirection: CGFloat = 0
+            /// After the wait for a step's frame timed out
+            /// `frameWaitMissLimit` times in a row
+            /// (`systemScrollWaitForFrame`): no waiting until this time.
+            var frameWaitSuspendedUntil: CFTimeInterval = 0
+            var frameWaitMisses = 0
             /// Pixels the engine's position is ahead of the scroll view's:
             /// engine position = content offset (in pixels) + shift.
             ///
@@ -178,6 +183,7 @@
 
             func installSystemScrollDriver() {
                 guard systemScroll.driver == nil else { return }
+                TerminalMainTurnClock.install()
                 let driver = TerminalScrollDriverView(frame: bounds)
                 driver.autoresizingMask = [.flexibleWidth, .flexibleHeight]
                 driver.backgroundColor = .clear
