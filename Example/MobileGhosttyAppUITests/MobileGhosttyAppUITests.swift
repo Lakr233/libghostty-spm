@@ -660,7 +660,7 @@ import XCTest
                 launchApp()
                 let terminal = try requireTerminalInteractionTarget()
                 typeTerminalText("echo menu-priority\n", in: terminal)
-                terminal.coordinate(withNormalizedOffset: CGVector(dx: 0.12, dy: 0.15)).press(forDuration: Self.longPressDuration)
+                terminal.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.8)).press(forDuration: Self.longPressDuration)
                 XCTAssertTrue(app.menuItems["Select"].waitForExistence(timeout: 4))
                 terminal.coordinate(withNormalizedOffset: CGVector(dx: 0.95, dy: 0.8)).tap()
                 XCTAssertFalse(app.menuItems["Select"].exists)
