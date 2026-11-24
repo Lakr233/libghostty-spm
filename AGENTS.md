@@ -281,6 +281,7 @@ Files in `Platform/Shared/` (both platforms; the Foundation-only ones have unit 
 - `TerminalInputDocument.swift` — UITextInput document positions (empty anchor + marked text) ↔ marked-text offsets
 - `TerminalKeyRepeat.swift` — which held hardware keys the view repeats (iOS and Mac Catalyst), and the repeat timing
 - `TerminalFontSize.swift` — a surface's font size under Ghostty's own rules (steps, clamps, reset, config reload); `TerminalFontSizeAction.swift` — the four font-size actions from a binding-action string or a Cmd key's characters (see "Font Size")
+- `TerminalTouchResampler.swift` — where a finger is at each display refresh and how fast it lifted, from a recognizer's reports (AppKit's touch pan)
 - `TerminalPinchFontZoom.swift` — a pinch as font-size steps and its 4…64 range; `TerminalScrollMomentum.swift` — the glide after a finger lifts, for a view that produces it itself (AppKit's touch pan)
 - `TerminalMainActor.swift` — `terminalRunOnMain` for C callbacks
 - `TerminalView+Process.swift` — `foregroundPid` / `ttyName` on `TerminalView`
@@ -731,6 +732,60 @@ quote.
   only once. `scrollWheel(with:)` is not involved. No macOS 27-only symbol
   is used (`minimumNumberOfTouches` and friends), so the file builds with
   an older SDK.
+- **AppKit, the scroll itself.** What a touch display sends was not
+  known when the pan was written; it is now, from a MacBook Pro's
+  (recordings in `mlamoure/mac-touch-display-probe`, 1,399 report
+  intervals, and AppKit 27.2 disassembled). Reports come 120 times a
+  second, locked to a clock of their own, whole pixels at a time; about 3
+  in 100 are 4 ms or more late and under 1 in 100 is missing. AppKit does
+  not hand them over with the display: each goes through the event queue
+  and reaches the recognizers as it is taken off it
+  (`_NSSendDirectTouchesEvent`), and only a backlog is merged. The run loop
+  is in the event-tracking mode meanwhile, so a timer in the default mode
+  does not fire under a finger. Three things follow, all in `+DirectTouch`:
+  - A report does not scroll. It is added to the finger's travel, and the
+    viewport is moved once a refresh (`directTouchFrame`, a `DisplayLink`
+    of the view's own, paused when nothing moves) to where the finger was
+    5 ms before (`TerminalTouchResampler`, `Platform/Shared`,
+    unit-tested): between two reports, or on from the last at the finger's
+    speed for no longer than they are apart, in whole pixels, and never
+    back against the way the finger last moved. Scrolled straight from the
+    reports, a refresh with none stood still and the next took two steps:
+    1 refresh in 16 replaying the recorded fingers (1 in 27 now), 1 in 2 at
+    60 reports a second or with reports arriving two at a time (1 in 100). The step is made `directTouchFrameOffset` (3 ms) after the
+    refresh, not at it: at the refresh one refresh in seven showed no new
+    frame and another two steps (the frame reaches the layer a couple of
+    milliseconds after the scroll, about where the window server takes its
+    frame). With no display link ticking (a window off screen, a test) a
+    report scrolls at once, as before.
+  - The glide sets off at the finger's speed over its last 25 ms
+    (`TerminalTouchResampler.velocity`), not `velocity(in:)`. The
+    recognizer's is a running average — a fifth of each report's speed and
+    four fifths of what it was, which fits its own log to 3 pt/s — and it
+    stops where the reports stop: of nine recorded fingers that slowed
+    down and lifted it reported 1.7 to 15 times the speed of their last two
+    reports, eight of them over the 50 pt/s a glide needs, and text that
+    had come to rest set off again, at 210–415 pt/s for another 44–100 pt. The
+    glide also moves on the refreshes while they tick (its timer is what
+    moves it otherwise, and what says one is running), and carries on from
+    where the last refresh put the viewport rather than making up the 5 ms
+    in one frame.
+  - The end of a scroll goes on, not back. A lift still moving but too
+    slow to glide (30–50 pt/s) goes to the row ahead, as the trackpad's
+    does; a finger that catches a glide sends it on to the row ahead after
+    `directTouchCatchSettleDelay`; and the tap that stopped a glide is only
+    that (`directTouchDown`, `caughtGlide`), as on iOS — no click for the
+    program and no settling to the nearer row in one frame. While a finger
+    pans or a glide runs, a wakeup does not draw on the main thread
+    (`directTouchIsScrolling` → `wakeupSkipsDraw`), for the reasons given
+    under UIKit's system scroll: replaying the recorded fingers an older
+    frame reached the layer after a newer one 40 times in 9,590 refreshes.
+  All of it was measured without the hardware: a synthetic or a recorded
+  finger on `handleDirectTouchPan`, in a window on a 120 Hz display, and
+  the frame the layer holds read back every half millisecond (every row of
+  the scrollback a grey that encodes its number, so one column of pixels
+  says where the viewport is). A recording does not say where in the
+  refresh a report arrived, so each was replayed at eight phases.
 - **Mac Catalyst.** A finger is a `.direct` `UITouch`; the mouse and the
   trackpad are `.indirectPointer` touches and scroll events (given
   `UIApplicationSupportsIndirectInputEvents`, which the pointer paths
@@ -749,7 +804,8 @@ quote.
   change here needs the same hand check: a tap clicks once, a one-finger
   drag scrolls and selects nothing, a hold over a selection opens the copy
   menu at the lift and scrolling still works after it closes, a pinch
-  zooms, a flick glides.
+  zooms, a flick glides, text dragged to a stop stays there when the
+  finger lifts, and a tap on a glide stops it and clicks nothing.
 
 ### Font Size
 
