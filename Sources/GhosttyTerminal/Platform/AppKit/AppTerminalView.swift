@@ -88,6 +88,9 @@
 
             core.isAttached = { [weak self] in self?.window != nil }
             core.displayLinkContext = .view(self)
+            core.wakeupSkipsDraw = { [weak self] in
+                self?.directTouchIsScrolling ?? false
+            }
             core.scaleFactor = { [weak self] in
                 self?.currentScaleFactor() ?? 2.0
             }

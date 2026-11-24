@@ -60,6 +60,7 @@
             core.setWindowVisible(true)
             if window == nil {
                 stopDirectTouchMomentum()
+                stopDirectTouchFrames()
             }
             if window != nil {
                 // SwiftUI/AppKit can temporarily detach and reattach the terminal view while

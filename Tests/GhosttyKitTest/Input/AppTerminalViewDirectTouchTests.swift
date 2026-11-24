@@ -283,7 +283,7 @@
             let timer = try #require(rig.view.directTouch.momentumTimer)
             let atLift = try #require(firstVisibleLine(of: rig))
 
-            rig.view.directTouch.momentumTimestamp = ProcessInfo.processInfo.systemUptime - 0.05
+            rig.view.directTouch.momentumTimestamp = CACurrentMediaTime() - 0.05
             rig.view.directTouchMomentumTick(timer)
             let gliding = try #require(firstVisibleLine(of: rig))
             #expect(gliding < atLift)
@@ -291,6 +291,179 @@
             rig.tearDown()
             #expect(rig.view.directTouch.momentumTimer == nil)
             #expect(!timer.isValid)
+        }
+
+        /// A recognizer reports the finger when its events arrive; the
+        /// viewport moves once a refresh, to where the finger is by then.
+        @Test(.timeLimit(.minutes(1)))
+        func `with the display link ticking a pan scrolls at the refresh, not at the report`() async throws {
+            let harness = await GhosttySurfaceHarness.make()
+            defer { harness.tearDown() }
+            let rig = AppKitInputRig()
+            defer { rig.tearDown() }
+
+            await waitForSteadyGrid(rig)
+            rig.receive((0 ..< 400).map { "line \($0)\r\n" }.joined())
+            let view = rig.view
+            let scale = Double(view.currentScaleFactor())
+            let start = try #require(view.surface?.smoothScrollPosition()?.pixels)
+            func moved() -> Double { start - (view.surface?.smoothScrollPosition()?.pixels ?? start) }
+            let at = CGPoint(x: 40, y: 40)
+
+            // No refresh yet: the report scrolls by itself, as it did before.
+            view.handleDirectTouchPan(state: .began, translation: .zero, velocity: .zero, location: at)
+            // The refreshes are the test's own from here on.
+            view.stopDirectTouchFrames()
+            view.handleDirectTouchPan(state: .changed, translation: CGPoint(x: 0, y: 6), velocity: .zero, location: at)
+            #expect(abs(moved() - 6 * scale) < 0.01)
+
+            // A refresh ticked a moment ago: reports only add up.
+            view.directTouch.lastFrame = CACurrentMediaTime()
+            view.handleDirectTouchPan(state: .changed, translation: CGPoint(x: 0, y: 4), velocity: .zero, location: at)
+            try await Task.sleep(for: .milliseconds(8))
+            view.directTouch.lastFrame = CACurrentMediaTime()
+            view.handleDirectTouchPan(state: .changed, translation: CGPoint(x: 0, y: 4), velocity: .zero, location: at)
+            #expect(abs(moved() - 6 * scale) < 0.01)
+
+            // The refresh scrolls to where the finger was a moment before
+            // it: between the last two reports.
+            view.directTouchFrameStep(at: CACurrentMediaTime() - AppTerminalView.directTouchFrameOffset)
+            #expect(moved() > 10 * scale)
+            #expect(moved() < 14 * scale)
+
+            // The finger rests, then lifts: no glide, and the lift brings
+            // the rest, to the pixel.
+            try await Task.sleep(for: .milliseconds(80))
+            view.handleDirectTouchPan(state: .ended, translation: CGPoint(x: 0, y: 2), velocity: .zero, location: at)
+            #expect(view.directTouch.momentum == nil)
+            #expect(abs(moved() - 16 * scale) < 0.01)
+            #expect(!view.directTouch.isPanning)
+        }
+
+        /// The glide's timer stands down while refreshes move it, or a
+        /// refresh and a timer tick would each take a step.
+        @Test(.timeLimit(.minutes(1)))
+        func `a glide moves on the refresh while the display link ticks and on its timer otherwise`() async throws {
+            let harness = await GhosttySurfaceHarness.make()
+            defer { harness.tearDown() }
+            let rig = AppKitInputRig()
+            defer { rig.tearDown() }
+
+            rig.receive((0 ..< 400).map { "line \($0)\r\n" }.joined())
+            let view = rig.view
+            pan(rig, by: 10, liftVelocity: 2000)
+            view.stopDirectTouchFrames()
+            let timer = try #require(view.directTouch.momentumTimer)
+            func position() -> Double { view.surface?.smoothScrollPosition()?.pixels ?? 0 }
+
+            view.directTouch.lastFrame = CACurrentMediaTime()
+            view.directTouch.momentumTimestamp = CACurrentMediaTime() - 0.02
+            let held = position()
+            view.directTouchMomentumTick(timer)
+            #expect(position() == held)
+            view.directTouchFrameStep(at: CACurrentMediaTime())
+            #expect(position() < held)
+
+            // The link stopped ticking: the timer takes over again.
+            view.directTouch.lastFrame = 0
+            view.directTouch.momentumTimestamp = CACurrentMediaTime() - 0.02
+            let before = position()
+            view.directTouchMomentumTick(timer)
+            #expect(position() < before)
+        }
+
+        /// The nearer row is behind the finger half the time.
+        @Test(.timeLimit(.minutes(1)))
+        func `a lift still moving but too slow to glide goes on to the row ahead`() async throws {
+            let harness = await GhosttySurfaceHarness.make()
+            defer { harness.tearDown() }
+            let rig = AppKitInputRig()
+            defer { rig.tearDown() }
+
+            await waitForSteadyGrid(rig)
+            rig.receive((0 ..< 400).map { "line \($0)\r\n" }.joined())
+            let row = try rowPoints(of: rig)
+            let before = try #require(firstVisibleLine(of: rig))
+
+            // A third of a row, lifted at 40 pt/s: under the glide's 50,
+            // over the 30 a viewport counts as moving from.
+            pan(rig, by: 0.3 * row, liftVelocity: 40)
+            #expect(rig.view.directTouch.momentum == nil)
+            #expect(await settles(rig))
+            #expect(try before - #require(firstVisibleLine(of: rig)) == 1)
+
+            // Dragged to a stop it goes to the nearer row, as before.
+            pan(rig, by: 0.3 * row)
+            #expect(await settles(rig))
+            #expect(try before - #require(firstVisibleLine(of: rig)) == 1)
+        }
+
+        /// A finger that lands on a glide stops it, and the viewport goes
+        /// on to the row ahead; the tap it turns out to be does nothing
+        /// more — no settling to the nearer row in one frame.
+        @Test(.timeLimit(.minutes(1)))
+        func `a tap that stops a glide leaves the viewport to go on to the row ahead`() async throws {
+            let harness = await GhosttySurfaceHarness.make()
+            defer { harness.tearDown() }
+            let rig = AppKitInputRig()
+            defer { rig.tearDown() }
+
+            await waitForSteadyGrid(rig)
+            rig.receive((0 ..< 400).map { "line \($0)\r\n" }.joined())
+            let view = rig.view
+            let row = try rowPoints(of: rig)
+            pan(rig, by: 2 * row, liftVelocity: 1500)
+            view.stopDirectTouchFrames()
+            // Glide until the viewport is past the middle of a row: the
+            // nearer row is then the one behind it.
+            var position = try #require(view.surface?.smoothScrollPosition())
+            for _ in 0 ..< 200 {
+                view.advanceDirectTouchMomentum(by: 1.0 / 240)
+                position = try #require(view.surface?.smoothScrollPosition())
+                let fraction = position.fraction / Double(position.cellHeight)
+                if fraction > 0.6, fraction < 0.9 { break }
+            }
+            try #require(view.directTouch.momentum != nil)
+            try #require(position.fraction > 0.6 * Double(position.cellHeight))
+            let caught = position
+
+            view.directTouchDown()
+            #expect(view.directTouch.momentum == nil)
+            view.handleDirectTouchTap(at: CGPoint(x: 40, y: 40))
+            // Still between rows: the tap did not settle it.
+            #expect(view.surface?.smoothScrollPosition() == caught)
+
+            #expect(await settles(rig))
+            let settled = try #require(view.surface?.smoothScrollPosition())
+            // On to the row ahead, toward the scrollback: the nearer one
+            // was the next row down.
+            #expect(settled.row == caught.row)
+            #expect(settled.fraction == 0)
+
+            // The next tap is a tap again.
+            #expect(view.directTouch.caughtGlide == nil)
+        }
+
+        /// The main thread's own frame could reach the layer after a newer
+        /// one from the renderer thread.
+        @Test(.timeLimit(.minutes(1)))
+        func `a wakeup does not draw on the main thread while a finger scrolls or a glide runs`() async throws {
+            let harness = await GhosttySurfaceHarness.make()
+            defer { harness.tearDown() }
+            let rig = AppKitInputRig()
+            defer { rig.tearDown() }
+
+            rig.receive((0 ..< 400).map { "line \($0)\r\n" }.joined())
+            let view = rig.view
+            let at = CGPoint(x: 40, y: 40)
+            #expect(!view.core.wakeupSkipsDraw())
+            view.handleDirectTouchPan(state: .began, translation: .zero, velocity: .zero, location: at)
+            #expect(view.core.wakeupSkipsDraw())
+            view.handleDirectTouchPan(state: .ended, translation: CGPoint(x: 0, y: 30), velocity: CGPoint(x: 0, y: 1200), location: at)
+            #expect(view.directTouch.momentum != nil)
+            #expect(view.core.wakeupSkipsDraw())
+            view.stopDirectTouchMomentum()
+            #expect(!view.core.wakeupSkipsDraw())
         }
 
         /// What keeps a Mac without touch input exactly where it was: the
