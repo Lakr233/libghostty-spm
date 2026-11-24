@@ -325,11 +325,14 @@
             view.handleDirectTouchPan(state: .changed, translation: CGPoint(x: 0, y: 4), velocity: .zero, location: at)
             #expect(abs(moved() - 6 * scale) < 0.01)
 
-            // The refresh scrolls to where the finger was a moment before
-            // it: between the last two reports.
+            // The refresh scrolls, to where the finger was a moment before
+            // it: on from where the first of these two reports found the
+            // viewport, no further than the second. Where between them is
+            // a matter of how long the sleep took and of the pixel grid
+            // (`TerminalTouchResamplerTests` holds that part to the clock).
             view.directTouchFrameStep(at: CACurrentMediaTime() - AppTerminalView.directTouchFrameOffset)
-            #expect(moved() > 10 * scale)
-            #expect(moved() < 14 * scale)
+            #expect(moved() > 6 * scale)
+            #expect(moved() <= 14 * scale + 0.01)
 
             // The finger rests, then lifts: no glide, and the lift brings
             // the rest, to the pixel.
