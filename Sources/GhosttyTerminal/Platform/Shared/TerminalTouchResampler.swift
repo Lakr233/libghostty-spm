@@ -37,14 +37,23 @@ struct TerminalTouchResampler {
 
     private var samples: [(time: TimeInterval, position: CGPoint)] = []
     private var handedOut: CGPoint = .zero
+    private var lastAdded: CGPoint = .zero
+    /// Which way the finger last moved on each axis (±1, or 0 before it
+    /// moves), kept across reports that hold still on that axis.
+    private(set) var direction: CGPoint = .zero
 
     /// Forgets the gesture before: positions start from zero again.
     mutating func begin() {
         samples.removeAll(keepingCapacity: true)
         handedOut = .zero
+        lastAdded = .zero
+        direction = .zero
     }
 
     mutating func add(_ position: CGPoint, at time: TimeInterval) {
+        if position.x != lastAdded.x { direction.x = position.x > lastAdded.x ? 1 : -1 }
+        if position.y != lastAdded.y { direction.y = position.y > lastAdded.y ? 1 : -1 }
+        lastAdded = position
         if let last = samples.last, time - last.time < Self.shortestGap {
             samples[samples.count - 1].position = position
             return
@@ -134,25 +143,30 @@ struct TerminalTouchResampler {
     /// the finger last moved — a position carried on past a finger that
     /// slowed down waits for it instead of going back.
     mutating func advance(to refresh: TimeInterval, grid: CGFloat = 0) -> CGPoint {
-        guard var position = position(at: refresh), let last = samples.last else { return .zero }
+        guard var position = position(at: refresh), samples.last != nil else { return .zero }
         if grid > 0 {
             position.x = (position.x / grid).rounded() * grid
             position.y = (position.y / grid).rounded() * grid
         }
-        let before = samples.count >= 2 ? samples[samples.count - 2].position : .zero
         var step = CGPoint(x: position.x - handedOut.x, y: position.y - handedOut.y)
-        if step.x * (last.position.x - before.x) < 0 { step.x = 0 }
-        if step.y * (last.position.y - before.y) < 0 { step.y = 0 }
+        if step.x * direction.x < 0 { step.x = 0 }
+        if step.y * direction.y < 0 { step.y = 0 }
         handedOut.x += step.x
         handedOut.y += step.y
         return step
     }
 
-    /// The scroll that brings what was handed out to the last report
-    /// exactly: the lift, or a report with no refresh to wait for.
-    mutating func finish() -> CGPoint {
+    /// The scroll that brings what was handed out to the last report:
+    /// exact when `followingDirection` is false (a report with no refresh
+    /// to wait for), or never back against the way the finger last moved
+    /// when true (the lift after a prediction that ran ahead).
+    mutating func finish(followingDirection: Bool = false) -> CGPoint {
         guard let last = samples.last else { return .zero }
-        let step = CGPoint(x: last.position.x - handedOut.x, y: last.position.y - handedOut.y)
+        var step = CGPoint(x: last.position.x - handedOut.x, y: last.position.y - handedOut.y)
+        if followingDirection {
+            if step.x * direction.x < 0 { step.x = 0 }
+            if step.y * direction.y < 0 { step.y = 0 }
+        }
         handedOut = last.position
         return step
     }

@@ -59,6 +59,7 @@
             // change says otherwise.
             core.setWindowVisible(true)
             if window == nil {
+                cancelDirectTouchPan()
                 stopDirectTouchMomentum()
                 stopDirectTouchFrames()
             }

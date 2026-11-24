@@ -86,10 +86,26 @@ struct TerminalTouchResamplerTests {
         // 12 ms past the last report: carried on at 480 pt/s.
         let ahead = resampler.advance(to: 1.0 / 60 + 0.012 + TerminalTouchResampler.latency).y
         #expect(ahead > 8)
-        // The finger slowed down; the next report is behind the prediction.
+        // The finger slowed down; the next report is behind the prediction,
+        // and resting on that pixel (even while wobbling on x) still never
+        // steps back.
         resampler.add(CGPoint(x: 0, y: 9), at: 2.0 / 60)
         #expect(resampler.advance(to: 2.0 / 60 + TerminalTouchResampler.latency).y == 0)
+        resampler.add(CGPoint(x: 0.5, y: 9), at: 3.0 / 60)
+        #expect(resampler.advance(to: 3.0 / 60 + TerminalTouchResampler.latency).y == 0)
         #expect(abs(ahead + resampler.finish().y - 9) < 0.001)
+    }
+
+    @Test
+    func `a lift following direction never steps back behind a prediction`() {
+        var resampler = TerminalTouchResampler()
+        resampler.begin()
+        resampler.add(.zero, at: 0)
+        resampler.add(CGPoint(x: 0, y: 8), at: 1.0 / 60)
+        let ahead = resampler.advance(to: 1.0 / 60 + 0.012 + TerminalTouchResampler.latency).y
+        #expect(ahead > 9)
+        resampler.add(CGPoint(x: 0, y: 9), at: 2.0 / 60)
+        #expect(resampler.finish(followingDirection: true) == .zero)
     }
 
     @Test

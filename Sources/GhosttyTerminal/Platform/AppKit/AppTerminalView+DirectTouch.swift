@@ -19,6 +19,7 @@
         /// A pan under way, and the finger's translation since it began.
         var isPanning = false
         var panTranslation: CGPoint = .zero
+        var lastPanReport: TimeInterval = 0
         var resampler = TerminalTouchResampler()
         /// Ticks while a finger pans or a glide runs (`directTouchFrame`).
         var frameDriver: TerminalDirectTouchFrameDriver?
@@ -26,6 +27,8 @@
         var lastFrame: TimeInterval = 0
         /// The time the last refresh's scroll was made for.
         var lastFrameStep: TimeInterval = 0
+        /// Invalidates a pending `directTouchFrame` step when frames stop.
+        var frameToken = 0
         /// When a finger last landed on a glide and stopped it.
         var caughtGlide: TimeInterval?
         var idleFrames = 0
@@ -186,8 +189,9 @@
         }
 
         /// How long after a finger caught a glide its lift still counts as
-        /// the tap that stopped it.
-        static let directTouchCatchTapWindow: TimeInterval = 1
+        /// the tap that stopped it (under `NSPressGestureRecognizer`'s 0.5 s
+        /// hold threshold).
+        static let directTouchCatchTapWindow: TimeInterval = 0.5
 
         /// A tap is the click AppKit's emulation used to send: focus, then
         /// a left press and release where the finger was. A tap that
@@ -303,6 +307,7 @@
                 }
                 directTouch.isPanning = true
                 directTouch.panTranslation = .zero
+                directTouch.lastFrameStep = 0
                 directTouch.resampler.begin()
                 trackDirectTouchPan(translation)
                 startDirectTouchFrames()
@@ -329,14 +334,14 @@
                     startDirectTouchMomentum(velocity: velocity)
                 }
                 if directTouch.momentum == nil {
-                    // Whatever the refreshes have not scrolled yet: the
-                    // viewport ends where the finger left it. Dragged to a
-                    // stop, it then goes to the nearer row; lifted while it
-                    // still moved, too slowly to glide, on to the row ahead
-                    // — the nearer one is behind it half the time, and the
-                    // text went back against the finger. Moving is what it
-                    // is for the trackpad (`smoothScrollMovingSpeed`).
-                    scrollDirectTouch(by: directTouch.resampler.finish(), momentum: .none)
+                    // Whatever the refreshes have not scrolled yet, never
+                    // back behind a prediction that ran ahead: a backwards
+                    // step would jerk a resting viewport at the lift and
+                    // flip `scrollSettler.lastTravel` against a slow lift.
+                    let rest = directTouch.resampler.finish(followingDirection: true)
+                    if rest != .zero {
+                        scrollDirectTouch(by: rest, momentum: .none)
+                    }
                     let moving = abs(velocity.y) >= CGFloat(Self.smoothScrollMovingSpeed)
                     core.scrollSettler.release(followingTravel: moving)
                 }
@@ -347,13 +352,18 @@
                 // to run out.
 
             case .cancelled, .failed:
-                directTouch.isPanning = false
+                cancelDirectTouchPan()
                 stopDirectTouchMomentum()
-                core.scrollSettler.release(followingTravel: false)
 
             default:
                 break
             }
+        }
+
+        func cancelDirectTouchPan() {
+            guard directTouch.isPanning else { return }
+            directTouch.isPanning = false
+            core.scrollSettler.release(followingTravel: false)
         }
 
         /// Adds a report to the finger's travel, and scrolls it at once
@@ -361,6 +371,7 @@
         private func trackDirectTouchPan(_ translation: CGPoint) {
             guard directTouch.isPanning else { return }
             let now = CACurrentMediaTime()
+            directTouch.lastPanReport = now
             directTouch.panTranslation.x += translation.x
             directTouch.panTranslation.y += translation.y
             directTouch.resampler.add(directTouch.panTranslation, at: now)
@@ -376,9 +387,12 @@
         /// viewport crosses posts a wakeup, and the frame the main thread
         /// then drew could reach the layer after a newer one from the
         /// renderer thread — the picture went back a step and stayed there
-        /// for a refresh.
+        /// for a refresh. Bounded by `heldIdleDelay` so a finger held still
+        /// or a pan whose end was lost never starves wakeups indefinitely.
         var directTouchIsScrolling: Bool {
-            directTouch.isPanning || directTouch.momentum != nil
+            if directTouch.momentum != nil { return true }
+            guard directTouch.isPanning else { return false }
+            return CACurrentMediaTime() - directTouch.lastPanReport < TerminalSmoothScrollSettler.heldIdleDelay
         }
 
         private func directTouchFramesAreTicking(at now: TimeInterval) -> Bool {
@@ -395,6 +409,7 @@
         }
 
         func stopDirectTouchFrames() {
+            directTouch.frameToken &+= 1
             directTouch.frameDriver?.link.isPaused = true
             directTouch.lastFrame = 0
         }
@@ -421,8 +436,12 @@
                 directTouchFrameStep(at: refresh)
                 return
             }
+            let token = directTouch.frameToken
             DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
-                MainActor.assumeIsolated { self?.directTouchFrameStep(at: refresh) }
+                MainActor.assumeIsolated {
+                    guard let self, self.directTouch.frameToken == token else { return }
+                    self.directTouchFrameStep(at: refresh)
+                }
             }
         }
 
@@ -431,6 +450,7 @@
         func directTouchFrameStep(at refresh: TimeInterval) {
             let time = refresh + Self.directTouchFrameOffset
             if directTouch.isPanning {
+                guard time > directTouch.lastFrameStep else { return }
                 directTouch.lastFrameStep = time
                 // A finger at rest sends nothing, and neither does this.
                 let step = directTouch.resampler.advance(to: time, grid: 1 / CGFloat(currentScaleFactor()))
@@ -438,6 +458,7 @@
                     scrollDirectTouch(by: step, momentum: .none)
                 }
             } else if directTouch.momentum != nil {
+                guard time > directTouch.momentumTimestamp else { return }
                 advanceDirectTouchMomentum(by: time - directTouch.momentumTimestamp)
                 directTouch.momentumTimestamp = time
             }
@@ -451,6 +472,7 @@
         func handleDirectTouchPinch(state: NSGestureRecognizer.State, scale: CGFloat) {
             switch state {
             case .began:
+                directTouch.caughtGlide = nil
                 stopDirectTouchMomentum()
                 directTouch.pinch.begin(scale: scale)
 

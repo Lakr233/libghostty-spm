@@ -318,26 +318,33 @@
             #expect(abs(moved() - 6 * scale) < 0.01)
 
             // A refresh ticked a moment ago: reports only add up.
-            view.directTouch.lastFrame = CACurrentMediaTime()
+            view.directTouch.lastFrame = CACurrentMediaTime() + 10
             view.handleDirectTouchPan(state: .changed, translation: CGPoint(x: 0, y: 4), velocity: .zero, location: at)
-            try await Task.sleep(for: .milliseconds(8))
-            view.directTouch.lastFrame = CACurrentMediaTime()
+            let firstReport = view.directTouch.lastPanReport
+            try await Task.sleep(for: .milliseconds(16))
+            view.directTouch.lastFrame = CACurrentMediaTime() + 10
             view.handleDirectTouchPan(state: .changed, translation: CGPoint(x: 0, y: 4), velocity: .zero, location: at)
+            let secondReport = view.directTouch.lastPanReport
             #expect(abs(moved() - 6 * scale) < 0.01)
 
-            // The refresh scrolls, to where the finger was a moment before
-            // it: on from where the first of these two reports found the
-            // viewport, no further than the second. Where between them is
-            // a matter of how long the sleep took and of the pixel grid
-            // (`TerminalTouchResamplerTests` holds that part to the clock).
-            view.directTouchFrameStep(at: CACurrentMediaTime() - AppTerminalView.directTouchFrameOffset)
-            #expect(moved() > 6 * scale)
-            #expect(moved() <= 14 * scale + 0.01)
+            // The refresh scrolls to where the finger was a moment before
+            // it: halfway between the last two reports, whatever the runner
+            // slept for or the display's scale is.
+            let halfway = (firstReport + secondReport) / 2 + TerminalTouchResampler.latency - AppTerminalView.directTouchFrameOffset
+            view.directTouchFrameStep(at: halfway)
+            #expect(moved() > 10 * scale)
+            #expect(moved() < 14 * scale)
 
-            // The finger rests, then lifts: no glide, and the lift brings
-            // the rest, to the pixel.
+            // The finger rests, then lifts (even with a stale recognizer
+            // velocity): no glide, and the lift brings the rest, to the pixel.
             try await Task.sleep(for: .milliseconds(80))
-            view.handleDirectTouchPan(state: .ended, translation: CGPoint(x: 0, y: 2), velocity: .zero, location: at)
+            view.directTouch.lastFrame = CACurrentMediaTime() + 10
+            view.handleDirectTouchPan(
+                state: .ended,
+                translation: CGPoint(x: 0, y: 2),
+                velocity: CGPoint(x: 0, y: 400),
+                location: at,
+            )
             #expect(view.directTouch.momentum == nil)
             #expect(abs(moved() - 16 * scale) < 0.01)
             #expect(!view.directTouch.isPanning)
@@ -466,6 +473,79 @@
             #expect(view.directTouch.momentum != nil)
             #expect(view.core.wakeupSkipsDraw())
             view.stopDirectTouchMomentum()
+            #expect(!view.core.wakeupSkipsDraw())
+        }
+
+        /// A slow lift after a refresh predicted past the finger must not
+        /// step back and flip `scrollSettler.lastTravel` against the travel.
+        @Test(.timeLimit(.minutes(1)))
+        func `a slow lift behind an earlier prediction still goes on to the row ahead`() async throws {
+            let harness = await GhosttySurfaceHarness.make()
+            defer { harness.tearDown() }
+            let rig = AppKitInputRig()
+            defer { rig.tearDown() }
+
+            await waitForSteadyGrid(rig)
+            rig.receive((0 ..< 400).map { "line \($0)\r\n" }.joined())
+            let view = rig.view
+            let row = try rowPoints(of: rig)
+            let before = try #require(firstVisibleLine(of: rig))
+            let at = CGPoint(x: 40, y: 40)
+
+            view.handleDirectTouchPan(state: .began, translation: .zero, velocity: .zero, location: at)
+            view.stopDirectTouchFrames()
+            let now = CACurrentMediaTime()
+            view.directTouch.resampler.begin()
+            view.directTouch.resampler.add(.zero, at: now - 0.034)
+            view.directTouch.resampler.add(CGPoint(x: 0, y: 0.2 * row), at: now - 0.026)
+            // Predict ahead to ~0.4 * row (still under half a row, so the
+            // nearer row is `before` and the row ahead is `before - 1`).
+            view.directTouchFrameStep(
+                at: now - 0.018 + TerminalTouchResampler.latency - AppTerminalView.directTouchFrameOffset,
+            )
+            let predicted = try #require(view.surface?.smoothScrollPosition()?.pixels)
+            view.directTouch.resampler.add(CGPoint(x: 0, y: 0.2 * row), at: now - 0.025)
+            view.directTouch.panTranslation = CGPoint(x: 0, y: 0.2 * row)
+            view.directTouch.lastFrame = now
+
+            // Over the last 25 ms the finger moved 1 pt (40 pt/s: under the
+            // glide's 50, over the settler's 30), ending behind `predicted`.
+            view.handleDirectTouchPan(state: .ended, translation: CGPoint(x: 0, y: 1), velocity: CGPoint(x: 0, y: 40), location: at)
+            let atLift = try #require(view.surface?.smoothScrollPosition()?.pixels)
+            #expect(atLift == predicted)
+            #expect(view.directTouch.momentum == nil)
+            #expect(await settles(rig))
+            #expect(try before - #require(firstVisibleLine(of: rig)) == 1)
+        }
+
+        /// Detaching from a window mid-pan clears `isPanning` and releases
+        /// the settler, and a pinch clears `caughtGlide` so the next tap clicks.
+        @Test(.timeLimit(.minutes(1)))
+        func `detaching mid-pan clears wakeup suppression and a pinch clears caught glide`() async throws {
+            let harness = await GhosttySurfaceHarness.make()
+            defer { harness.tearDown() }
+            let rig = AppKitInputRig()
+            defer { rig.tearDown() }
+
+            rig.receive((0 ..< 100).map { "line \($0)\r\n" }.joined())
+            let view = rig.view
+            let at = CGPoint(x: 40, y: 40)
+
+            // Pinching on a glide clears `caughtGlide` so a tap afterwards clicks.
+            pan(rig, by: 20, liftVelocity: 1500)
+            view.stopDirectTouchFrames()
+            view.directTouchDown()
+            #expect(view.directTouch.caughtGlide != nil)
+            view.handleDirectTouchPinch(state: .began, scale: 1)
+            view.handleDirectTouchPinch(state: .ended, scale: 1)
+            #expect(view.directTouch.caughtGlide == nil)
+
+            // Detaching mid-pan stops the pan and restores wakeup draws.
+            view.handleDirectTouchPan(state: .began, translation: CGPoint(x: 0, y: 4), velocity: .zero, location: at)
+            #expect(view.directTouch.isPanning)
+            #expect(view.core.wakeupSkipsDraw())
+            rig.tearDown()
+            #expect(!view.directTouch.isPanning)
             #expect(!view.core.wakeupSkipsDraw())
         }
 
