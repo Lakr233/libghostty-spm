@@ -982,6 +982,19 @@ view's left edge and text baseline in view points (Ghostty divides
 the viewport and the terminal's own columns. `TerminalReadCellsTests`
 covers it, at a content scale of 2 for the units.
 
+### Screen Text
+
+`TerminalSurface.readScreenText(fromRow:)` returns the plain text of the
+screen (scrollback plus the active area) from the start of a row through the
+last cell, without touching the selection, the mouse state or the program's
+input. Rows count from the oldest scrollback row, the units of
+`TerminalScrollbar.total`, so a host can read the last lines of a command
+(start at `total - n`) without knowing the column count. Soft-wrapped rows
+join with no separator and a hard break is `\n`. It returns nil for a
+negative row, a read Ghostty rejects or a freed surface; a row below the
+screen reads as empty text. For exact cell ranges use `readCells`.
+`TerminalReadScreenTextTests` covers it.
+
 ### iOS Touch Text Selection
 
 Inline touch selection is the iOS default: `UITerminalView.usesInlineTextSelection`
